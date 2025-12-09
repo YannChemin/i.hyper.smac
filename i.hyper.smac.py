@@ -149,16 +149,6 @@
 # % guisection: Atmospheric
 # %end
 
-# %option
-# % key: aerosol_type
-# % type: string
-# % required: no
-# % options: continental,maritime,urban,desert
-# % answer: continental
-# % description: Aerosol type
-# % guisection: Atmospheric
-# %end
-
 # %flag
 # % key: k
 # % description: Keep temporary bands
