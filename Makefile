@@ -4,9 +4,24 @@ PGM = i.hyper.smac
 
 include $(MODULE_TOPDIR)/include/Make/Script.make
 include $(MODULE_TOPDIR)/include/Make/Html.make
+include $(MODULE_TOPDIR)/include/Make/Other.make
+include $(MODULE_TOPDIR)/include/Make/Python.make
 
-default: script html $(TEST_DST)
+MODULES = smac aod wvc lradtran
+ETCDIR = $(ETC)/i_hyper_lib
+PYFILES := $(patsubst %,$(ETCDIR)/%.py,$(MODULES))
+
+default: script html $(PYFILES)
 
 # Ensure HTML manual is installed
 $(HTMLDIR)/$(PGM).html: $(PGM).html
 	$(INSTALL_DATA) $(PGM).html $(HTMLDIR)/$(PGM).html
+
+$(ETCDIR):
+	$(MKDIR) $@
+
+$(ETCDIR)/%: % | $(ETCDIR)
+	$(INSTALL_DATA) $< $@
+
+install:
+	cp -r $(ETCDIR) $(INST_DIR)/etc
