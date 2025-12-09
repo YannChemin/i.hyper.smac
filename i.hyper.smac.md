@@ -103,7 +103,7 @@ i.hyper.smac input=hyperspectral output=corrected elevation=dem method=libradtra
 
 ## AUTHORS
 - Original SMAC algorithm: H. Rahman and G. Dedieu
-- GRASS GIS implementation: [Your Name] <your.email@example.com>
+- GRASS GIS implementation: Yann
 
 ## SOURCE CODE
 Available at: [GRASS GIS Addons Repository](https://github.com/OSGeo/grass-addons)
