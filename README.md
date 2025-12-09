@@ -11,7 +11,10 @@ The module is based on the original SMAC algorithm developed by [Rahman and Dedi
 ## FEATURES
 - Supports multiple hyperspectral sensors (AVIRIS, HYPERION, PRISMA, etc.)
 - Two correction methods: simple and libradtran-based
-- Estimates atmospheric parameters using libRadtran (for libradtran method)
+- Automatic estimation of atmospheric parameters:
+  - Aerosol Optical Depth (AOD) using the Dense Dark Vegetation (DDV) method
+  - Water Vapor Content (WVC) using atmospheric absorption features
+- Uses libRadtran for accurate atmospheric simulations (for libradtran method)
 - Handles both per-pixel and scene-average atmospheric correction
 - Preserves the original data structure and metadata
 
@@ -21,6 +24,9 @@ The module is based on the original SMAC algorithm developed by [Rahman and Dedi
 - NumPy
 - PyEphem (for solar zenith angle estimation)
 - libRadtran (for atmospheric simulations)
+- scipy (for interpolation and optimization)
+- pandas (for data handling)
+- scikit-learn (for regression models in AOD estimation)
 
 ## USAGE
 ```bash
@@ -67,7 +73,15 @@ i.hyper.smac input=name output=name elevation=name method=libradtran
 ## EXAMPLES
 ### Simple SMAC with automatic parameter estimation
 ```bash
+# Automatically estimate AOD and water vapor
 i.hyper.smac input=hyperspectral output=corrected elevation=dem sensor=AVIRIS
+```
+
+### Simple SMAC with manual parameter specification
+```bash
+# Manually specify AOD and water vapor
+i.hyper.smac input=hyperspectral output=corrected elevation=dem sensor=AVIRIS \
+  aod=0.2 water_vapor=2.5
 ```
 
 ### Simple SMAC with specific atmospheric parameters
@@ -90,12 +104,27 @@ i.hyper.smac input=hyperspectral output=corrected elevation=dem method=libradtra
 ```
 
 ## NOTES
-- The module will attempt to estimate any missing atmospheric parameters
-- For best results, provide as much metadata as possible
-- The module creates temporary files in the current mapset (use `--keep-temp` to preserve them)
-- The libradtran method requires the libRadtran software to be installed and properly configured
-- The simple method is faster but less accurate than the libradtran method
-- For the libradtran method, the following sensors are supported: PRISMA, AVIRIS, AVIRIS_NG, HYPERION, ENMAP, OSK_GHOST, PIXEL, ESPER, IPERLITE, KUVASPACE_23, KUVASPACE_32, WYVERN_23, WYVERN_32, HYP4U, TANAGER
+- **Automatic Parameter Estimation**:
+  - AOD is estimated using the Dense Dark Vegetation (DDV) method, which identifies dark vegetation pixels and uses their reflectance in the blue region
+  - Water vapor is estimated using atmospheric absorption features around 940nm and 1130nm
+  - If estimation fails, default values are used (AOD=0.15, Water Vapor=2.0 g/cm²)
+  
+- **Performance Considerations**:
+  - The simple method is faster but less accurate than the libradtran method
+  - AOD and WVC estimation add computational overhead but improve accuracy
+  - The module creates temporary files in the current mapset (use `--keep-temp` to preserve them)
+
+- **Requirements**:
+  - The libradtran method requires the libRadtran software to be installed and properly configured
+  - Additional Python packages (scipy, pandas, scikit-learn) are required for parameter estimation
+
+- **Supported Sensors**:
+  - PRISMA, AVIRIS, AVIRIS_NG, HYPERION, ENMAP, OSK_GHOST, PIXEL, ESPER, IPERLITE, KUVASPACE_23, KUVASPACE_32, WYVERN_23, WYVERN_32, HYP4U, TANAGER
+
+- **Best Practices**:
+  - For best results, provide as much metadata as possible
+  - Verify the estimated parameters using the module's output messages
+  - Consider using the `--keep-temp` flag for debugging if results are unexpected
 
 ## REFERENCES
 - Rahman, H., & Dedieu, G. (1994). SMAC: a simplified method for the atmospheric correction of satellite measurements in the solar spectrum. *International Journal of Remote Sensing*, 15(1), 123-143.
