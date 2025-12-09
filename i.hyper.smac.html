@@ -17,11 +17,15 @@ href="https://doi.org/10.1016/0034-4257(94)90119-8">Rahman and Dedieu
 href="https://github.com/olivierhagolle/SMAC">Olivier Hagolle</a>.</p>
 <h2 id="features">FEATURES</h2>
 <ul>
-<li>Supports multiple hyperspectral sensors (AVIRIS, HYPERION, PRISMA,
-etc.)</li>
+<li>Supports multiple hyperspectral sensors (AVIRIS, HYPERION, PRISMA, etc.)</li>
 <li>Two correction methods: simple and libradtran-based</li>
-<li>Estimates atmospheric parameters using libRadtran (for libradtran
-method)</li>
+<li>Automatic estimation of atmospheric parameters:
+  <ul>
+    <li>Aerosol Optical Depth (AOD) using the Dense Dark Vegetation (DDV) method</li>
+    <li>Water Vapor Content (WVC) using atmospheric absorption features</li>
+  </ul>
+</li>
+<li>Uses libRadtran for accurate atmospheric simulations (for libradtran method)</li>
 <li>Handles both per-pixel and scene-average atmospheric correction</li>
 <li>Preserves the original data structure and metadata</li>
 </ul>
@@ -32,6 +36,9 @@ method)</li>
 <li>NumPy</li>
 <li>PyEphem (for solar zenith angle estimation)</li>
 <li>libRadtran (for atmospheric simulations)</li>
+<li>scipy (for interpolation and optimization)</li>
+<li>pandas (for data handling)</li>
+<li>scikit-learn (for regression models in AOD estimation)</li>
 </ul>
 <h2 id="usage">USAGE</h2>
 <div class="sourceCode" id="cb1"><pre
@@ -92,10 +99,14 @@ provided, will be generated)</li>
 will be estimated from AOD)</li>
 </ul>
 <h2 id="examples">EXAMPLES</h2>
-<h3 id="simple-smac-with-automatic-parameter-estimation">Simple SMAC
-with automatic parameter estimation</h3>
-<div class="sourceCode" id="cb2"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">i.hyper.smac</span> input=hyperspectral output=corrected elevation=dem sensor=AVIRIS</span></code></pre></div>
+<h3 id="simple-smac-with-automatic-parameter-estimation">Simple SMAC with automatic parameter estimation</h3>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Automatically estimate AOD and water vapor</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">i.hyper.smac</span> input=hyperspectral output=corrected elevation=dem sensor=AVIRIS</span></code></pre></div>
+
+<h3 id="simple-smac-with-manual-parameters">Simple SMAC with manual parameter specification</h3>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Manually specify AOD and water vapor</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">i.hyper.smac</span> input=hyperspectral output=corrected elevation=dem sensor=AVIRIS <span class="kw">\</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  aod=0.2 water_vapor=2.5</span></code></pre></div>
 <h3 id="simple-smac-with-specific-atmospheric-parameters">Simple SMAC
 with specific atmospheric parameters</h3>
 <div class="sourceCode" id="cb3"><pre
@@ -113,20 +124,32 @@ table with Libradtran</h3>
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">i.hyper.smac</span> input=hyperspectral output=corrected elevation=dem method=libradtran <span class="dt">\</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  sensor=PRISMA aot_lut=aot_lookup.txt solar_zenith=30</span></code></pre></div>
 <h2 id="notes">NOTES</h2>
+<h3>Automatic Parameter Estimation</h3>
 <ul>
-<li>The module will attempt to estimate any missing atmospheric
-parameters</li>
-<li>For best results, provide as much metadata as possible</li>
-<li>The module creates temporary files in the current mapset (use
-<code>--keep-temp</code> to preserve them)</li>
-<li>The libradtran method requires the libRadtran software to be
-installed and properly configured</li>
-<li>The simple method is faster but less accurate than the libradtran
-method</li>
-<li>For the libradtran method, the following sensors are supported:
-PRISMA, AVIRIS, AVIRIS_NG, HYPERION, ENMAP, OSK_GHOST, PIXEL, ESPER,
-IPERLITE, KUVASPACE_23, KUVASPACE_32, WYVERN_23, WYVERN_32, HYP4U,
-TANAGER</li>
+  <li><strong>AOD Estimation</strong>: Uses the Dense Dark Vegetation (DDV) method, which identifies dark vegetation pixels and uses their reflectance in the blue region</li>
+  <li><strong>Water Vapor Estimation</strong>: Uses atmospheric absorption features around 940nm and 1130nm</li>
+  <li><strong>Fallback Values</strong>: If estimation fails, default values are used (AOD=0.15, Water Vapor=2.0 g/cm²)</li>
+</ul>
+<h3>Performance Considerations</h3>
+<ul>
+  <li>The simple method is faster but less accurate than the libradtran method</li>
+  <li>AOD and WVC estimation add computational overhead but improve accuracy</li>
+  <li>The module creates temporary files in the current mapset (use <code>--keep-temp</code> to preserve them)</li>
+</ul>
+<h3>Requirements</h3>
+<ul>
+  <li>The libradtran method requires the libRadtran software to be installed and properly configured</li>
+  <li>Additional Python packages (scipy, pandas, scikit-learn) are required for parameter estimation</li>
+</ul>
+<h3>Supported Sensors</h3>
+<ul>
+  <li>PRISMA, AVIRIS, AVIRIS_NG, HYPERION, ENMAP, OSK_GHOST, PIXEL, ESPER, IPERLITE, KUVASPACE_23, KUVASPACE_32, WYVERN_23, WYVERN_32, HYP4U, TANAGER</li>
+</ul>
+<h3>Best Practices</h3>
+<ul>
+  <li>For best results, provide as much metadata as possible</li>
+  <li>Verify the estimated parameters using the module's output messages</li>
+  <li>Consider using the <code>--keep-temp</code> flag for debugging if results are unexpected</li>
 </ul>
 <h2 id="references">REFERENCES</h2>
 <ul>
