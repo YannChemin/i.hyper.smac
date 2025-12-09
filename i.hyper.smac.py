@@ -88,13 +88,6 @@
 # % guisection: Atmospheric
 # %end
 
-# %option G_OPT_V_INPUT
-# % key: aot_lut
-# % required: no
-# % description: Look-up table for AOD estimation (if not provided, will be generated)
-# % guisection: Atmospheric
-# %end
-
 # %option
 # % key: sensor
 # % type: string
@@ -160,6 +153,12 @@ import os
 import tempfile
 import numpy as np
 import grass.script as gs
+from pathlib import Path
+
+# Import estimation modules
+sys.path.append(str(Path(__file__).parent))
+from wvc import estimate_wvc
+from aod import estimate_aod
 
 def check_dependencies():
     """Check if required Python modules are available."""
@@ -406,16 +405,17 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
         aerosol_type (str): Type of aerosol model
         keep_temp (bool): Whether to keep temporary files
     """
-    # Implementation of libradtran-based correction
-    gs.message("Applying libradtran-based SMAC atmospheric correction...")
+    from lradtran import get_smac_parameters
     
-    # Create temporary directory
-    temp_dir = Path(tempfile.mkdtemp())
+    gs.message("Applying libradtran-based SMAC atmospheric correction...")
+    temp_dir = Path(tempfile.mkdtemp(prefix='smac_libradtran_'))
     
     try:
         # Process each band
-        for i, band in enumerate(bands):
-            band_num = i + 1
+        output_bands = []
+        
+        for band in bands:
+            band_num = band['band_num']
             wavelength = band['wavelength']
             
             # Skip bands outside the valid range for libradtran
@@ -426,30 +426,73 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
             gs.message(f"Processing band {band_num}: {wavelength} nm")
             
             # Extract single band
-            temp_band = temp_dir / f"band_{band_num}.tif"
-            gs.run_command('r3.to.rast', input=input_raster, output=f"{output_raster}_band{band_num}", 
-                          type='CELL', overwrite=True)
+            band_name = f"{output_raster}_band{band_num}"
+            gs.run_command('r3.to.rast', input=input_raster, output=band_name,
+                          level=band_num, overwrite=True)
             
-            # Here you would add the actual libradtran processing
-            # This is a placeholder for the actual implementation
-            
-            # For now, just copy the band to the output
-            gs.run_command('g.copy', raster=[f"{output_raster}_band{band_num}", 
-                                           f"{output_raster}_corr_band{band_num}"])
+            try:
+                # Get SMAC parameters from libRadtran
+                smac_params = get_smac_parameters(
+                    wavelength=wavelength,
+                    fwhm=band.get('fwhm', 10.0),  # Default to 10nm if not specified
+                    sza=solar_zenith,
+                    aod_550=aod,
+                    water_vapor=water_vapor,
+                    ozone=ozone,
+                    surface_albedo=0.1,  # Initial guess, will be updated
+                    aerosol_type=aerosol_type,
+                    verbose=gs.verbosity() > 0
+                )
+                
+                # Apply atmospheric correction using SMAC parameters
+                # rho_surface = (L_toa - L_p) / (T_dir * T_dif) - s * rho_surface
+                # Solving for rho_surface: rho_surface = (L_toa - L_p) / (T_dir * T_dif + s * (L_toa - L_p))
+                
+                corrected_band = f"{band_name}_corr"
+                expr = (
+                    f"{corrected_band} = float({band_name} - {smac_params['path_radiance']}) / "
+                    f"({smac_params['direct_transmittance']} * {smac_params['diffuse_transmittance']} + "
+                    f"{smac_params['spherical_albedo']} * ({band_name} - {smac_params['path_radiance']}))"
+                )
+                
+                gs.run_command('r.mapcalc', expression=expr, overwrite=True, quiet=True)
+                output_bands.append(corrected_band)
+                
+            except Exception as e:
+                gs.warning(f"Error processing band {band_num}: {str(e)}")
+                # If correction fails, use original band
+                output_bands.append(band_name)
         
         # Combine corrected bands back into a 3D raster
-        gs.run_command('r.to.rast3', input=f"{output_raster}_corr_band*", 
-                      output=output_raster, overwrite=True)
+        if output_bands:
+            gs.message("Combining corrected bands...")
+            gs.run_command('r.to.rast3', input=','.join(output_bands), 
+                          output=output_raster, overwrite=True)
+        else:
+            gs.fatal("No bands were successfully processed")
+            
+    except Exception as e:
+        gs.fatal(f"Error in libradtran processing: {str(e)}")
         
     finally:
+        # Clean up temporary files
         if not keep_temp:
-            # Clean up temporary files
-            gs.run_command('g.remove', flags='f', type='raster', 
-                          pattern=f"{output_raster}_band*")
-            gs.run_command('g.remove', flags='f', type='raster', 
-                          pattern=f"{output_raster}_corr_band*")
+            gs.message("Cleaning up temporary files...")
+            temp_bands = gs.parse_command('g.list', type='raster', 
+                                         pattern=f"{output_raster}_band*", 
+                                         mapset='.')
+            if temp_bands:
+                gs.run_command('g.remove', flags='f', type='raster', 
+                              name=','.join(temp_bands), quiet=True)
             
-    gs.message("Libradtran-based atmospheric correction completed")
+            temp_bands_corr = gs.parse_command('g.list', type='raster', 
+                                             pattern=f"{output_raster}_band*_corr", 
+                                             mapset='.')
+            if temp_bands_corr:
+                gs.run_command('g.remove', flags='f', type='raster', 
+                              name=','.join(temp_bands_corr), quiet=True)
+    
+    gs.message(f"Libradtran-based atmospheric correction complete: {output_raster}")
 
 def main():
     """Main function."""
@@ -472,14 +515,48 @@ def main():
     if options['aod']:
         aod = float(options['aod'])
     else:
-        gs.warning("AOD not provided, using default value")
-        aod = estimate_default_aod()
+        gs.message("AOD not provided, estimating from hyperspectral data...")
+        try:
+            # Estimate AOD from hyperspectral data using DDV method
+            aod_map, aod = estimate_aod(
+                input_raster=input_raster,
+                dem=dem,
+                method='ddv',
+                verbose=gs.verbosity() > 0
+            )
+            gs.message(f"Estimated AOD @ 550nm: {aod:.3f}")
+            
+            # Register the AOD map for cleanup if not keeping temp files
+            if not keep_temp:
+                gs.run_command('g.remove', type='raster', name=aod_map, flags='f', quiet=True)
+                
+        except Exception as e:
+            gs.warning(f"Failed to estimate AOD from data: {str(e)}")
+            gs.warning("Falling back to default AOD value")
+            aod = estimate_default_aod()
     
     if options['water_vapor']:
         water_vapor = float(options['water_vapor'])
     else:
-        gs.warning("Water vapor not provided, using default value")
-        water_vapor = estimate_default_wvc()
+        gs.message("Water vapor not provided, estimating from hyperspectral data...")
+        try:
+            # Estimate WVC from hyperspectral data
+            wvc_map, water_vapor = estimate_wvc(
+                input_raster=input_raster,
+                dem=dem,
+                method='average',
+                verbose=gs.verbosity() > 0
+            )
+            gs.message(f"Estimated water vapor content: {water_vapor:.2f} g/cm²")
+            
+            # Register the WVC map for cleanup if not keeping temp files
+            if not keep_temp:
+                gs.run_command('g.remove', type='raster', name=wvc_map, flags='f', quiet=True)
+                
+        except Exception as e:
+            gs.warning(f"Failed to estimate water vapor from data: {str(e)}")
+            gs.warning("Falling back to default water vapor value")
+            water_vapor = estimate_default_wvc()
     
     ozone = float(options['ozone'])
     
