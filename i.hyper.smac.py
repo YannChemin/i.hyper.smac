@@ -155,22 +155,22 @@ import numpy as np
 import grass.script as gs
 from pathlib import Path
 
-# Import estimation modules
-sys.path.append(str(Path(__file__).parent))
-from wvc import estimate_wvc
-from aod import estimate_aod
+script_path = Path(__file__).parent
+lib_path = script_path / "i_hyper_lib"
 
-def check_dependencies():
-    """Check if required Python modules are available."""
-    missing = []
+if lib_path.exists():
+    sys.path.insert(0, str(lib_path))
     try:
-        import numpy
-    except ImportError:
-        missing.append('numpy')
-    
-    if missing:
-        gs.fatal(f"Missing required Python modules: {', '.join(missing)}\n"
-                f"Install with: pip install {' '.join(missing)}")
+        import lradtran
+        import aod
+        import wvc
+        estimate_aod = aod.estimate_aod
+        estimate_wvc = wvc.estimate_wvc
+        get_smac_paramters = lradtran.get_smac_parameters
+    except ImportError as e:
+        gs.fatal(f"Cannot import required modules. Make sure wvc.py and aod.py are in {script_dir}\n"
+             f"Error: {e}")
+
 
 def get_raster3d_info(raster3d):
     """Get information about 3D raster."""
@@ -271,14 +271,6 @@ def estimate_pressure_from_dem(dem):
     
     gs.message(f"Estimated pressure from DEM: {pressure:.2f} hPa (elevation: {elevation:.1f} m)")
     return pressure
-
-def estimate_default_aod():
-    """Return default AOD value."""
-    return 0.15  # Typical clear atmosphere
-
-def estimate_default_wvc():
-    """Return default water vapor content."""
-    return 2.0  # g/cm² - typical mid-latitude value
 
 def apply_smac_correction_simple(input_raster, output_raster, bands, 
                                 aod, water_vapor, ozone, pressure,
@@ -405,7 +397,6 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
         aerosol_type (str): Type of aerosol model
         keep_temp (bool): Whether to keep temporary files
     """
-    from lradtran import get_smac_parameters
     
     gs.message("Applying libradtran-based SMAC atmospheric correction...")
     temp_dir = Path(tempfile.mkdtemp(prefix='smac_libradtran_'))
@@ -459,17 +450,12 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
                 output_bands.append(corrected_band)
                 
             except Exception as e:
-                gs.warning(f"Error processing band {band_num}: {str(e)}")
-                # If correction fails, use original band
-                output_bands.append(band_name)
+                gs.fatal(f"Error processing band {band_num}: {str(e)}")
         
         # Combine corrected bands back into a 3D raster
-        if output_bands:
-            gs.message("Combining corrected bands...")
-            gs.run_command('r.to.rast3', input=','.join(output_bands), 
+        gs.message("Combining corrected bands...")
+        gs.run_command('r.to.rast3', input=','.join(output_bands), 
                           output=output_raster, overwrite=True)
-        else:
-            gs.fatal("No bands were successfully processed")
             
     except Exception as e:
         gs.fatal(f"Error in libradtran processing: {str(e)}")
@@ -495,9 +481,7 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
     gs.message(f"Libradtran-based atmospheric correction complete: {output_raster}")
 
 def main():
-    """Main function."""
-    check_dependencies()
-    
+    """Main function."""    
     options, flags = gs.parser()
     
     input_raster = options['input']
@@ -512,29 +496,29 @@ def main():
     else:
         pressure = estimate_pressure_from_dem(dem)
     
+    # Initialize default AOD value.
+    aod = 0.15  # Typical clear atmosphere
+
     if options['aod']:
         aod = float(options['aod'])
     else:
         gs.message("AOD not provided, estimating from hyperspectral data...")
-        try:
-            # Estimate AOD from hyperspectral data using DDV method
-            aod_map, aod = estimate_aod(
-                input_raster=input_raster,
-                dem=dem,
-                method='ddv',
-                verbose=gs.verbosity() > 0
-            )
-            gs.message(f"Estimated AOD @ 550nm: {aod:.3f}")
+        # Estimate AOD from hyperspectral data using DDV method
+        aod_map, aod = estimate_aod(
+            input_raster=input_raster,
+            dem=dem,
+            method='ddv',
+            verbose=gs.verbosity() > 0
+        )
+        gs.message(f"Estimated AOD @ 550nm: {aod:.3f}")
             
-            # Register the AOD map for cleanup if not keeping temp files
-            if not keep_temp:
-                gs.run_command('g.remove', type='raster', name=aod_map, flags='f', quiet=True)
+        # Register the AOD map for cleanup if not keeping temp files
+        if not keep_temp:
+            gs.run_command('g.remove', type='raster', name=aod_map, flags='f', quiet=True)
                 
-        except Exception as e:
-            gs.warning(f"Failed to estimate AOD from data: {str(e)}")
-            gs.warning("Falling back to default AOD value")
-            aod = estimate_default_aod()
-    
+    # Initialize default water vapor content.
+    water_vapor = 2.0  # g/cm² - typical mid-latitude value
+
     if options['water_vapor']:
         water_vapor = float(options['water_vapor'])
     else:
@@ -591,7 +575,7 @@ def main():
         sensor_type = options.get('sensor', '').upper()
         aot_lut = options.get('aot_lut')
         visibility = float(options['visibility']) if options.get('visibility') else None
-        aerosol_type = options.get('aerosol_type', 'continental')
+        aerosol_type = options.get('aerosol_type', 'continental') # continental is default
         
         gs.message(f"  Sensor: {sensor_type}")
         gs.message(f"  Aerosol type: {aerosol_type}")
