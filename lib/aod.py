@@ -6,10 +6,14 @@ AOD (Aerosol Optical Depth) estimation module for hyperspectral imagery.
 This module provides functions to estimate Aerosol Optical Depth at 550nm
 from hyperspectral data using various methods including the Dense Dark
 Vegetation (DDV) method and other empirical approaches.
+
+FIXES:
+- Simplified band information extraction using r3.info metadata
+- Optimized band extraction with proper 3D region handling
+- Improved error handling and verbose output
 """
 
 import os
-import numpy as np
 import grass.script as gs
 
 # Wavelengths for common AOD estimation methods (in nm)
@@ -23,90 +27,6 @@ DEFAULT_AOD_MIN = 0.01
 DEFAULT_AOD_MAX = 1.5
 DEFAULT_NDVI_THRESHOLD = 0.7      # NDVI threshold for DDV pixels
 DEFAULT_DARK_PIXEL_THRESHOLD = 0.1 # Reflectance threshold for dark pixels
-
-
-def get_raster3d_info(raster3d):
-    """Get information about 3D raster."""
-    try:
-        info = gs.raster3d_info(raster3d)
-        return info
-    except Exception as e:
-        gs.fatal(f"Cannot get info for 3D raster {raster3d}: {e}")
-
-
-def parse_wavelength_from_metadata(raster3d, band_num):
-    """Parse wavelength from band metadata by extracting to temporary 2D raster."""
-    temp_band = f"tmp_aod_meta_{os.getpid()}_{band_num}"
-    
-    try:
-        # Extract single level from 3D raster
-        gs.run_command('r3.to.rast', input=raster3d, output=temp_band,
-                      level=band_num, quiet=True, overwrite=True)
-        
-        # Read metadata
-        result = gs.read_command('r.support', map=temp_band, flags='n')
-        
-        wavelength = None
-        fwhm = None
-        valid = True
-        unit = "nm"
-        
-        for line in result.split('\n'):
-            line = line.strip()
-            if line.startswith('wavelength='):
-                wavelength = float(line.split('=')[1])
-            elif line.startswith('FWHM='):
-                fwhm = float(line.split('=')[1])
-            elif line.startswith('valid='):
-                valid = int(line.split('=')[1]) == 1
-            elif line.startswith('unit='):
-                unit = line.split('=')[1].strip()
-        
-        return wavelength, fwhm, valid, unit
-        
-    except Exception as e:
-        gs.warning(f"Could not read metadata for band {band_num}: {e}")
-        return None, None, True, "nm"
-    finally:
-        # Clean up temporary band
-        if gs.find_file(temp_band, element='cell')['file']:
-            gs.run_command('g.remove', type='raster', name=temp_band, 
-                          flags='f', quiet=True)
-
-
-def convert_wavelength_to_nm(wavelength, unit):
-    """Convert wavelength to nanometers."""
-    unit = unit.lower().strip()
-    
-    if unit in ['nm', 'nanometer', 'nanometers']:
-        return wavelength
-    elif unit in ['um', 'µm', 'micrometer', 'micrometers', 'micron', 'microns']:
-        return wavelength * 1000.0
-    elif unit in ['m', 'meter', 'meters']:
-        return wavelength * 1e9
-    else:
-        gs.warning(f"Unknown wavelength unit '{unit}', assuming nanometers")
-        return wavelength
-
-
-def extract_band_to_2d(raster3d, band_num, output_name=None):
-    """Extract a band from 3D raster to 2D raster.
-    
-    Args:
-        raster3d (str): Name of the 3D raster
-        band_num (int): Band number to extract
-        output_name (str, optional): Output raster name. If None, generates temp name.
-        
-    Returns:
-        str: Name of the extracted 2D raster
-    """
-    if output_name is None:
-        output_name = f"tmp_aod_band_{os.getpid()}_{band_num}"
-    
-    gs.run_command('r3.to.rast', input=raster3d, output=output_name,
-                  level=band_num, quiet=True, overwrite=True)
-    
-    return output_name
 
 
 class AODEstimator:
@@ -134,49 +54,55 @@ class AODEstimator:
         self._get_band_info()
     
     def _get_band_info(self):
-        """Extract band information from the input raster."""
-        info = get_raster3d_info(self.input_raster)
-        num_bands = int(info['depths'])
-        
-        if self.verbose:
-            gs.message(f"Scanning {num_bands} bands for wavelength metadata...")
-        
-        # Get band metadata
-        for i in range(1, num_bands + 1):
-            wavelength, fwhm, valid, unit = parse_wavelength_from_metadata(
-                self.input_raster, i
-            )
+        """Extract band information from the input raster metadata."""
+        try:
+            # Get the full metadata from the 3D raster
+            info = gs.raster3d_info(self.input_raster)
+            history = gs.read_command('r3.info', flags='h', map=self.input_raster)
             
-            if wavelength is not None:
-                wavelength_nm = convert_wavelength_to_nm(wavelength, unit)
-                self.band_info.append({
-                    'band': i,
-                    'wavelength': wavelength_nm,
-                    'fwhm': fwhm if fwhm else 10,
-                    'valid': valid
-                })
-                
-                if self.verbose:
-                    gs.verbose(f"Band {i}: {wavelength_nm:.2f} nm (valid: {valid})")
+            # Parse band information from the history
+            self.band_info = []
+            for line in history.split('\n'):
+                if line.strip().startswith('Band '):
+                    try:
+                        # Parse line like: "Band 1: 376.44000244140625 nm, FWHM: 5.389999866485596 nm"
+                        parts = line.split('Band ')[1].split(':')
+                        band_num = int(parts[0].strip())
+                        wavelength = float(parts[1].split('nm')[0].strip())
+                        fwhm = float(parts[2].split('nm')[0].strip())
+                        
+                        self.band_info.append({
+                            'band': band_num,
+                            'wavelength': wavelength,
+                            'fwhm': fwhm,
+                            'valid': True
+                        })
+                    except (ValueError, IndexError) as e:
+                        if self.verbose:
+                            gs.warning(f"Error parsing band info: {line} - {e}")
+            
+            if not self.band_info:
+                # Fallback to the original method if no bands were found
+                gs.warning("No band information found in history, using default band numbers")
+                for i in range(1, info['depths'] + 1):
+                    self.band_info.append({
+                        'band': i,
+                        'wavelength': i,  # Just use band number as wavelength
+                        'fwhm': 10.0,     # Default FWHM
+                        'valid': True
+                    })
+            
+            if self.verbose:
+                gs.message(f"Found {len(self.band_info)} bands in metadata")
+                for band in self.band_info[:5]:  # Show first 5 bands as example
+                    gs.verbose(f"Band {band['band']}: {band['wavelength']:.2f} nm")
+                if len(self.band_info) > 5:
+                    gs.verbose("...")
+                    gs.verbose(f"Band {self.band_info[-1]['band']}: {self.band_info[-1]['wavelength']:.2f} nm")
+                    
+        except Exception as e:
+            gs.fatal(f"Error getting band information: {e}")
         
-        if not self.band_info:
-            # Fallback: use sensor config or default wavelength range
-            gs.warning("No wavelength metadata found, using default wavelength distribution")
-            
-            if self.sensor_config and 'range' in self.sensor_config:
-                min_wl, max_wl = self.sensor_config['range']
-            else:
-                min_wl, max_wl = 400, 2500
-            
-            for i in range(1, num_bands + 1):
-                wavelength = min_wl + (max_wl - min_wl) * (i - 1) / (num_bands - 1)
-                self.band_info.append({
-                    'band': i,
-                    'wavelength': wavelength,
-                    'fwhm': 10,
-                    'valid': True
-                })
-    
     def _find_nearest_band(self, target_wavelength):
         """Find the band closest to the target wavelength.
         
@@ -188,6 +114,48 @@ class AODEstimator:
         """
         return min(self.band_info, key=lambda x: abs(x['wavelength'] - target_wavelength))
     
+    def extract_band_to_2d(self, band_num, output_map=None):
+        """Extract a single band from 3D raster to 2D raster using a 3D mask."""
+        if not output_map:
+            import time
+            import random
+            output_map = f"tmp_band_{band_num}_{int(time.time())}_{random.randint(1000, 9999)}"
+    
+        try:
+            # Create a 3D mask for the specific band
+            mask_name = f"tmp_mask_{int(time.time())}_{random.randint(1000, 9999)}"
+            
+            # Create a 3D mask where only the desired band is 1, others are null
+            gs.run_command('r3.mapcalc',
+                          expression=f"{mask_name} = if(z() == {band_num}, 1, -9999.9)",
+                          overwrite=gs.overwrite())
+            
+            # Set the 3D mask
+            gs.run_command('g.remove', flags='f', type='raster_3d', name="RASTER3D_MASK", quiet=True)
+            gs.run_command('r3.mask', map=mask_name, maskvalues=-9999.9, quiet=True)
+            
+            # Extract the band using r3.to.rast with the mask
+            gs.run_command('r3.to.rast',
+                          input=self.input_raster,
+                          output=output_map,
+                          overwrite=gs.overwrite(),
+                          flags='rm'  # Use 3D mask and maintain resolution
+                          )
+            
+            # Clean up the mask
+            gs.run_command('g.remove', flags='f', type='raster_3d', name=mask_name, quiet=True)
+            
+            # Add to temporary maps for cleanup
+            self.temp_maps.append(output_map)
+            
+            return output_map
+            
+        except Exception as e:
+            # Ensure mask is removed even if there's an error
+            if 'mask_name' in locals():
+                gs.run_command('g.remove', flags='f', type='raster_3d', name=mask_name, quiet=True)
+            gs.fatal(f"Error extracting band {band_num}: {e}")
+            
     def _calculate_ndvi(self):
         """Calculate NDVI (Normalized Difference Vegetation Index)."""
         # Find nearest bands for red and NIR
@@ -199,9 +167,8 @@ class AODEstimator:
             gs.message(f"Using band {nir_band['band']} ({nir_band['wavelength']:.1f} nm) for NIR")
         
         # Extract bands from 3D raster
-        red_map = extract_band_to_2d(self.input_raster, red_band['band'])
-        nir_map = extract_band_to_2d(self.input_raster, nir_band['band'])
-        self.temp_maps.extend([red_map, nir_map])
+        red_map = self.extract_band_to_2d(red_band['band'])
+        nir_map = self.extract_band_to_2d(nir_band['band'])
         
         # Calculate NDVI: (NIR - Red) / (NIR + Red)
         ndvi_map = f"tmp_aod_ndvi_{os.getpid()}"
@@ -224,8 +191,7 @@ class AODEstimator:
             gs.message(f"Using band {blue_band['band']} ({blue_band['wavelength']:.1f} nm) for AOD estimation")
         
         # Extract blue band from 3D raster
-        blue_map = extract_band_to_2d(self.input_raster, blue_band['band'])
-        self.temp_maps.append(blue_map)
+        blue_map = self.extract_band_to_2d(blue_band['band'])
         
         # Create mask for DDV pixels (high NDVI and low blue reflectance)
         ddv_mask = f"tmp_aod_ddv_mask_{os.getpid()}"
@@ -249,11 +215,8 @@ class AODEstimator:
             gs.message(f"Found {ddv_count} DDV pixels for AOD estimation")
         
         # For DDV pixels, estimate AOD from blue band reflectance
-        # This is a simplified model based on the relationship between
-        # blue band reflectance and aerosol loading over dark vegetation
         aod_est = f"tmp_aod_est_{os.getpid()}"
         # Simplified DDV relationship: AOD ≈ -k * ln(rho_blue / rho_min)
-        # where rho_min is the minimum expected reflectance for DDV
         expr = f"{aod_est} = if({ddv_mask}, -0.15 * log(({blue_map} + 0.001) / 0.01), null())"
         gs.run_command('r.mapcalc', expression=expr, overwrite=True, quiet=not self.verbose)
         self.temp_maps.append(aod_est)
@@ -355,7 +318,6 @@ def estimate_aod(input_raster, dem, method='ddv', sensor_config=None, verbose=Fa
 
 if __name__ == "__main__":
     # Example usage
-    # python aod.py prisma_hyper dem=dem_10m --method=ddv --verbose
     import argparse
     
     parser = argparse.ArgumentParser(description='Estimate AOD from hyperspectral data')
