@@ -155,8 +155,14 @@ import numpy as np
 import grass.script as gs
 from pathlib import Path
 
-script_path = Path(__file__).parent
-lib_path = script_path / "i_hyper_lib"
+# Get GISBASE (GRASS installation prefix)
+gisbase = os.environ.get("GISBASE")
+if gisbase is None:
+    # Fallback if running inside an active GRASS session
+    gisbase = gs.parse_command("g.gisenv", flags="n")["GISBASE"]
+
+lib_path = Path(gisbase) / "etc" / "i_hyper_lib"
+print(lib_path)
 
 if lib_path.exists():
     sys.path.insert(0, str(lib_path))
