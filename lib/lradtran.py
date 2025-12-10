@@ -56,8 +56,8 @@ class LibRadtranRunner:
             # Atmospheric parameters
             f.write(f"atmosphere_file {os.path.join(self.libradtran_path, 'data/atmmod/afglus.dat')}\n")
             f.write(f"albedo {params.get('surface_albedo', 0.1)}\n")
-            f.write(f"sza {params.get('solar_zenith', 30.0}\n")
-            f.write(f"phi0 {params.get('solar_azimuth', 0.0}\n")
+            f.write(f"sza {params.get('solar_zenith', 30.0)}\n")
+            f.write(f"phi0 {params.get('solar_azimuth', 0.0)}\n")
             
             # Aerosols
             if 'aerosol_model' in params:
