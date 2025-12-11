@@ -167,14 +167,14 @@ print(lib_path)
 if lib_path.exists():
     sys.path.insert(0, str(lib_path))
     try:
-        import lradtran
+        import radtran
         import aod
         import wvc
         estimate_aod = aod.estimate_aod
         estimate_wvc = wvc.estimate_wvc
         get_smac_paramters = lradtran.get_smac_parameters
     except ImportError as e:
-        gs.fatal(f"Cannot import required modules. Make sure wvc.py and aod.py are in {script_dir}\n"
+        gs.fatal(f"Cannot import required modules. Make sure wvc.py and aod.py are in {lib_path}\n"
              f"Error: {e}")
 
 

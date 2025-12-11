@@ -7,9 +7,10 @@ include $(MODULE_TOPDIR)/include/Make/Html.make
 include $(MODULE_TOPDIR)/include/Make/Other.make
 include $(MODULE_TOPDIR)/include/Make/Python.make
 
-MODULES = smac aod wvc lradtran
+MODULES = smac aod wvc radtran
 ETCDIR = $(ETC)/i_hyper_lib
 PYFILES := $(patsubst %,$(ETCDIR)/%.py,$(MODULES))
+MODULE_SRCS := $(patsubst %,lib/%.py,$(MODULES))
 
 default: script html $(PYFILES)
 
@@ -20,7 +21,7 @@ $(HTMLDIR)/$(PGM).html: $(PGM).html
 $(ETCDIR):
 	$(MKDIR) $@
 
-$(ETCDIR)/%: % | $(ETCDIR)
+$(ETCDIR)/%.py: lib/%.py | $(ETCDIR)
 	$(INSTALL_DATA) $< $@
 
 install:
