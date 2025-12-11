@@ -114,13 +114,13 @@ def find_nearest_band(band_info, target_wavelength):
     return min(band_info, key=lambda x: abs(x['wavelength'] - target_wavelength))
 
 
-def parse_wavelength_from_metadata(raster3d, band_num):
+def parse_wavelength_from_metadata(input_raster3d, band_num):
     """Parse wavelength from band metadata by extracting to temporary 2D raster."""
     temp_band = f"tmp_wvc_meta_{os.getpid()}_{band_num}"
     
     try:
         temp_band = extract_band_to_2d(
-            input_raster=raster3d,
+            input_raster=input_raster3d,
             band_num=band_num,
             output_map=temp_band,
             verbose=False
@@ -158,11 +158,11 @@ def parse_wavelength_from_metadata(raster3d, band_num):
         gs.run_command('g.remove', flags='f', type='raster', pattern=f'tmp_band_*', quiet=True)
 
 
-def extract_band_to_2d(input_raster, band_num, output_map=None, verbose=False):
+def extract_band_to_2d(input_raster3d, band_num, output_map=None, verbose=False):
     """Extract a single band from 3D raster to 2D raster using a 3D mask.
     
     Args:
-        input_raster (str): Name of the input 3D raster
+        input_raster3d (str): Name of the input 3D raster
         band_num (int): Band number to extract (1-based index)
         output_map (str, optional): Name for the output 2D raster. If None, a temporary name is generated.
         verbose (bool, optional): Enable verbose output
@@ -196,7 +196,7 @@ def extract_band_to_2d(input_raster, band_num, output_map=None, verbose=False):
         
         # Extract the band using r3.to.rast with the mask
         gs.run_command('r3.to.rast',
-                      input=input_raster,
+                      input=input_raster3d,
                       output=output_map,
                       overwrite=True,
                       flags='m',  # Use 3D mask
@@ -235,26 +235,6 @@ def convert_wavelength_to_nm(wavelength, unit):
     else:
         gs.warning(f"Unknown wavelength unit '{unit}', assuming nanometers")
         return wavelength
-
-
-def extract_band_to_2d(raster3d, band_num, output_name=None):
-    """Extract a band from 3D raster to 2D raster.
-    
-    Args:
-        raster3d (str): Name of the 3D raster
-        band_num (int): Band number to extract
-        output_name (str, optional): Output raster name. If None, generates temp name.
-        
-    Returns:
-        str: Name of the extracted 2D raster
-    """
-    if output_name is None:
-        output_name = f"tmp_wvc_band_{os.getpid()}_{band_num}"
-    
-    gs.run_command('r3.to.rast', input=raster3d, output=output_name,
-                  level=band_num, quiet=True, overwrite=True)
-    
-    return output_name
 
 
 class WVCEstimator:
