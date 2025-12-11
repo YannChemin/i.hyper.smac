@@ -546,7 +546,6 @@ def main():
         except Exception as e:
             gs.warning(f"Failed to estimate water vapor from data: {str(e)}")
             gs.warning("Falling back to default water vapor value")
-            water_vapor = estimate_default_wvc()
     
     ozone = float(options['ozone'])
     
