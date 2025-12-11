@@ -497,12 +497,14 @@ def main():
     method = options.get('method', 'simple')
     
     # Get atmospheric parameters
+    print("Pressure")
     if options['pressure']:
         pressure = float(options['pressure'])
     else:
         pressure = estimate_pressure_from_dem(dem)
     
     # Initialize default AOD value.
+    print("AOD")
     aod = 0.15  # Typical clear atmosphere
 
     if options['aod']:
@@ -523,6 +525,7 @@ def main():
             gs.run_command('g.remove', type='raster', name=aod_map, flags='f', quiet=True)
                 
     # Initialize default water vapor content.
+    print("WVC")
     water_vapor = 2.0  # g/cm² - typical mid-latitude value
 
     if options['water_vapor']:
@@ -547,16 +550,21 @@ def main():
             gs.warning(f"Failed to estimate water vapor from data: {str(e)}")
             gs.warning("Falling back to default water vapor value")
     
+    print("O3")
     ozone = float(options['ozone'])
     
     # Get viewing geometry
+    print("SZA")
     if options['solar_zenith']:
         solar_zenith = float(options['solar_zenith'])
     else:
         gs.fatal("Solar zenith angle is required. Please provide it with solar_zenith parameter.")
     
+    print("SAA")
     solar_azimuth = float(options['solar_azimuth'])
+    print("VZA")
     view_zenith = float(options['view_zenith'])
+    print("VAA")
     view_azimuth = float(options['view_azimuth'])
     
     # Get band information
@@ -578,7 +586,6 @@ def main():
     
     if method == 'libradtran':
         sensor_type = options.get('sensor', '').upper()
-        aot_lut = options.get('aot_lut')
         visibility = float(options['visibility']) if options.get('visibility') else None
         aerosol_type = options.get('aerosol_type', 'continental') # continental is default
         
@@ -586,8 +593,6 @@ def main():
         gs.message(f"  Aerosol type: {aerosol_type}")
         if visibility:
             gs.message(f"  Visibility: {visibility} km")
-        if aot_lut:
-            gs.message(f"  Using AOT LUT: {aot_lut}")
     
     gs.message("=" * 60)
     
@@ -606,7 +611,7 @@ def main():
             aod, water_vapor, ozone, pressure,
             solar_zenith, solar_azimuth,
             view_zenith, view_azimuth,
-            sensor_type, aot_lut, visibility,
+            sensor_type, visibility,
             aerosol_type, keep_temp
         )
     else:

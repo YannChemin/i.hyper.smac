@@ -113,7 +113,7 @@ class coeff:
 def smac_inv( r_toa, tetas, phis, tetav, phiv,pressure,taup550, uo3, uh2o, coef) :
     """
     r_surf=smac_inv( r_toa, tetas, phis, tetav, phiv,pressure,taup550, uo3, uh2o, coef)
-    Corrections atmosphériques
+    Corrections atmosphï¿½riques
     """
     ah2o    	= coef.ah2o
     nh2o    	= coef.nh2o
@@ -213,10 +213,10 @@ def smac_inv( r_toa, tetas, phis, tetav, phiv,pressure,taup550, uo3, uh2o, coef)
     #/*------:  7) scattering angle cosine                            :--------*/
     cksi = - ( (us*uv) + (sqrt(1. - us*us) * sqrt (1. - uv*uv)*cos((phis-phiv) * cdr) ) )
     if (cksi < -1 ) :
-	   cksi=-1.0 
+	      cksi=-1.0 
  
     #/*------:  8) scattering angle in degree 			 :--------*/
-    ksiD = crd*acos(cksi) 
+    ksiD = crd * acos(cksi) 
  
     #/*------:  9) rayleigh atmospheric reflectance 			 :--------*/
     ray_phase = 0.7190443 * (1. + (cksi*cksi))  + 0.0412742
@@ -280,7 +280,7 @@ def smac_inv( r_toa, tetas, phis, tetav, phiv,pressure,taup550, uo3, uh2o, coef)
 def smac_dir ( r_surf, tetas, phis, tetav, phiv,pressure,taup550, uo3, uh2o, coef):
     """
     r_toa=smac_dir ( r_surf, tetas, phis, tetav, phiv,pressure,taup550, uo3, uh2o, coef)
-    Application des effets atmosphériques
+    Application des effets atmosphï¿½riques
     """
  
     ah2o    	= coef.ah2o
@@ -450,7 +450,7 @@ if __name__=="__main__" :
     theta_v = 5
     phi_s =  200
     phi_v = -160
-    r_toa=0.2
+    r_toa = 0.2
     ######################################lecture des coefs_smac
     nom_smac ='COEFS/coef_FORMOSAT2_B1_CONT.dat'
     coefs=coeff(nom_smac)
@@ -458,4 +458,4 @@ if __name__=="__main__" :
     r_surf = smac_inv(r_toa , theta_s, phi_s, theta_v, phi_v,1013,0.1,0.3,0.3, coefs)
     r_toa2 = smac_dir(r_surf, theta_s, phi_s, theta_v, phi_v,1013,0.1,0.3,0.3, coefs)       
  
-    print r_toa, r_surf,r_toa2
+    print(r_toa, r_surf, r_toa2)

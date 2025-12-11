@@ -100,13 +100,13 @@ class AODEstimator:
                              output=output_map,
                              overwrite=True,
                              flags='m',  # Use 3D mask
-                             quiet=not self.verbose)
+                             quiet=True)
             
             # Rename from output_name+'_00001' to output_name
             gs.run_command('g.rename',
                             raster=output_map+'_00001,'+output_map,
                             overwrite=True,
-                            quiet=not self.verbose)
+                            quiet=True)
 
             # Always clean up the 3D mask by removing the RASTER3D_MASK map
             gs.run_command('g.remove', flags='f', type='raster_3d', name='RASTER3D_MASK', quiet=True)
