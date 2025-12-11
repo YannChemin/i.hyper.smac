@@ -131,7 +131,7 @@ class AODEstimator:
         # Extract bands from 3D raster
         red_map = self.extract_band_to_2d(red_band['band'], output_map='tmp_red')
         nir_map = self.extract_band_to_2d(nir_band['band'], output_map='tmp_nir')
-        print(red_map, nir_map)
+
         # Calculate NDVI: (NIR - Red) / (NIR + Red)
         ndvi_map = f"tmp_aod_ndvi_{os.getpid()}"
         expr = f"{ndvi_map} = float({nir_map} - {red_map}) / float({nir_map} + {red_map} + 0.0001)"

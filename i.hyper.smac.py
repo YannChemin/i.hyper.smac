@@ -496,6 +496,31 @@ def main():
     keep_temp = flags['k']
     method = options.get('method', 'simple')
     
+    # Get viewing geometry
+    print("SZA")
+    if options['solar_zenith']:
+        solar_zenith = float(options['solar_zenith'])
+    else:
+        gs.fatal("Solar Zenith Angle is required. Please provide the solar_zenith parameter.")
+    
+    print("SAA")
+    if options['solar_azimuth']:
+        solar_azimuth = float(options['solar_azimuth'])
+    else:
+        gs.fatal("Solar Azimuth Angle is required. Please provide the solar_azimuth parameter.")
+    
+    print("VZA")
+    if options['view_zenith']:
+        view_zenith = float(options['view_zenith'])
+    else:
+        gs.fatal("View Zenith Angle is required. Please provide the view_zenith parameter.")
+    
+    print("VAA")
+    if options['view_azimuth']:
+        view_azimuth = float(options['view_azimuth'])
+    else:
+        gs.fatal("View Azimuth Angle is required. Please provide the view_azimuth parameter.")
+    
     # Get atmospheric parameters
     print("Pressure")
     if options['pressure']:
@@ -552,21 +577,7 @@ def main():
     
     print("O3")
     ozone = float(options['ozone'])
-    
-    # Get viewing geometry
-    print("SZA")
-    if options['solar_zenith']:
-        solar_zenith = float(options['solar_zenith'])
-    else:
-        gs.fatal("Solar zenith angle is required. Please provide it with solar_zenith parameter.")
-    
-    print("SAA")
-    solar_azimuth = float(options['solar_azimuth'])
-    print("VZA")
-    view_zenith = float(options['view_zenith'])
-    print("VAA")
-    view_azimuth = float(options['view_azimuth'])
-    
+
     # Get band information
     gs.message(f"Processing {input_raster}...")
     bands = get_all_band_wavelengths(input_raster)
