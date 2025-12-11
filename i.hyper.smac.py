@@ -187,44 +187,113 @@ def get_raster3d_info(raster3d):
         gs.fatal(f"Cannot get info for 3D raster {raster3d}: {e}")
 
 def parse_wavelength_from_metadata(raster3d, band_num):
-    """Parse wavelength from band metadata."""
-    # Extract band to temporary 2D raster to read metadata
-    temp_band = f"tmp_band_{os.getpid()}_{band_num}"
+    """Parse wavelength from band metadata by extracting to temporary 2D raster."""
+    temp_band = f"tmp_wvc_meta_{os.getpid()}_{band_num}"
+    temp_info = f"tmp_info_{os.getpid()}"
     
     try:
-        # Extract single level from 3D raster
-        gs.run_command('r3.to.rast', input=raster3d, output=temp_band,
-                      level=band_num, quiet=True, overwrite=True)
+        # First, get the metadata from the 3D raster for this band
+        history = gs.read_command('r3.info', flags='h', map=raster3d)
         
-        # Read metadata
-        result = gs.read_command('r.support', map=temp_band, flags='n')
+        # Find the metadata for the specific band
+        band_metadata = {}
+        current_band = None
         
-        wavelength = None
-        fwhm = None
-        valid = True
-        unit = "nm"
-        
-        for line in result.split('\n'):
+        for line in history.split('\n'):
             line = line.strip()
-            if line.startswith('wavelength='):
-                wavelength = float(line.split('=')[1])
-            elif line.startswith('FWHM='):
-                fwhm = float(line.split('=')[1])
-            elif line.startswith('valid='):
-                valid = int(line.split('=')[1]) == 1
-            elif line.startswith('unit='):
-                unit = line.split('=')[1].strip()
+            if line.startswith('Band '):
+                try:
+                    parts = line.split('Band ')[1].split(':')
+                    current_band = int(parts[0].strip())
+                    if current_band == band_num:
+                        # Parse line like: "Band 1: 376.44000244140625 nm, FWHM: 5.389999866485596 nm"
+                        band_metadata['wavelength'] = float(parts[1].split('nm')[0].strip())
+                        if 'FWHM' in parts[2]:
+                            band_metadata['fwhm'] = float(parts[2].split('FWHM:')[1].split('nm')[0].strip())
+                        band_metadata['unit'] = 'nm'
+                        band_metadata['valid'] = True
+                except (ValueError, IndexError) as e:
+                    gs.warning(f"Error parsing band info: {line} - {e}")
+                    continue
         
-        return wavelength, fwhm, valid, unit
+        if not band_metadata:
+            gs.warning(f"No metadata found for band {band_num} in {raster3d}")
+            return None, None, True, "nm"
+            
+        # Now extract the band
+        mask_name = f"tmp_mask_{os.getpid()}_{band_num}"
         
+        try:
+            # Create a 3D mask where only the desired band is 1, others are null
+            gs.run_command('r3.mapcalc',
+                          expression=f"{mask_name} = if(z() == {band_num}, 1, -9999.9)",
+                          overwrite=True,
+                          quiet=True)
+            
+            # Remove any existing 3D mask
+            gs.run_command('g.remove', flags='f', type='raster_3d', name='RASTER3D_MASK', quiet=True)
+            
+            # Set the 3D mask
+            gs.run_command('r3.mask', 
+                          map=mask_name, 
+                          maskvalues=-9999.9, 
+                          quiet=True)
+            
+            # Extract the band using r3.to.rast with the mask
+            gs.run_command('r3.to.rast',
+                          input=raster3d,
+                          output=temp_band,
+                          overwrite=True,
+                          flags='m',  # Use 3D mask
+                          quiet=True)
+            
+            # Rename from output_name+'_00001' to output_name
+            gs.run_command('g.rename',
+                          raster=f"{temp_band}_00001,{temp_band}",
+                          overwrite=True,
+                          quiet=True)
+            
+            # Now set the metadata on the extracted band
+            if 'wavelength' in band_metadata:
+                gs.run_command('r.support',
+                              map=temp_band,
+                              title=f"Band {band_num}",
+                              description=f"Extracted from {raster3d}",
+                              history=f"Extracted from {raster3d} band {band_num}",
+                              units=band_metadata.get('unit', 'nm'),
+                              source1=f"Band {band_num} from {raster3d}",
+                              source2=f"Wavelength: {band_metadata['wavelength']} nm",
+                              raster=raster3d,
+                              quiet=True)
+                
+                # Set the wavelength and FWHM in the raster's history
+                gs.run_command('r.support',
+                              map=temp_band,
+                              history=f"Wavelength: {band_metadata['wavelength']} nm, FWHM: {band_metadata.get('fwhm', 'N/A')} nm",
+                              quiet=True)
+            
+            return (band_metadata.get('wavelength'),
+                   band_metadata.get('fwhm'),
+                   band_metadata.get('valid', True),
+                   band_metadata.get('unit', 'nm'))
+            
+        finally:
+            # Clean up the 3D mask
+            gs.run_command('g.remove', flags='f', type='raster_3d', name='RASTER3D_MASK', quiet=True)
+            # Clean up the temporary mask
+            gs.run_command('g.remove', flags='f', type='raster_3d', name=mask_name, quiet=True)
+            
     except Exception as e:
         gs.warning(f"Could not read metadata for band {band_num}: {e}")
         return None, None, True, "nm"
+    
     finally:
-        # Clean up temporary band
-        if gs.find_file(temp_band, element='cell')['file']:
-            gs.run_command('g.remove', type='raster', name=temp_band, 
-                          flags='f', quiet=True)
+        # Clean up temporary band and any intermediate files
+        for pattern in [temp_band, f"{temp_band}_00001", temp_info]:
+            if gs.find_file(pattern, element='cell')['file']:
+                gs.run_command('g.remove', flags='f', type='raster', name=pattern, quiet=True)
+        # Clean up any remaining 3D mask
+        gs.run_command('g.remove', flags='f', type='raster_3d', name='RASTER3D_MASK', quiet=True)
 
 def convert_wavelength_to_nm(wavelength, unit):
     """Convert wavelength to nanometers."""
