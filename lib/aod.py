@@ -15,6 +15,7 @@ FIXES:
 
 import os
 import grass.script as gs
+from wvc import get_band_info, find_nearest_band
 
 # Wavelengths for common AOD estimation methods (in nm)
 AOD_REFERENCE_WAVELENGTH = 550.0  # Standard reference wavelength for AOD
@@ -55,53 +56,7 @@ class AODEstimator:
     
     def _get_band_info(self):
         """Extract band information from the input raster metadata."""
-        try:
-            # Get the full metadata from the 3D raster
-            info = gs.raster3d_info(self.input_raster)
-            history = gs.read_command('r3.info', flags='h', map=self.input_raster)
-            
-            # Parse band information from the history
-            self.band_info = []
-            for line in history.split('\n'):
-                if line.strip().startswith('Band '):
-                    try:
-                        # Parse line like: "Band 1: 376.44000244140625 nm, FWHM: 5.389999866485596 nm"
-                        parts = line.split('Band ')[1].split(':')
-                        band_num = int(parts[0].strip())
-                        wavelength = float(parts[1].split('nm')[0].strip())
-                        fwhm = float(parts[2].split('nm')[0].strip())
-                        
-                        self.band_info.append({
-                            'band': band_num,
-                            'wavelength': wavelength,
-                            'fwhm': fwhm,
-                            'valid': True
-                        })
-                    except (ValueError, IndexError) as e:
-                        if self.verbose:
-                            gs.warning(f"Error parsing band info: {line} - {e}")
-            
-            if not self.band_info:
-                # Fallback to the original method if no bands were found
-                gs.warning("No band information found in history, using default band numbers")
-                for i in range(1, info['depths'] + 1):
-                    self.band_info.append({
-                        'band': i,
-                        'wavelength': i,  # Just use band number as wavelength
-                        'fwhm': 10.0,     # Default FWHM
-                        'valid': True
-                    })
-            
-            if self.verbose:
-                gs.message(f"Found {len(self.band_info)} bands in metadata")
-                for band in self.band_info[:5]:  # Show first 5 bands as example
-                    gs.verbose(f"Band {band['band']}: {band['wavelength']:.2f} nm")
-                if len(self.band_info) > 5:
-                    gs.verbose("...")
-                    gs.verbose(f"Band {self.band_info[-1]['band']}: {self.band_info[-1]['wavelength']:.2f} nm")
-                    
-        except Exception as e:
-            gs.fatal(f"Error getting band information: {e}")
+        self.band_info = get_band_info(self.input_raster, verbose=self.verbose)
         
     def _find_nearest_band(self, target_wavelength):
         """Find the band closest to the target wavelength.
@@ -112,16 +67,15 @@ class AODEstimator:
         Returns:
             dict: Band information for the closest band
         """
-        return min(self.band_info, key=lambda x: abs(x['wavelength'] - target_wavelength))
+        return find_nearest_band(self.band_info, target_wavelength)
     
     def extract_band_to_2d(self, band_num, output_map=None):
         """Extract a single band from 3D raster to 2D raster using a 3D mask."""
+        import time
+        import random
         if not output_map:
-            import time
-            import random
             output_map = f"tmp_band_{band_num}_{int(time.time())}_{random.randint(1000, 9999)}"
-    
-        try:
+        else:
             # Create a 3D mask for the specific band
             mask_name = f"tmp_mask_{int(time.time())}_{random.randint(1000, 9999)}"
             
@@ -130,31 +84,39 @@ class AODEstimator:
                           expression=f"{mask_name} = if(z() == {band_num}, 1, -9999.9)",
                           overwrite=gs.overwrite())
             
-            # Set the 3D mask
-            gs.run_command('g.remove', flags='f', type='raster_3d', name="RASTER3D_MASK", quiet=True)
-            gs.run_command('r3.mask', map=mask_name, maskvalues=-9999.9, quiet=True)
+            # Remove any existing 3D mask by removing the RASTER3D_MASK map
+            gs.run_command('g.remove', flags='f', type='raster_3d', name='RASTER3D_MASK', quiet=True)
             
+            # Create a 3D mask for the specific band
+            # Set the 3D mask
+            gs.run_command('r3.mask', 
+                             map=mask_name, 
+                             maskvalues=-9999.9, 
+                             quiet=True)
+                
             # Extract the band using r3.to.rast with the mask
             gs.run_command('r3.to.rast',
-                          input=self.input_raster,
-                          output=output_map,
-                          overwrite=gs.overwrite(),
-                          flags='rm'  # Use 3D mask and maintain resolution
-                          )
+                             input=self.input_raster,
+                             output=output_map,
+                             overwrite=True,
+                             flags='m',  # Use 3D mask
+                             quiet=not self.verbose)
             
-            # Clean up the mask
+            # Rename from output_name+'_00001' to output_name
+            gs.run_command('g.rename',
+                            raster=output_map+'_00001,'+output_map,
+                            overwrite=True,
+                            quiet=not self.verbose)
+
+            # Always clean up the 3D mask by removing the RASTER3D_MASK map
+            gs.run_command('g.remove', flags='f', type='raster_3d', name='RASTER3D_MASK', quiet=True)
+            # Clean up the temporary mask
             gs.run_command('g.remove', flags='f', type='raster_3d', name=mask_name, quiet=True)
-            
-            # Add to temporary maps for cleanup
-            self.temp_maps.append(output_map)
-            
-            return output_map
-            
-        except Exception as e:
-            # Ensure mask is removed even if there's an error
-            if 'mask_name' in locals():
-                gs.run_command('g.remove', flags='f', type='raster_3d', name=mask_name, quiet=True)
-            gs.fatal(f"Error extracting band {band_num}: {e}")
+        # Add to temporary maps for cleanup
+        self.temp_maps.append(output_map)
+        self.temp_maps.append(f"{output_map}_00001")  
+        
+        return output_map
             
     def _calculate_ndvi(self):
         """Calculate NDVI (Normalized Difference Vegetation Index)."""
@@ -167,9 +129,9 @@ class AODEstimator:
             gs.message(f"Using band {nir_band['band']} ({nir_band['wavelength']:.1f} nm) for NIR")
         
         # Extract bands from 3D raster
-        red_map = self.extract_band_to_2d(red_band['band'])
-        nir_map = self.extract_band_to_2d(nir_band['band'])
-        
+        red_map = self.extract_band_to_2d(red_band['band'], output_map='tmp_red')
+        nir_map = self.extract_band_to_2d(nir_band['band'], output_map='tmp_nir')
+        print(red_map, nir_map)
         # Calculate NDVI: (NIR - Red) / (NIR + Red)
         ndvi_map = f"tmp_aod_ndvi_{os.getpid()}"
         expr = f"{ndvi_map} = float({nir_map} - {red_map}) / float({nir_map} + {red_map} + 0.0001)"
@@ -177,6 +139,8 @@ class AODEstimator:
         
         self.ndvi = ndvi_map
         self.temp_maps.append(ndvi_map)
+        self.temp_maps.append('temp_red')
+        self.temp_maps.append('temp_nir')
         return ndvi_map
     
     def _estimate_aod_ddv(self):
@@ -191,7 +155,8 @@ class AODEstimator:
             gs.message(f"Using band {blue_band['band']} ({blue_band['wavelength']:.1f} nm) for AOD estimation")
         
         # Extract blue band from 3D raster
-        blue_map = self.extract_band_to_2d(blue_band['band'])
+        blue_map = self.extract_band_to_2d(blue_band['band'], output_map='temp_blue')
+        self.temp_maps.append('temp_blue')
         
         # Create mask for DDV pixels (high NDVI and low blue reflectance)
         ddv_mask = f"tmp_aod_ddv_mask_{os.getpid()}"
