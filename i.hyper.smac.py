@@ -327,21 +327,31 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
         # Extract band from 3D raster
         input_band = f"tmp_input_{os.getpid()}_{band_num}"
         
-        # Extract single band using 3D mask
-        temp_mask = f"tmp_mask_{os.getpid()}_{band_num}"
-        
-        # Create a 3D mask for the specific band
-        gs.run_command('r3.mapcalc',
-                      expression=f"{temp_mask} = if(z() == {band_num}, 1, null())",
-                      overwrite=True,
-                      quiet=True)
+        # Set the 3D region to the specific band (using band_num + 0.1 to ensure top > bottom)
+        gs.run_command('g.region', t=band_num + 0.1, b=band_num, quiet=True)
         
         try:
             # Extract the band using the mask
             gs.run_command('r3.mapcalc',
-                          expression=f"{input_band} = {input_raster} * {temp_mask}",
+                          expression=f"{input_band} = {input_raster}",
                           overwrite=True,
                           quiet=True)
+            
+            # Convert the 3D raster to 2D with overwrite
+            gs.run_command('r3.to.rast',
+                         input=input_raster,
+                         output=input_band,
+                         overwrite=True,
+                         quiet=True)
+            
+            # The output will be named output_map_00001
+            input_file = f"{input_band}_00001"
+            
+            # Rename the output file to the desired name
+            gs.run_command('g.rename',
+                         raster=f"{input_file},{input_band}",
+                         overwrite=True,
+                         quiet=True)
             
             # Simplified atmospheric correction
             # (Same correction calculations as before)
@@ -374,7 +384,7 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
             
         finally:
             # Clean up temporary maps
-            for temp_map in [temp_mask, input_band]:
+            for temp_map in [input_band]:
                 gs.run_command('g.remove', flags='f', type='raster_3d', name=temp_map, quiet=True)
     
     gs.percent(1, 1, 1)

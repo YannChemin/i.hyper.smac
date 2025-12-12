@@ -9,7 +9,6 @@ around 940nm and 1130nm water vapor absorption bands.
 """
 
 import os
-import numpy as np
 import grass.script as gs
 
 # Water vapor absorption features (in nm)
