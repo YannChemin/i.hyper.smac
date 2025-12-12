@@ -68,55 +68,65 @@ class AODEstimator:
             dict: Band information for the closest band
         """
         return find_nearest_band(self.band_info, target_wavelength)
-    
+
     def extract_band_to_2d(self, band_num, output_map=None):
-        """Extract a single band from 3D raster to 2D raster using a 3D mask."""
+        """Extract a single band from 3D raster to 2D raster using g.region and r3.to.rast.
+        
+        Args:
+            band_num (int): Band number to extract (1-based index)
+            output_map (str, optional): Name for the output 2D raster. 
+                                      If None, a temporary name is generated.
+            
+        Returns:
+            str: Name of the extracted 2D raster
+        """
         import time
         import random
+        
         if not output_map:
             output_map = f"tmp_band_{band_num}_{int(time.time())}_{random.randint(1000, 9999)}"
-        else:
-            # Create a 3D mask for the specific band
-            mask_name = f"tmp_mask_{int(time.time())}_{random.randint(1000, 9999)}"
-            
-            # Create a 3D mask where only the desired band is 1, others are null
-            gs.run_command('r3.mapcalc',
-                          expression=f"{mask_name} = if(z() == {band_num}, 1, -9999.9)",
-                          overwrite=gs.overwrite())
-            
-            # Remove any existing 3D mask by removing the RASTER3D_MASK map
-            gs.run_command('g.remove', flags='f', type='raster_3d', name='RASTER3D_MASK', quiet=True)
-            
-            # Create a 3D mask for the specific band
-            # Set the 3D mask
-            gs.run_command('r3.mask', 
-                             map=mask_name, 
-                             maskvalues=-9999.9, 
-                             quiet=True)
-                
-            # Extract the band using r3.to.rast with the mask
-            gs.run_command('r3.to.rast',
-                             input=self.input_raster,
-                             output=output_map,
-                             overwrite=True,
-                             flags='m',  # Use 3D mask
-                             quiet=True)
-            
-            # Rename from output_name+'_00001' to output_name
-            gs.run_command('g.rename',
-                            raster=output_map+'_00001,'+output_map,
-                            overwrite=True,
-                            quiet=True)
-
-            # Always clean up the 3D mask by removing the RASTER3D_MASK map
-            gs.run_command('g.remove', flags='f', type='raster_3d', name='RASTER3D_MASK', quiet=True)
-            # Clean up the temporary mask
-            gs.run_command('g.remove', flags='f', type='raster_3d', name=mask_name, quiet=True)
-        # Add to temporary maps for cleanup
-        self.temp_maps.append(output_map)
-        self.temp_maps.append(f"{output_map}_00001")  
         
-        return output_map
+        try:
+            # Clean up any existing files with the same name
+            gs.run_command('g.remove', flags='f', type='raster', pattern=f"{output_map}*", quiet=True)
+            
+            # Set the 3D region to the specific band (using band_num + 0.1 to ensure top > bottom)
+            gs.run_command('g.region', t=band_num + 0.1, b=band_num, quiet=True)
+            
+            # Convert the 3D raster to 2D with overwrite
+            gs.run_command('r3.to.rast',
+                         input=self.input_raster,
+                         output=output_map,
+                         overwrite=True,
+                         quiet=not self.verbose)
+            
+            # The output will be named output_map_00001
+            output_file = f"{output_map}_00001"
+            
+            # Rename the output file to the desired name
+            gs.run_command('g.rename',
+                         raster=f"{output_file},{output_map}",
+                         overwrite=True,
+                         quiet=True)
+            
+            if self.verbose:
+                gs.message(f"Extracted band {band_num} to {output_map}")
+            
+            # Add to temporary maps for cleanup
+            self.temp_maps.append(output_map)
+            self.temp_maps.append(output_file)
+            
+            return output_map
+            
+        except Exception as e:
+            gs.warning(f"Error extracting band {band_num}: {e}")
+            raise
+            
+        finally:
+            # Clean up any temporary files
+            gs.run_command('g.remove', flags='f', type='raster', pattern=f"{output_map}_00001", quiet=True)
+            gs.run_command('g.remove', flags='f', type='raster_3d', name='RASTER3D_MASK', quiet=True)
+            
             
     def _calculate_ndvi(self):
         """Calculate NDVI (Normalized Difference Vegetation Index)."""

@@ -293,11 +293,11 @@ def estimate_pressure_from_dem(dem):
     return pressure
 
 def apply_smac_correction_simple(input_raster, output_raster, bands, 
-                                aod, water_vapor, ozone, pressure,
-                                solar_zenith, solar_azimuth,
-                                view_zenith, view_azimuth,
-                                keep_temp=False):
-    """Apply simplified SMAC atmospheric correction."""
+                               aod, water_vapor, ozone, pressure,
+                               solar_zenith, solar_azimuth,
+                               view_zenith, view_azimuth,
+                               keep_temp=False):
+    """Apply simplified SMAC atmospheric correction using in-place 3D updates."""
     
     gs.message("Applying atmospheric correction to bands...")
     
@@ -312,7 +312,11 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
     # Air mass
     m = 1.0 / cos_theta_s + 1.0 / cos_theta_v
     
-    temp_bands = []
+    # Create empty output 3D raster with same dimensions as input
+    gs.message("Creating output 3D raster...")
+    gs.run_command('r3.mapcalc', 
+                  expression=f"{output_raster} = {input_raster} * 0",
+                  overwrite=True)
     
     for idx, band in enumerate(bands):
         gs.percent(idx, len(bands), 2)
@@ -322,103 +326,58 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
         
         # Extract band from 3D raster
         input_band = f"tmp_input_{os.getpid()}_{band_num}"
+        
+        # Extract single band using 3D mask
         temp_mask = f"tmp_mask_{os.getpid()}_{band_num}"
+        
         # Create a 3D mask for the specific band
         gs.run_command('r3.mapcalc',
-                  expression=f"{temp_mask} = if(z() == {band_num}, 1, -9999.9)",
-                  overwrite=True,
-                  quiet=True)
-    
-        # Remove any existing 3D mask
-        gs.run_command('g.remove', flags='f', type='raster_3d', name='RASTER3D_MASK', quiet=True)
-    
-        # Set the 3D mask
-        gs.run_command('r3.mask', 
-                  map=temp_mask, 
-                  maskvalues=-9999.9, 
-                  quiet=True)
-    
-        # Extract the band using r3.to.rast with the mask
-        gs.run_command('r3.to.rast',
-                  input=input_raster,
-                  output=input_band,
-                  overwrite=True,
-                  flags='m',  # Use 3D mask
-                  quiet=True)
-    
-        # Rename from output_name_00001 to output_name
-        gs.run_command('g.rename',
-                  raster=f"{input_band}_00001,{input_band}",
-                  overwrite=True,
-                  quiet=True)
-
-        # Clean up
-        gs.run_command('g.remove', flags='f', type='raster_3d', name=temp_mask, quiet=True)
-        gs.run_command('g.remove', flags='f', type='raster_3d', name='RASTER3D_MASK', quiet=True)    
-    
-        # Simplified atmospheric correction
-        # This is a basic implementation - for production use, integrate with smac.py
+                      expression=f"{temp_mask} = if(z() == {band_num}, 1, null())",
+                      overwrite=True,
+                      quiet=True)
         
-        # Rayleigh optical depth (simplified)
-        tau_r = 0.008569 * (wavelength / 1000) ** (-4) * (1 + 0.0113 * (wavelength / 1000) ** (-2))
-        tau_r *= pressure / 1013.25
-        
-        # Aerosol optical depth at this wavelength (Angstrom law)
-        alpha = 1.3  # Angstrom exponent
-        tau_a = aod * (wavelength / 550.0) ** (-alpha)
-        
-        # Total optical depth
-        tau = tau_r + tau_a
-        
-        # Simplified gaseous transmission
-        # Water vapor absorption (simplified)
-        if 850 < wavelength < 1050:  # Strong water vapor absorption
-            t_h2o = np.exp(-0.1 * water_vapor * m)
-        elif 1050 < wavelength < 1250:
-            t_h2o = np.exp(-0.15 * water_vapor * m)
-        else:
-            t_h2o = np.exp(-0.01 * water_vapor * m)
-        
-        # Ozone absorption (simplified, mainly in UV/visible)
-        if 400 < wavelength < 700:
-            t_o3 = np.exp(-0.05 * ozone * m)
-        else:
-            t_o3 = 1.0
-        
-        t_gas = t_h2o * t_o3
-        
-        # Simplified atmospheric transmittance
-        t_down = np.exp(-tau / cos_theta_s)
-        t_up = np.exp(-tau / cos_theta_v)
-        t_total = t_down * t_up * t_gas
-        
-        # Simplified path radiance (very basic)
-        rho_atm = 0.02 * tau
-        
-        # Apply correction: rho_surface = (rho_toa - rho_atm) / t_total
-        output_band = f"tmp_output_{os.getpid()}_{band_num}"
-        expr = f"{output_band} = ({input_band} - {rho_atm:.6f}) / {t_total:.6f}"
-        gs.run_command('r.mapcalc', expression=expr, overwrite=True, quiet=True)
-        
-        temp_bands.append(output_band)
-        
-        # Clean up input band
-        gs.run_command('g.remove', type='raster', name=input_band, flags='f', quiet=True)
+        try:
+            # Extract the band using the mask
+            gs.run_command('r3.mapcalc',
+                          expression=f"{input_band} = {input_raster} * {temp_mask}",
+                          overwrite=True,
+                          quiet=True)
+            
+            # Simplified atmospheric correction
+            # (Same correction calculations as before)
+            tau_r = 0.008569 * (wavelength / 1000) ** (-4) * (1 + 0.0113 * (wavelength / 1000) ** (-2))
+            tau_r *= pressure / 1013.25
+            alpha = 1.3
+            tau_a = aod * (wavelength / 550.0) ** (-alpha)
+            tau = tau_r + tau_a
+            
+            # Gaseous transmission
+            if 850 < wavelength < 1050:
+                t_h2o = np.exp(-0.1 * water_vapor * m)
+            elif 1050 < wavelength < 1250:
+                t_h2o = np.exp(-0.15 * water_vapor * m)
+            else:
+                t_h2o = np.exp(-0.01 * water_vapor * m)
+                
+            t_o3 = np.exp(-0.05 * ozone * m) if 400 < wavelength < 700 else 1.0
+            t_gas = t_h2o * t_o3
+            t_down = np.exp(-tau / cos_theta_s)
+            t_up = np.exp(-tau / cos_theta_v)
+            t_total = t_down * t_up * t_gas
+            rho_atm = 0.02 * tau
+            
+            # Apply correction and update the output 3D raster in place
+            gs.run_command('r3.mapcalc',
+                          expression=f"{output_raster} = if(z() == {band_num}, ({input_band} - {rho_atm:.6f}) / {t_total:.6f}, {output_raster})",
+                          overwrite=True,
+                          quiet=True)
+            
+        finally:
+            # Clean up temporary maps
+            for temp_map in [temp_mask, input_band]:
+                gs.run_command('g.remove', flags='f', type='raster_3d', name=temp_map, quiet=True)
     
     gs.percent(1, 1, 1)
-    
-    # Stack corrected bands into 3D raster
-    gs.message("Creating output 3D raster...")
-    gs.run_command('r.to.rast3', input=','.join(temp_bands), 
-                  output=output_raster, overwrite=True)
-    
-    # Clean up temporary bands unless keep flag is set
-    if not keep_temp:
-        gs.message("Cleaning up temporary bands...")
-        for band in temp_bands:
-            gs.run_command('g.remove', type='raster', name=band, 
-                          flags='f', quiet=True)
-    
     gs.message(f"Atmospheric correction complete: {output_raster}")
 
 def apply_smac_correction_libradtran(input_raster, output_raster, bands, 
@@ -487,14 +446,14 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
             # Extract the band using r3.to.rast with the mask
             gs.run_command('r3.to.rast',
                   input=input_raster,
-                  output=input_band,
+                  output=band_num,
                   overwrite=True,
                   flags='m',  # Use 3D mask
                   quiet=True)
     
             # Rename from output_name_00001 to output_name
             gs.run_command('g.rename',
-                  raster=f"{input_band}_00001,{input_band}",
+                  raster=f"{band_num}_00001,{band_num}",
                   overwrite=True,
                   quiet=True)
             
@@ -571,32 +530,27 @@ def main():
     method = options.get('method', 'simple')
     
     # Get viewing geometry
-    print("SZA")
     if options['solar_zenith']:
         solar_zenith = float(options['solar_zenith'])
     else:
         gs.fatal("Solar Zenith Angle is required. Please provide the solar_zenith parameter.")
     
-    print("SAA")
     if options['solar_azimuth']:
         solar_azimuth = float(options['solar_azimuth'])
     else:
         gs.fatal("Solar Azimuth Angle is required. Please provide the solar_azimuth parameter.")
     
-    print("VZA")
     if options['view_zenith']:
         view_zenith = float(options['view_zenith'])
     else:
         gs.fatal("View Zenith Angle is required. Please provide the view_zenith parameter.")
     
-    print("VAA")
     if options['view_azimuth']:
         view_azimuth = float(options['view_azimuth'])
     else:
         gs.fatal("View Azimuth Angle is required. Please provide the view_azimuth parameter.")
     
     # Get atmospheric parameters
-    print("Pressure")
     if options['pressure']:
         pressure = float(options['pressure'])
     else:
