@@ -179,12 +179,9 @@ def estimate_ozone_chappuis(input_raster, verbose=False):
         for wl in target_wavelengths:
             band = find_nearest_band(bands, wl)
             if verbose:
-                gs.message(f"Using band {band['band']} ({band['wavelength']:.1f} nm) "
-                          f"for {wl} nm")
-            gs.message(f"Using band {band['band']} from {input_raster} ({band['wavelength']:.1f} nm) "
-                          f"for {wl} nm")
-            band_map = extract_band_to_2d(input_raster, band['band'], 
-                                       f"tmp_ozone_{wl}")
+                gs.message(f"Using band {band['band']} from {input_raster} \
+                           ({band['wavelength']:.1f} nm) for {wl} nm")
+            band_map = extract_band_to_2d(input_raster, band['band'], f"tmp_ozone_{wl}")
             band_maps.append((wl, band_map))
         
         # Calculate ozone using the Chappuis band ratio method
@@ -217,12 +214,15 @@ def estimate_ozone_chappuis(input_raster, verbose=False):
         # This is a simplified empirical relationship
         try:
             # First, check if any of the bands are empty
-            #for band_name, band_map in [('Reference 1', ref1_map), 
-            #                          ('Ozone band', o3_map), 
-            #                          ('Reference 2', ref2_map)]:
-                #stats = gs.parse_command('r.univar', map=band_map, flags='g')
-                #if float(stats['non_null_cells']) == 0:
-                #    raise ValueError(f"{band_name} band ({band_map}) contains no data")
+            for band_name, band_map in [('Reference 1', ref1_map), 
+                                      ('Ozone band', o3_map), 
+                                      ('Reference 2', ref2_map)]:
+                stats = gs.parse_command('r.univar', map=band_map, flags='g')
+                if float(stats['non_null_cells']) == 0:
+                    gs.message(f"{gs.run_command('r.info', map=ref1_map)}")
+                    gs.message(f"{gs.run_command('r.info', map=o3_map)}")
+                    gs.message(f"{gs.run_command('r.info', map=ref2_map)}")
+                    raise ValueError(f"{band_name} band ({band_map}) contains no data")
             
             # Calculate the ozone using the band ratio
             expr = f"{ozone_map} = 300.0 * (1.0 - float({o3_map}) / (0.5 * ({ref1_map} + {ref2_map}) + 0.0001))"
