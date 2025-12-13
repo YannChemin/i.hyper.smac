@@ -597,7 +597,7 @@ def main():
     
     # Estimate ozone if not provided
     ozone = None
-    if options['ozone']:
+    if options['ozone'] and options['ozone'] != '0.3':  # Only use provided value if it's not the default
         try:
             ozone = float(options['ozone'])
             gs.message(f"Using provided ozone value: {ozone} cm-atm")
