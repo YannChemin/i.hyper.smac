@@ -24,46 +24,66 @@ OZONE_ABSORPTION = {
 }
 
 
-def get_band_info(raster3d, verbose=False):
-    """Extract band information from 3D raster metadata.
+def get_band_info(input_raster, verbose=False):
+    """Extract band information from the input raster metadata.
     
     Args:
-        raster3d (str): Name of the input 3D raster
+        input_raster (str): Name of the input 3D raster
         verbose (bool, optional): Enable verbose output
         
     Returns:
-        list: List of dictionaries with band information
+        list: List of band information dictionaries
     """
     try:
-        # Get band information using r3.info
-        info = gs.parse_command('r3.info', flags='g', map=raster3d)
+        # Get the full metadata from the 3D raster
+        info = gs.raster3d_info(input_raster)
+        history = gs.read_command('r3.info', flags='h', map=input_raster)
         
-        # Extract band metadata (assuming format: Wavelength=xxx.xxnm,FWHM=yy.yynm)
-        bands = []
-        for i in range(1, int(info['depths']) + 1):
-            band_info = {}
-            # Get band metadata (wavelength and FWHM)
-            metadata = gs.parse_command('r3.info', flags='m', map3d=raster3d, 
-                                      depth=str(i))
-            
-            # Extract wavelength and FWHM from metadata
-            for line in metadata.split('\n'):
-                if 'Wavelength' in line:
-                    band_info['wavelength'] = float(line.split('=')[1].replace('nm', '').strip())
-                elif 'FWHM' in line:
-                    band_info['fwhm'] = float(line.split('=')[1].replace('nm', '').strip())
-            
-            if 'wavelength' in band_info:
-                band_info['band'] = i
-                bands.append(band_info)
-                
+        # Parse band information from the history
+        band_info = []
+        for line in history.split('\n'):
+            if line.strip().startswith('Band '):
+                try:
+                    # Parse line like: "Band 1: 376.44000244140625 nm, FWHM: 5.389999866485596 nm"
+                    parts = line.split('Band ')[1].split(':')
+                    band_num = int(parts[0].strip())
+                    wavelength = float(parts[1].split('nm')[0].strip())
+                    fwhm = float(parts[2].split('nm')[0].strip())
+                    
+                    band_info.append({
+                        'band': band_num,
+                        'wavelength': wavelength,
+                        'fwhm': fwhm,
+                        'valid': True
+                    })
+                except (ValueError, IndexError) as e:
+                    if verbose:
+                        gs.warning(f"Error parsing band info: {line} - {e}")
+        
+        if not band_info:
+            # Fallback to the original method if no bands were found
+            gs.warning("No band information found in history, using default band numbers")
+            for i in range(1, info['depths'] + 1):
+                band_info.append({
+                    'band': i,
+                    'wavelength': i,  # Just use band number as wavelength
+                    'fwhm': 10.0,     # Default FWHM
+                    'valid': True
+                })
+        
         if verbose:
-            gs.message(f"Found {len(bands)} bands with wavelength information")
-            
-        return sorted(bands, key=lambda x: x['wavelength'])
+            gs.message(f"Found {len(band_info)} bands in metadata")
+            for band in band_info[:5]:  # Show first 5 bands as example
+                gs.verbose(f"Band {band['band']}: {band['wavelength']:.2f} nm")
+            if len(band_info) > 5:
+                gs.verbose("...")
+                gs.verbose(f"Band {band_info[-1]['band']}: {band_info[-1]['wavelength']:.2f} nm")
         
+        return band_info
+            
     except Exception as e:
-        gs.fatal(f"Error getting band information: {str(e)}")
+        gs.fatal(f"Error getting band information: {e}")
+        return []
 
 
 def find_nearest_band(bands, target_wavelength):
