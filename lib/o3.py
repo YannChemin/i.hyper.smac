@@ -7,10 +7,7 @@ This module provides functions to estimate total column ozone from
 hyperspectral data using the Chappuis band absorption feature.
 """
 
-import os
-import numpy as np
 import grass.script as gs
-from pathlib import Path
 
 # Default ozone value (Dobson Units)
 DEFAULT_OZONE = 300.0  # Typical mid-latitude value (250-350 DU)
@@ -22,7 +19,6 @@ OZONE_ABSORPTION = {
     600: 5.0e-4,  # Ozone absorption peak in Chappuis band
     650: 2.5e-4   # Reference wavelength
 }
-
 
 def get_band_info(input_raster, verbose=False):
     """Extract band information from the input raster metadata.
@@ -189,9 +185,9 @@ def estimate_ozone_chappuis(input_raster, verbose=False):
         # Get the band maps
         try:
             # Find the closest bands to our target wavelengths
-            ref1_wl, ref1_map = min(band_maps, key=lambda x: abs(x[0] - 550))
-            o3_wl, o3_map = min(band_maps, key=lambda x: abs(x[0] - 600))
-            ref2_wl, ref2_map = min(band_maps, key=lambda x: abs(x[0] - 650))
+            ref1_wl, ref1_map = find_nearest_band(band_maps, 550)
+            o3_wl, o3_map = find_nearest_band(band_maps, 600)
+            ref2_wl, ref2_map = find_nearest_band(band_maps, 650)
             
             if verbose:
                 gs.message("Using bands for ozone estimation:")
