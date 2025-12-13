@@ -156,23 +156,40 @@ def estimate_ozone_chappuis(input_raster, verbose=False):
         
         # Get the band maps
         try:
-            ref1_band = next(b for wl, b in band_maps if abs(wl - 550) < 50)
-            o3_band = next(b for wl, b in band_maps if abs(wl - 600) < 50)
-            ref2_band = next(b for wl, b in band_maps if abs(wl - 650) < 50)
-        except StopIteration as e:
-            raise ValueError("Could not find appropriate bands for ozone estimation. "
+            # Find the closest bands to our target wavelengths
+            ref1_wl, ref1_map = min(band_maps, key=lambda x: abs(x[0] - 550))
+            o3_wl, o3_map = min(band_maps, key=lambda x: abs(x[0] - 600))
+            ref2_wl, ref2_map = min(band_maps, key=lambda x: abs(x[0] - 650))
+            
+            if verbose:
+                gs.message(f"Using bands for ozone estimation:")
+                gs.message(f"  Reference 1 (~550nm): Band at {ref1_wl:.1f} nm -> {ref1_map}")
+                gs.message(f"  Ozone band (~600nm): Band at {o3_wl:.1f} nm -> {o3_map}")
+                gs.message(f"  Reference 2 (~650nm): Band at {ref2_wl:.1f} nm -> {ref2_map}")
+                
+                # Verify the bands are in the correct order
+                if not (ref1_wl < o3_wl < ref2_wl):
+                    gs.warning("Warning: Bands are not in the expected order. Results may be inaccurate.")
+                    gs.warning(f"Expected order: ~550nm < ~600nm < ~650nm")
+                    gs.warning(f"Actual order: {ref1_wl:.1f} < {o3_wl:.1f} < {ref2_wl:.1f}")
+                    
+        except (ValueError, IndexError) as e:
+            raise ValueError(f"Could not find appropriate bands for ozone estimation: {str(e)}. "
                            "Ensure the input data covers the 500-700nm range.")
-        
-        if verbose:
-            gs.message(f"Using bands for ozone estimation:")
-            gs.message(f"  Reference 1 (~550nm): {ref1_band}")
-            gs.message(f"  Ozone band (~600nm): {o3_band}")
-            gs.message(f"  Reference 2 (~650nm): {ref2_band}")
         
         # Calculate ozone using band ratios
         # This is a simplified empirical relationship
         try:
-            expr = f"{ozone_map} = 300.0 * (1.0 - float({o3_band}) / (0.5 * ({ref1_band} + {ref2_band}) + 0.0001))"
+            # First, check if any of the bands are empty
+            for band_name, band_map in [('Reference 1', ref1_map), 
+                                      ('Ozone band', o3_map), 
+                                      ('Reference 2', ref2_map)]:
+                stats = gs.parse_command('r.univar', map=band_map, flags='g')
+                if float(stats['non_null_cells']) == 0:
+                    raise ValueError(f"{band_name} band ({band_map}) contains no data")
+            
+            # Calculate the ozone using the band ratio
+            expr = f"{ozone_map} = 300.0 * (1.0 - float({o3_map}) / (0.5 * ({ref1_map} + {ref2_map}) + 0.0001))"
             gs.mapcalc(expr, overwrite=True)
             
             # Apply reasonable bounds (150-500 DU)
