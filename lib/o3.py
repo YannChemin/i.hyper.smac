@@ -272,8 +272,9 @@ def estimate_ozone_chappuis(input_raster, verbose=False):
         # Clean up temporary maps
         for _, band_map in locals().get('band_maps', []):
             try:
-                gs.run_command('g.remove', flags='f', type='raster', 
-                             name=band_map, quiet=not verbose)
+                #gs.run_command('g.remove', flags='f', type='raster', 
+                #             name=band_map, quiet=not verbose)
+                gs.message("Passed here")
             except:
                 pass
 
