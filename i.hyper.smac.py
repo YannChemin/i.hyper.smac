@@ -577,8 +577,9 @@ def main():
     else:
         pressure = estimate_pressure_from_dem(dem)
     
-    # Initialize default AOD value.
+    # Initialize default AOD value and map
     aod = 0.15  # Typical clear atmosphere
+    aod_map = None  # Initialize aod_map to None
 
     if options['aod']:
         aod = float(options['aod'])
@@ -607,7 +608,12 @@ def main():
     if ozone is None:
         try:
             # Import the ozone estimation module
-            o3_module_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib', 'o3.py')
+            # First try the development path, then fall back to the installed path
+            dev_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'lib', 'o3.py')
+            if os.path.exists(dev_path):
+                o3_module_path = dev_path
+            else:
+                o3_module_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib', 'o3.py')
             if not os.path.exists(o3_module_path):
                 raise FileNotFoundError(f"Ozone module not found at {o3_module_path}")
                 
@@ -635,8 +641,8 @@ def main():
             gs.warning(f"Error estimating ozone: {str(e)}. Using default value (0.3 cm-atm).")
             ozone = 0.3  # Default value in cm-atm
             
-        # Register the AOD map for cleanup if not keeping temp files
-        if not keep_temp:
+        # Clean up AOD map if it was created and we're not keeping temp files
+        if not keep_temp and aod_map is not None:
             gs.run_command('g.remove', type='raster', name=aod_map, flags='f', quiet=True)
                 
     # Log the ozone value being used
