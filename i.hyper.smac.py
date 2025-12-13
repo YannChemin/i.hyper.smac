@@ -586,6 +586,7 @@ def main():
     if options['aod'] and options['aod'].strip():  # Check for non-empty string
         try:
             aod = float(options['aod'])
+            gs.message(f"Using provided aod value: {aod}")
         except ValueError:
             gs.message("AOD not provided, estimating from hyperspectral data...")
     else:
@@ -602,12 +603,14 @@ def main():
     ozone = 0.3  # Typical value
     ozone_map = None  # Initialize ozone_map to None
     
-    if options['ozone'] is not None:
-        ozone = float(options['ozone'])
-        gs.message(f"Using provided ozone value: {ozone} cm-atm")
+    if options['ozone'] and options['ozone'].strip():
+        try:
+            ozone = float(options['ozone'])
+            gs.message(f"Using provided ozone value: {ozone} cm-atm")
+        except:
+            gs.message("Ozone not provided, estimating from hyperspectral data...")    
     else:
         # Estimate ozone using Chappuis band method
-        gs.message("Ozone not provided, estimating from hyperspectral data...")
         ozone_map, ozone_du = o3.estimate_ozone(
             input_raster=input_raster,
             method='chappuis',
