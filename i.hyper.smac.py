@@ -622,7 +622,7 @@ def main():
                         
     # Log the ozone value being used
     gs.message(f"Ozone: {ozone:.3f} cm-atm")
-    exit()
+
     # Initialize default water vapor content.
     gs.message("WVC: Estimating water vapor content...")
     water_vapor = 2.0  # g/cm² - typical mid-latitude value
