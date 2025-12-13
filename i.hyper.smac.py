@@ -668,9 +668,6 @@ def main():
             gs.warning(f"Failed to estimate water vapor from data: {str(e)}")
             gs.warning("Falling back to default water vapor value")
     
-    print("O3")
-    ozone = float(options['ozone'])
-
     # Get band information
     gs.message(f"Processing {input_raster}...")
     bands = get_all_band_wavelengths(input_raster)
