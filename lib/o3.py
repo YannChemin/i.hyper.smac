@@ -113,9 +113,6 @@ def extract_band_to_2d(input_raster, band_num, output_map=None):
     if not output_map:
         output_map = f"tmp_band_{band_num}"
     
-    # Get current region settings
-    region = gs.region()
-    
     try:
         # Set the 3D region to the specific band (using band_num + 0.1 to ensure top > bottom)
         gs.run_command('g.region', t=band_num + 0.1, b=band_num, quiet=True)
@@ -126,13 +123,7 @@ def extract_band_to_2d(input_raster, band_num, output_map=None):
                       output=output_map,
                       overwrite=True,
                       quiet=True)
-        
-        # Verify the output was created
-        if not gs.find_file(output_map, element='cell')['file']:
-            raise RuntimeError(f"Failed to extract band {band_num} to {output_map}")
- 
-        # Set the 3D region back
-        gs.run_command('g.region', raster_3d=input_raster, quiet=True)
+         
              
         return output_map
         
@@ -141,13 +132,9 @@ def extract_band_to_2d(input_raster, band_num, output_map=None):
         raise
         
     finally:
-        # Restore original region using direct values
-        gs.run_command('g.region', 
-                      n=region['n'], s=region['s'],
-                      e=region['e'], w=region['w'],
-                      t=region['t'], b=region['b'],
-                      quiet=True)
-
+        # Set the 3D region back
+        gs.run_command('g.region', raster_3d=input_raster, quiet=True)
+        
 
 def estimate_ozone_chappuis(input_raster, verbose=False):
     """Estimate total column ozone using the Chappuis band absorption.
