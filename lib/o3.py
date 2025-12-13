@@ -186,7 +186,7 @@ def estimate_ozone_chappuis(input_raster, verbose=False):
         
         # Calculate ozone using the Chappuis band ratio method
         ozone_map = "ozone_estimate"
-        
+        exit()        
         # Get the band maps
         try:
             # Find the closest bands to our target wavelengths
@@ -195,7 +195,7 @@ def estimate_ozone_chappuis(input_raster, verbose=False):
             ref2_wl, ref2_map = min(band_maps, key=lambda x: abs(x[0] - 650))
             
             if verbose:
-                gs.message(f"Using bands for ozone estimation:")
+                gs.message("Using bands for ozone estimation:")
                 gs.message(f"  Reference 1 (~550nm): Band at {ref1_wl:.1f} nm -> {ref1_map}")
                 gs.message(f"  Ozone band (~600nm): Band at {o3_wl:.1f} nm -> {o3_map}")
                 gs.message(f"  Reference 2 (~650nm): Band at {ref2_wl:.1f} nm -> {ref2_map}")
@@ -203,9 +203,11 @@ def estimate_ozone_chappuis(input_raster, verbose=False):
                 # Verify the bands are in the correct order
                 if not (ref1_wl < o3_wl < ref2_wl):
                     gs.warning("Warning: Bands are not in the expected order. Results may be inaccurate.")
-                    gs.warning(f"Expected order: ~550nm < ~600nm < ~650nm")
+                    gs.warning("Expected order: ~550nm < ~600nm < ~650nm")
                     gs.warning(f"Actual order: {ref1_wl:.1f} < {o3_wl:.1f} < {ref2_wl:.1f}")
-                    
+            
+            gs.message("*******Compute O3 Stats*****")
+        
         except (ValueError, IndexError) as e:
             raise ValueError(f"Could not find appropriate bands for ozone estimation: {str(e)}. "
                            "Ensure the input data covers the 500-700nm range.")
