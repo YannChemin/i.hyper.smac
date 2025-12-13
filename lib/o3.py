@@ -186,6 +186,8 @@ def estimate_ozone_chappuis(input_raster, verbose=False):
             if verbose:
                 gs.message(f"Using band {band['band']} ({band['wavelength']:.1f} nm) "
                           f"for {wl} nm")
+            gs.message(f"Using band {band['band']} from {input_raster} ({band['wavelength']:.1f} nm) "
+                          f"for {wl} nm")
             band_map = extract_band_to_2d(input_raster, band['band'], 
                                        f"tmp_ozone_{wl}")
             band_maps.append((wl, band_map))
