@@ -186,7 +186,6 @@ def estimate_ozone_chappuis(input_raster, verbose=False):
         
         # Calculate ozone using the Chappuis band ratio method
         ozone_map = "ozone_estimate"
-        exit()        
         # Get the band maps
         try:
             # Find the closest bands to our target wavelengths
@@ -228,7 +227,7 @@ def estimate_ozone_chappuis(input_raster, verbose=False):
         gs.message(f"*******Compute O3 : {ozone_map}*****")
         gs.mapcalc(expr, overwrite=True, verbose=True)
         gs.message(f"*******Computed O3 : {ozone_map}*****")
-        exit()
+        
         try:
             # # First, check if any of the bands are empty
             # for band_name, band_map in [('Reference 1', ref1_map), 
@@ -268,15 +267,15 @@ def estimate_ozone_chappuis(input_raster, verbose=False):
         gs.mapcalc(f"ozone_estimate = {DEFAULT_OZONE}", overwrite=True)
         return "ozone_estimate", DEFAULT_OZONE
     
-    finally:
-        # Clean up temporary maps
-        for _, band_map in locals().get('band_maps', []):
-            try:
-                #gs.run_command('g.remove', flags='f', type='raster', 
-                #             name=band_map, quiet=not verbose)
-                gs.message("Passed here")
-            except:
-                pass
+    # finally:
+    #     # Clean up temporary maps
+    #     for _, band_map in locals().get('band_maps', []):
+    #         try:
+    #             #gs.run_command('g.remove', flags='f', type='raster', 
+    #             #             name=band_map, quiet=not verbose)
+    #             gs.message("Passed here")
+    #         except:
+    #             pass
 
 
 def estimate_ozone(input_raster, method='chappuis', verbose=False):
