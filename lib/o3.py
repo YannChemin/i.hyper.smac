@@ -222,6 +222,11 @@ def estimate_ozone_chappuis(input_raster, verbose=False):
             else:
                 gs.message("*******O3 bands Stats OK*****")
         # This is a simplified empirical relationship
+        expr = f"{ozone_map} = 300.0 * (1.0 - float({o3_map}) / (0.5 * ({ref1_map} + {ref2_map}) + 0.0001))"
+        gs.message(f"*******Compute O3 : {ozone_map}*****")
+        gs.mapcalc(expr, overwrite=True, verbose=True)
+        gs.message(f"*******Computed O3 : {ozone_map}*****")
+        exit()
         try:
             # # First, check if any of the bands are empty
             # for band_name, band_map in [('Reference 1', ref1_map), 
