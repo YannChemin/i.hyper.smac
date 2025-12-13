@@ -172,6 +172,7 @@ if lib_path.exists():
         import radtran
         import aod
         import wvc
+        import o3
         estimate_aod = aod.estimate_aod
         estimate_wvc = wvc.estimate_wvc
         get_smac_parameters = radtran.get_smac_parameters
@@ -608,23 +609,9 @@ def main():
     
     if ozone is None:
         try:
-            # Import the ozone estimation module
-            # First try the development path, then fall back to the installed path
-            dev_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'lib', 'o3.py')
-            if os.path.exists(dev_path):
-                o3_module_path = dev_path
-            else:
-                o3_module_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib', 'o3.py')
-            if not os.path.exists(o3_module_path):
-                raise FileNotFoundError(f"Ozone module not found at {o3_module_path}")
-                
-            spec = importlib.util.spec_from_file_location("o3", o3_module_path)
-            o3_module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(o3_module)
-            
             # Estimate ozone using Chappuis band method
             gs.message("Ozone not provided, estimating from hyperspectral data...")
-            ozone_map, ozone_du = o3_module.estimate_ozone(
+            ozone_map, ozone_du = o3.estimate_ozone(
                 input_raster=input_raster,
                 method='chappuis',
                 verbose=gs.verbosity() > 1
