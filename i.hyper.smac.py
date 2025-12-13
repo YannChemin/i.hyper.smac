@@ -583,11 +583,13 @@ def main():
     aod = 0.15  # Typical clear atmosphere
     aod_map = None  # Initialize aod_map to None
 
-    if options['aod'] is not None:
-        aod = float(options['aod'])
+    if options['aod'] and options['aod'].strip():  # Check for non-empty string
+        try:
+            aod = float(options['aod'])
+        except ValueError:
+            gs.message("AOD not provided, estimating from hyperspectral data...")
     else:
         # Estimate AOD if not provided
-        gs.message("AOD not provided, estimating from hyperspectral data...")
         aod_map, aod = estimate_aod(
             input_raster=input_raster,
             dem=dem,
