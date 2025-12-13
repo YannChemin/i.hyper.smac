@@ -600,7 +600,7 @@ def main():
         gs.message(f"Estimated AOD @ 550nm: {aod:.3f}")
     
     # Estimate ozone if not provided
-    ozone = 0.3  # Typical value
+    ozone = 0.4  # Typical value
     ozone_map = None  # Initialize ozone_map to None
     
     if options['ozone'] and options['ozone'].strip():
