@@ -97,13 +97,18 @@ def extract_band_to_2d(input_raster, band_num, output_map=None):
     gs.run_command('g.remove', flags='f', type='raster', 
                   pattern=f"{output_map}*", quiet=True)
     
+    # Set the 3D region to the specific band (using band_num + 0.1 to ensure top > bottom)
+    gs.run_command('g.region', t=band_num + 0.1, b=band_num, quiet=True)
+    
     # Extract the band using r3.to.rast
     gs.run_command('r3.to.rast',
                   input=input_raster,
                   output=output_map,
                   overwrite=True,
-                  depth=band_num,
                   quiet=True)
+    
+    # Set the 3D region back
+    gs.run_command('g.region', raster_3d=input_raster, quiet=True)
     
     return output_map
 

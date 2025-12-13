@@ -109,6 +109,9 @@ class AODEstimator:
                          overwrite=True,
                          quiet=True)
             
+            # Set the 3D region back
+            gs.run_command('g.region', raster_3d=self.input_raster, quiet=True)
+
             if self.verbose:
                 gs.message(f"Extracted band {band_num} to {output_map}")
             

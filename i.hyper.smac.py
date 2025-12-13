@@ -212,14 +212,20 @@ def parse_wavelength_from_metadata(raster3d, band_num):
         
         # If we couldn't get metadata from the 3D raster, try extracting the band
         temp_band = f"tmp_meta_{os.getpid()}_{band_num}"
+
         try:
-            # Extract the band
+            # Set the 3D region to the specific band (using band_num + 0.1 to ensure top > bottom)
+            gs.run_command('g.region', t=band_num + 0.1, b=band_num, quiet=True)
+            
+             # Extract the band
             gs.run_command('r3.to.rast', 
                           input=raster3d,
                           output=temp_band,
-                          level=band_num,
                           overwrite=True,
                           quiet=True)
+            
+            # Set the 3D region back
+            gs.run_command('g.region', raster_3d=raster3d, quiet=True)
             
             # Get metadata from the extracted 2D band
             info = gs.read_command('r.info', flags='e', map=temp_band)
@@ -328,10 +334,10 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
         # Extract band from 3D raster
         input_band = f"tmp_input_{os.getpid()}_{band_num}"
         
-        # Set the 3D region to the specific band (using band_num + 0.1 to ensure top > bottom)
-        gs.run_command('g.region', t=band_num + 0.1, b=band_num, quiet=True)
-        
         try:
+            # Set the 3D region to the specific band (using band_num + 0.1 to ensure top > bottom)
+            gs.run_command('g.region', t=band_num + 0.1, b=band_num, quiet=True)
+            
             # Extract the band using the mask
             gs.run_command('r3.mapcalc',
                           expression=f"{input_band} = {input_raster}",
@@ -376,6 +382,9 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
             t_total = t_down * t_up * t_gas
             rho_atm = 0.02 * tau
             
+            # Restore 3D g.region
+            gs.run_command('g.region', raster_3d=input_raster, quiet=True)
+
             # Apply correction and update the output 3D raster in place
             gs.run_command('r3.mapcalc',
                           expression=f"{output_raster} = if(z() == {band_num}, ({input_band} - {rho_atm:.6f}) / {t_total:.6f}, {output_raster})",
@@ -498,6 +507,9 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
             except Exception as e:
                 gs.fatal(f"Error processing band {band_num}: {str(e)}")
         
+        # Restore 3D g.region
+        gs.run_command('g.region', raster_3d=input_raster, quiet=True)
+
         # Combine corrected bands back into a 3D raster
         gs.message("Combining corrected bands...")
         gs.run_command('r.to.rast3', input=','.join(output_bands), output=output_raster, overwrite=True)
@@ -506,6 +518,9 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
         gs.fatal(f"Error in libradtran processing: {str(e)}")
         
     finally:
+        # Restore 3D g.region
+        gs.run_command('g.region', raster_3d=input_raster, quiet=True)
+
         # Clean up temporary files
         if not keep_temp:
             gs.message("Cleaning up temporary files...")
@@ -581,41 +596,54 @@ def main():
             gs.message(f"Estimated AOD @ 550nm: {aod:.3f}")
     
     # Estimate ozone if not provided
-    ozone = 0.3
+    ozone = None
     if options['ozone']:
-        ozone = float(options['ozone'])
-    else:
+        try:
+            ozone = float(options['ozone'])
+            gs.message(f"Using provided ozone value: {ozone} cm-atm")
+        except ValueError:
+            gs.warning(f"Invalid ozone value: {options['ozone']}. Will estimate from data.")
+    
+    if ozone is None:
         try:
             # Import the ozone estimation module
             o3_module_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib', 'o3.py')
+            if not os.path.exists(o3_module_path):
+                raise FileNotFoundError(f"Ozone module not found at {o3_module_path}")
+                
             spec = importlib.util.spec_from_file_location("o3", o3_module_path)
             o3_module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(o3_module)
             
             # Estimate ozone using Chappuis band method
             gs.message("Ozone not provided, estimating from hyperspectral data...")
-            ozone_map, ozone = o3_module.estimate_ozone(
+            ozone_map, ozone_du = o3_module.estimate_ozone(
                 input_raster=input_raster,
                 method='chappuis',
                 verbose=gs.verbosity() > 1
             )
-            gs.message(f"Estimated total column ozone: {ozone:.1f} DU")
+            # Convert from DU to cm-atm (1 DU = 0.001 cm-atm)
+            ozone = ozone_du * 0.001
+            gs.message(f"Estimated total column ozone: {ozone_du:.1f} DU ({ozone:.3f} cm-atm)")
             
             # Add ozone map to temporary files for cleanup
-            if not keep_temp:
+            if not keep_temp and 'ozone_map' in locals():
                 gs.run_command('g.remove', flags='f', type='raster', 
                              name=ozone_map, quiet=True)
                                 
         except Exception as e:
-            gs.warning(f"Error estimating ozone: {str(e)}. Using default value (300 DU).")
-            ozone = 300.0  # Default value in Dobson Units
+            gs.warning(f"Error estimating ozone: {str(e)}. Using default value (0.3 cm-atm).")
+            ozone = 0.3  # Default value in cm-atm
             
         # Register the AOD map for cleanup if not keeping temp files
         if not keep_temp:
             gs.run_command('g.remove', type='raster', name=aod_map, flags='f', quiet=True)
                 
+    # Log the ozone value being used
+    gs.message(f"Ozone: {ozone:.3f} cm-atm")
+    
     # Initialize default water vapor content.
-    print("WVC")
+    gs.message("WVC: Estimating water vapor content...")
     water_vapor = 2.0  # g/cm² - typical mid-latitude value
 
     if options['water_vapor']:
