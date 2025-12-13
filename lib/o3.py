@@ -117,20 +117,39 @@ def extract_band_to_2d(input_raster, band_num, output_map=None):
     gs.run_command('g.remove', flags='f', type='raster', 
                   pattern=f"{output_map}*", quiet=True)
     
-    # Set the 3D region to the specific band (using band_num + 0.1 to ensure top > bottom)
-    gs.run_command('g.region', t=band_num + 0.1, b=band_num, quiet=True)
+    # Save current region
+    saved_region = gs.tempfile()
+    gs.run_command('g.region', save=saved_region, quiet=True)
     
-    # Extract the band using r3.to.rast
-    gs.run_command('r3.to.rast',
-                  input=input_raster,
-                  output=output_map,
-                  overwrite=True,
-                  quiet=True)
-    
-    # Set the 3D region back
-    gs.run_command('g.region', raster_3d=input_raster, quiet=True)
-    
-    return output_map
+    try:
+        # Set the 3D region to the specific band
+        gs.run_command('g.region', n='n', s='s', e='e', w='w', 
+                      t=band_num, b=band_num, quiet=True)
+        
+        # Extract the band using r3.to.rast with 3D region
+        gs.run_command('r3.to.rast',
+                      input=input_raster,
+                      output=output_map,
+                      overwrite=True,
+                      quiet=True)
+        
+        # Verify the output was created
+        if not gs.find_file(output_map, element='cell')['file']:
+            raise RuntimeError(f"Failed to extract band {band_num} to {output_map}")
+            
+        return output_map
+        
+    except Exception as e:
+        gs.warning(f"Error extracting band {band_num}: {str(e)}")
+        raise
+        
+    finally:
+        # Restore original region
+        gs.run_command('g.region', region=saved_region, quiet=True)
+        try:
+            os.unlink(saved_region)
+        except:
+            pass
 
 
 def estimate_ozone_chappuis(input_raster, verbose=False):
