@@ -224,11 +224,11 @@ def estimate_ozone_chappuis(input_raster, verbose=False):
                     gs.message("*******O3 bands Stats OK*****")
             # Calculate the ozone using the band ratio
             expr = f"{ozone_map} = 300.0 * (1.0 - float({o3_map}) / (0.5 * ({ref1_map} + {ref2_map}) + 0.0001))"
-            gs.mapcalc(expr, overwrite=True)
+            gs.mapcalc(expr, overwrite=True, verbose=True)
             
             # Apply reasonable bounds (150-500 DU)
             expr = f"{ozone_map} = if({ozone_map} < 150, 150, if({ozone_map} > 500, 500, {ozone_map}))"
-            gs.mapcalc(expr, overwrite=True)
+            gs.mapcalc(expr, overwrite=True, verbose=True)
             
             # Calculate mean ozone
             stats = gs.parse_command('r.univar', map=ozone_map, flags='g')
