@@ -117,14 +117,16 @@ def extract_band_to_2d(input_raster, band_num, output_map=None):
     gs.run_command('g.remove', flags='f', type='raster', 
                   pattern=f"{output_map}*", quiet=True)
     
-    # Save current region
-    saved_region = gs.tempfile()
-    gs.run_command('g.region', save=saved_region, quiet=True)
+    # Get current region settings
+    region = gs.region()
     
     try:
         # Set the 3D region to the specific band
-        gs.run_command('g.region', n='n', s='s', e='e', w='w', 
-                      t=band_num, b=band_num, quiet=True)
+        gs.run_command('g.region', 
+                      n=region['n'], s=region['s'], 
+                      e=region['e'], w=region['w'],
+                      t=band_num, b=band_num, 
+                      quiet=True)
         
         # Extract the band using r3.to.rast with 3D region
         gs.run_command('r3.to.rast',
@@ -144,12 +146,12 @@ def extract_band_to_2d(input_raster, band_num, output_map=None):
         raise
         
     finally:
-        # Restore original region
-        gs.run_command('g.region', region=saved_region, quiet=True)
-        try:
-            os.unlink(saved_region)
-        except:
-            pass
+        # Restore original region using direct values
+        gs.run_command('g.region', 
+                      n=region['n'], s=region['s'],
+                      e=region['e'], w=region['w'],
+                      t=region['t'], b=region['b'],
+                      quiet=True)
 
 
 def estimate_ozone_chappuis(input_raster, verbose=False):
