@@ -83,7 +83,7 @@ def get_band_info(input_raster, verbose=False):
 
 
 def find_nearest_band(bands, target_wavelength):
-    """Find the band closest to the target wavelength.
+    """Find the band with wavelength closest to the target.
     
     Args:
         bands (list): List of band information dictionaries
@@ -92,6 +92,10 @@ def find_nearest_band(bands, target_wavelength):
     Returns:
         dict: Band information for the closest band
     """
+    # If bands is a list of tuples (wavelength, map_name), convert to list of dicts
+    if isinstance(bands[0], (list, tuple)):
+        bands = [{'wavelength': wl, 'band': i+1} for i, (wl, _) in enumerate(bands)]
+    
     return min(bands, key=lambda x: abs(x['wavelength'] - target_wavelength))
 
 
@@ -143,17 +147,12 @@ def extract_band_to_2d(input_raster, band_num, output_map=None):
 def estimate_ozone_chappuis(input_raster, verbose=False):
     """Estimate total column ozone using the Chappuis band absorption.
     
-    This method uses the differential absorption in the Chappuis band (500-700 nm)
-    to estimate total column ozone. It's less accurate than UV methods but works
-    with visible-range hyperspectral data.
-    
     Args:
-        input_raster (str): Input 3D hyperspectral raster
-        verbose (bool, optional): Enable verbose output
+        input_raster (str): Name of the input 3D raster
+        verbose (bool): Enable verbose output
         
     Returns:
-        tuple: (ozone_map, mean_ozone) where ozone_map is the raster name and 
-               mean_ozone is the mean value in Dobson Units (DU)
+        tuple: (ozone_map_name, mean_ozone_du)
     """
     try:
         # Get band information
@@ -161,33 +160,38 @@ def estimate_ozone_chappuis(input_raster, verbose=False):
         if not bands:
             raise ValueError("No bands with wavelength information found in the input raster")
         
-        if not any(500 <= x['wavelength'] <= 700 for x in bands):
-            raise ValueError("Estimate O3 Chappuis : No elements in 'bands' between 500 and 700")
-
+        # Ensure we have bands in the Chappuis range (500-700nm)
+        if not any(500 <= float(band['wavelength']) <= 700 for band in bands):
+            raise ValueError("No bands found in the 500-700nm range required for Chappuis band method")
+        
         if verbose:
             gs.message(f"Found {len(bands)} bands in input raster")
-            gs.message(f"Wavelength range: {bands[0]['wavelength']:.1f} - {bands[-1]['wavelength']:.1f} nm")
-        
-        # Find bands closest to key wavelengths
-        target_wavelengths = [550, 600, 650]  # Reference, O3 peak, reference
+            gs.message(f"Wavelength range: {float(bands[0]['wavelength']):.1f} - {float(bands[-1]['wavelength']):.1f} nm")
+
+        # Extract the required bands
         band_maps = []
+        target_wavelengths = [550, 600, 650]  # Chappuis band wavelengths in nm
         
         for wl in target_wavelengths:
             band = find_nearest_band(bands, wl)
+            band_wl = float(band['wavelength'])
+            band_num = int(band['band'])
+            
             if verbose:
-                gs.message(f"Using band {band['band']} from {input_raster} \
-                           ({band['wavelength']:.1f} nm) for {wl} nm")
-            band_map = extract_band_to_2d(input_raster, band['band'], f"tmp_ozone_{wl}")
+                gs.message(f"Using band {band_num} ({band_wl:.1f} nm) for {wl} nm")
+                
+            band_map = f"tmp_ozone_{wl}"
+            band_map = extract_band_to_2d(input_raster, band_num, band_map)
             band_maps.append((wl, band_map))
         
         # Calculate ozone using the Chappuis band ratio method
         ozone_map = "ozone_estimate"
-        # Get the band maps
+        
         try:
-            # Find the closest bands to our target wavelengths
-            ref1_wl, ref1_map = find_nearest_band(band_maps, 550)
-            o3_wl, o3_map = find_nearest_band(band_maps, 600)
-            ref2_wl, ref2_map = find_nearest_band(band_maps, 650)
+            # Get the band maps
+            ref1_wl, ref1_map = min(band_maps, key=lambda x: abs(x[0] - 550))
+            o3_wl, o3_map = min(band_maps, key=lambda x: abs(x[0] - 600))
+            ref2_wl, ref2_map = min(band_maps, key=lambda x: abs(x[0] - 650))
             
             if verbose:
                 gs.message("Using bands for ozone estimation:")
@@ -195,52 +199,20 @@ def estimate_ozone_chappuis(input_raster, verbose=False):
                 gs.message(f"  Ozone band (~600nm): Band at {o3_wl:.1f} nm -> {o3_map}")
                 gs.message(f"  Reference 2 (~650nm): Band at {ref2_wl:.1f} nm -> {ref2_map}")
                 
-                # Verify the bands are in the correct order
+                # Verify band order
                 if not (ref1_wl < o3_wl < ref2_wl):
                     gs.warning("Warning: Bands are not in the expected order. Results may be inaccurate.")
                     gs.warning("Expected order: ~550nm < ~600nm < ~650nm")
                     gs.warning(f"Actual order: {ref1_wl:.1f} < {o3_wl:.1f} < {ref2_wl:.1f}")
             
-            gs.message("*******Compute O3 Stats*****")
-        
-        except (ValueError, IndexError) as e:
-            raise ValueError(f"Could not find appropriate bands for ozone estimation: {str(e)}. "
-                           "Ensure the input data covers the 500-700nm range.")
-        
-        # Calculate ozone using band ratios
-        gs.message("*******Calculate O3 bands Stats*****")
-        # First, check if any of the bands are empty
-        for band_name, band_map in [('Reference 1', ref1_map), 
-                                  ('Ozone band', o3_map), 
-                                  ('Reference 2', ref2_map)]:
-            stats = gs.parse_command('r.univar', map=band_map, flags='g')
-            if float(stats['non_null_cells']) == 0:
-                raise ValueError(f"{band_name} band ({band_map}) contains no data")
-            else:
-                gs.message("*******O3 bands Stats OK*****")
-        # This is a simplified empirical relationship
-        expr = f"{ozone_map} = 300.0 * (1.0 - float({o3_map}) / (0.5 * ({ref1_map} + {ref2_map}) + 0.0001))"
-        gs.message(f"*******Compute O3 : {ozone_map}*****")
-        gs.mapcalc(expr, overwrite=True, verbose=True)
-        gs.message(f"*******Computed O3 : {ozone_map}*****")
-        
-        try:
-            # # First, check if any of the bands are empty
-            # for band_name, band_map in [('Reference 1', ref1_map), 
-            #                           ('Ozone band', o3_map), 
-            #                           ('Reference 2', ref2_map)]:
-            #     stats = gs.parse_command('r.univar', map=band_map, flags='g')
-            #     if float(stats['non_null_cells']) == 0:
-            #         raise ValueError(f"{band_name} band ({band_map}) contains no data")
-            #     else:
-            #         gs.message("*******O3 bands Stats OK*****")
-            # Calculate the ozone using the band ratio
+            # Calculate ozone using the band ratio
+            # This is a simplified empirical relationship
             expr = f"{ozone_map} = 300.0 * (1.0 - float({o3_map}) / (0.5 * ({ref1_map} + {ref2_map}) + 0.0001))"
-            gs.mapcalc(expr, overwrite=True, verbose=True)
+            gs.mapcalc(expr, overwrite=True, verbose=verbose)
             
             # Apply reasonable bounds (150-500 DU)
             expr = f"{ozone_map} = if({ozone_map} < 150, 150, if({ozone_map} > 500, 500, {ozone_map}))"
-            gs.mapcalc(expr, overwrite=True, verbose=True)
+            gs.mapcalc(expr, overwrite=True, verbose=verbose)
             
             # Calculate mean ozone
             stats = gs.parse_command('r.univar', map=ozone_map, flags='g')
@@ -248,30 +220,20 @@ def estimate_ozone_chappuis(input_raster, verbose=False):
             
             if verbose:
                 gs.message(f"Ozone estimation complete. Mean ozone: {mean_ozone:.1f} DU")
-            exit()
+            
             return ozone_map, mean_ozone
             
         except Exception as e:
-            raise RuntimeError(f"Error calculating ozone map: {str(e)}")
-        
+            raise ValueError(f"Error calculating ozone map: {str(e)}")
+            
     except Exception as e:
         if verbose:
             gs.warning(f"Error in ozone estimation: {str(e)}")
             gs.warning("Using default ozone value of 300 DU")
         
-        # Create a constant ozone map with default value
+        # Create a constant map with default value
         gs.mapcalc(f"ozone_estimate = {DEFAULT_OZONE}", overwrite=True)
         return "ozone_estimate", DEFAULT_OZONE
-    
-    # finally:
-    #     # Clean up temporary maps
-    #     for _, band_map in locals().get('band_maps', []):
-    #         try:
-    #             #gs.run_command('g.remove', flags='f', type='raster', 
-    #             #             name=band_map, quiet=not verbose)
-    #             gs.message("Passed here")
-    #         except:
-    #             pass
 
 
 def estimate_ozone(input_raster, method='chappuis', verbose=False):
