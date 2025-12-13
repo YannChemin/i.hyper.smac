@@ -154,6 +154,7 @@ import tempfile
 import numpy as np
 import grass.script as gs
 from pathlib import Path
+import importlib.util
 
 # Get GISBASE (GRASS installation prefix)
 gisbase = os.environ.get("GISBASE")
@@ -474,7 +475,7 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
                     sza=solar_zenith,
                     aod_550=aod,
                     water_vapor=water_vapor,
-                    ozone=ozone,
+                    ozone=ozone,  # This will be the estimated or provided ozone value
                     surface_albedo=0.1,  # Initial guess, will be updated
                     aerosol_type=aerosol_type,
                     verbose=gs.verbosity() > 0
@@ -562,21 +563,52 @@ def main():
         pressure = estimate_pressure_from_dem(dem)
     
     # Initialize default AOD value.
-    print("AOD")
     aod = 0.15  # Typical clear atmosphere
 
     if options['aod']:
         aod = float(options['aod'])
     else:
-        gs.message("AOD not provided, estimating from hyperspectral data...")
-        # Estimate AOD from hyperspectral data using DDV method
-        aod_map, aod = estimate_aod(
-            input_raster=input_raster,
-            dem=dem,
-            method='ddv',
-            verbose=gs.verbosity() > 0
-        )
-        gs.message(f"Estimated AOD @ 550nm: {aod:.3f}")
+        # Estimate AOD if not provided
+        if aod is None:
+            gs.message("AOD not provided, estimating from hyperspectral data...")
+            aod_map, aod = estimate_aod(
+                input_raster=input_raster,
+                dem=dem,
+                method='ddv',
+                sensor_config=sensor_config,
+                verbose=gs.verbosity() > 1
+            )
+            gs.message(f"Estimated AOD @ 550nm: {aod:.3f}")
+    
+    # Estimate ozone if not provided
+    ozone = 0.3
+    if options['ozone']:
+        ozone = float(options['ozone'])
+    else:
+        try:
+            # Import the ozone estimation module
+            o3_module_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib', 'o3.py')
+            spec = importlib.util.spec_from_file_location("o3", o3_module_path)
+            o3_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(o3_module)
+            
+            # Estimate ozone using Chappuis band method
+            gs.message("Ozone not provided, estimating from hyperspectral data...")
+            ozone_map, ozone = o3_module.estimate_ozone(
+                input_raster=input_raster,
+                method='chappuis',
+                verbose=gs.verbosity() > 1
+            )
+            gs.message(f"Estimated total column ozone: {ozone:.1f} DU")
+            
+            # Add ozone map to temporary files for cleanup
+            if not keep_temp:
+                gs.run_command('g.remove', flags='f', type='raster', 
+                             name=ozone_map, quiet=True)
+                                
+        except Exception as e:
+            gs.warning(f"Error estimating ozone: {str(e)}. Using default value (300 DU).")
+            ozone = 300.0  # Default value in Dobson Units
             
         # Register the AOD map for cleanup if not keeping temp files
         if not keep_temp:
