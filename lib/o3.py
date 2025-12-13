@@ -170,7 +170,7 @@ def estimate_ozone_chappuis(input_raster, verbose=False):
         if not bands:
             raise ValueError("No bands with wavelength information found in the input raster")
         
-        if not any(500 <= x <= 700 for x in bands):
+        if not any(500 <= x['wavelength'] <= 700 for x in bands):
             raise ValueError("Estimate O3 Chappuis : No elements in 'bands' between 500 and 700")
 
         if verbose:
