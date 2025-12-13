@@ -33,18 +33,16 @@ DEFAULT_DARK_PIXEL_THRESHOLD = 0.1 # Reflectance threshold for dark pixels
 class AODEstimator:
     """Class for estimating Aerosol Optical Depth from hyperspectral data."""
     
-    def __init__(self, input_raster, dem, sensor_config=None, verbose=False):
+    def __init__(self, input_raster, dem, verbose=False):
         """Initialize the AOD estimator.
         
         Args:
             input_raster (str): Name of the input 3D hyperspectral raster
             dem (str): Name of the digital elevation model (DEM) raster
-            sensor_config (dict, optional): Sensor configuration dictionary
             verbose (bool, optional): Enable verbose output
         """
         self.input_raster = input_raster
         self.dem = dem
-        self.sensor_config = sensor_config or {}
         self.verbose = verbose
         self.band_info = []
         self.ndvi = None
@@ -420,20 +418,19 @@ class AODEstimator:
                              name=map_name, quiet=True)
 
 
-def estimate_aod(input_raster, dem, method='auto', sensor_config=None, verbose=False):
+def estimate_aod(input_raster, dem, method='auto', verbose=False):
     """Convenience function to estimate AOD from hyperspectral data.
     
     Args:
         input_raster (str): Name of the input 3D hyperspectral raster
         dem (str): Name of the digital elevation model (DEM) raster
         method (str, optional): AOD estimation method. Defaults to 'auto'.
-        sensor_config (dict, optional): Sensor configuration dictionary
         verbose (bool, optional): Enable verbose output
         
     Returns:
         tuple: (aod_map, mean_aod) where aod_map is the raster name and mean_aod is the value
     """
-    estimator = AODEstimator(input_raster, dem, sensor_config, verbose)
+    estimator = AODEstimator(input_raster, dem, verbose)
     try:
         aod_map, mean_aod = estimator.estimate_aod(method)
         

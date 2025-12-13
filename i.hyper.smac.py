@@ -583,59 +583,41 @@ def main():
     aod = 0.15  # Typical clear atmosphere
     aod_map = None  # Initialize aod_map to None
 
-    if options['aod']:
+    if options['aod'] is not None:
         aod = float(options['aod'])
     else:
         # Estimate AOD if not provided
-        if aod is None:
-            gs.message("AOD not provided, estimating from hyperspectral data...")
-            aod_map, aod = estimate_aod(
-                input_raster=input_raster,
-                dem=dem,
-                method='ddv',
-                sensor_config=sensor_config,
-                verbose=gs.verbosity() > 1
-            )
-            gs.message(f"Estimated AOD @ 550nm: {aod:.3f}")
+        gs.message("AOD not provided, estimating from hyperspectral data...")
+        aod_map, aod = estimate_aod(
+            input_raster=input_raster,
+            dem=dem,
+            method='auto',
+            verbose=gs.verbosity() > 1
+        )
+        gs.message(f"Estimated AOD @ 550nm: {aod:.3f}")
     
     # Estimate ozone if not provided
-    ozone = None
-    if options['ozone'] and options['ozone'] != '0.3':  # Only use provided value if it's not the default
-        try:
-            ozone = float(options['ozone'])
-            gs.message(f"Using provided ozone value: {ozone} cm-atm")
-        except ValueError:
-            gs.warning(f"Invalid ozone value: {options['ozone']}. Will estimate from data.")
+    ozone = 0.3  # Typical value
+    ozone_map = None  # Initialize ozone_map to None
     
-    if ozone is None:
-        try:
-            # Estimate ozone using Chappuis band method
-            gs.message("Ozone not provided, estimating from hyperspectral data...")
-            ozone_map, ozone_du = o3.estimate_ozone(
-                input_raster=input_raster,
-                method='chappuis',
-                verbose=gs.verbosity() > 1
-            )
-            # Convert from DU to cm-atm (1 DU = 0.001 cm-atm)
-            ozone = ozone_du * 0.001
-            gs.message(f"Estimated total column ozone: {ozone_du:.1f} DU ({ozone:.3f} cm-atm)")
-            
-            # Add ozone map to temporary files for cleanup
-            if not keep_temp and 'ozone_map' in locals():
-                gs.run_command('g.remove', flags='f', type='raster', 
-                             name=ozone_map, quiet=True)
-                                
-        except Exception as e:
-            gs.warning(f"Error estimating ozone: {str(e)}. Using default value (0.3 cm-atm).")
-            ozone = 0.3  # Default value in cm-atm
-            
-        # Clean up AOD map if it was created and we're not keeping temp files
-        if not keep_temp and aod_map is not None:
-            gs.run_command('g.remove', type='raster', name=aod_map, flags='f', quiet=True)
-                
+    if options['ozone'] is not None:
+        ozone = float(options['ozone'])
+        gs.message(f"Using provided ozone value: {ozone} cm-atm")
+    else:
+        # Estimate ozone using Chappuis band method
+        gs.message("Ozone not provided, estimating from hyperspectral data...")
+        ozone_map, ozone_du = o3.estimate_ozone(
+            input_raster=input_raster,
+            method='chappuis',
+            verbose=gs.verbosity() > 1
+        )
+        # Convert from DU to cm-atm (1 DU = 0.001 cm-atm)
+        ozone = ozone_du * 0.001
+        gs.message(f"Estimated total column ozone: {ozone_du:.1f} DU ({ozone:.3f} cm-atm)")
+                        
     # Log the ozone value being used
     gs.message(f"Ozone: {ozone:.3f} cm-atm")
-    
+    exit()
     # Initialize default water vapor content.
     gs.message("WVC: Estimating water vapor content...")
     water_vapor = 2.0  # g/cm² - typical mid-latitude value
@@ -653,11 +635,7 @@ def main():
                 verbose=gs.verbosity() > 0
             )
             gs.message(f"Estimated water vapor content: {water_vapor:.2f} g/cm²")
-            
-            # Register the WVC map for cleanup if not keeping temp files
-            if not keep_temp:
-                gs.run_command('g.remove', type='raster', name=wvc_map, flags='f', quiet=True)
-                
+                            
         except Exception as e:
             gs.warning(f"Failed to estimate water vapor from data: {str(e)}")
             gs.warning("Falling back to default water vapor value")
