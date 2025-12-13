@@ -124,6 +124,14 @@ def extract_band_to_2d(input_raster, band_num, output_map=None):
                       overwrite=True,
                       quiet=True)
          
+        # The output will be named output_map_00001
+        output_file = f"{output_map}_00001"
+         
+        # Rename the output file to the desired name
+        gs.run_command('g.rename',
+                     raster=f"{output_file},{output_map}",
+                     overwrite=True,
+                     quiet=True)
              
         return output_map
         
