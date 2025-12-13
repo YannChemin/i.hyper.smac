@@ -219,9 +219,6 @@ def estimate_ozone_chappuis(input_raster, verbose=False):
                                       ('Reference 2', ref2_map)]:
                 stats = gs.parse_command('r.univar', map=band_map, flags='g')
                 if float(stats['non_null_cells']) == 0:
-                    gs.message(f"{gs.run_command('r.info', map=ref1_map)}")
-                    gs.message(f"{gs.run_command('r.info', map=o3_map)}")
-                    gs.message(f"{gs.run_command('r.info', map=ref2_map)}")
                     raise ValueError(f"{band_name} band ({band_map}) contains no data")
             
             # Calculate the ozone using the band ratio
@@ -238,7 +235,7 @@ def estimate_ozone_chappuis(input_raster, verbose=False):
             
             if verbose:
                 gs.message(f"Ozone estimation complete. Mean ozone: {mean_ozone:.1f} DU")
-            
+            exit()
             return ozone_map, mean_ozone
             
         except Exception as e:
