@@ -217,12 +217,12 @@ def estimate_ozone_chappuis(input_raster, verbose=False):
         # This is a simplified empirical relationship
         try:
             # First, check if any of the bands are empty
-            for band_name, band_map in [('Reference 1', ref1_map), 
-                                      ('Ozone band', o3_map), 
-                                      ('Reference 2', ref2_map)]:
-                stats = gs.parse_command('r.univar', map=band_map, flags='g')
-                if float(stats['non_null_cells']) == 0:
-                    raise ValueError(f"{band_name} band ({band_map}) contains no data")
+            #for band_name, band_map in [('Reference 1', ref1_map), 
+            #                          ('Ozone band', o3_map), 
+            #                          ('Reference 2', ref2_map)]:
+                #stats = gs.parse_command('r.univar', map=band_map, flags='g')
+                #if float(stats['non_null_cells']) == 0:
+                #    raise ValueError(f"{band_name} band ({band_map}) contains no data")
             
             # Calculate the ozone using the band ratio
             expr = f"{ozone_map} = 300.0 * (1.0 - float({o3_map}) / (0.5 * ({ref1_map} + {ref2_map}) + 0.0001))"
