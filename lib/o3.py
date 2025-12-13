@@ -113,20 +113,12 @@ def extract_band_to_2d(input_raster, band_num, output_map=None):
     if not output_map:
         output_map = f"tmp_band_{band_num}"
     
-    # Clean up any existing files with the same name
-    gs.run_command('g.remove', flags='f', type='raster', 
-                  pattern=f"{output_map}*", quiet=True)
-    
     # Get current region settings
     region = gs.region()
     
     try:
-        # Set the 3D region to the specific band
-        gs.run_command('g.region', 
-                      n=region['n'], s=region['s'], 
-                      e=region['e'], w=region['w'],
-                      t=band_num, b=band_num, 
-                      quiet=True)
+        # Set the 3D region to the specific band (using band_num + 0.1 to ensure top > bottom)
+        gs.run_command('g.region', t=band_num + 0.1, b=band_num, quiet=True)
         
         # Extract the band using r3.to.rast with 3D region
         gs.run_command('r3.to.rast',
@@ -138,7 +130,10 @@ def extract_band_to_2d(input_raster, band_num, output_map=None):
         # Verify the output was created
         if not gs.find_file(output_map, element='cell')['file']:
             raise RuntimeError(f"Failed to extract band {band_num} to {output_map}")
-            
+ 
+        # Set the 3D region back
+        gs.run_command('g.region', raster_3d=input_raster, quiet=True)
+             
         return output_map
         
     except Exception as e:
