@@ -468,5 +468,6 @@ if __name__ == "__main__":
         gs.run_command('g.rename', raster=f"{aod_map},{args.output}", overwrite=True)
         aod_map = args.output
     
-    print(f"AOD map created: {aod_map}")
-    print(f"Mean AOD @ 550nm: {mean_aod:.3f}")
+    if gs.verbosity() > 0:
+        gs.message(f"AOD map created: {aod_map}")
+        gs.message(f"Mean AOD @ 550nm: {mean_aod:.3f}")

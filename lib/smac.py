@@ -458,4 +458,5 @@ if __name__=="__main__" :
     r_surf = smac_inv(r_toa , theta_s, phi_s, theta_v, phi_v,1013,0.1,0.3,0.3, coefs)
     r_toa2 = smac_dir(r_surf, theta_s, phi_s, theta_v, phi_v,1013,0.1,0.3,0.3, coefs)       
  
-    print(r_toa, r_surf, r_toa2)
+    if gs.verbosity() > 1:
+        gs.message(f"TOA reflectance: {r_toa}, Surface reflectance: {r_surf}, Reconstructed TOA: {r_toa2}")

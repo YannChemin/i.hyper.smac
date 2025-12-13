@@ -214,10 +214,10 @@ if __name__ == "__main__":
     import sys
     
     if len(sys.argv) != 2:
-        print("Usage: python o3.py <input_3d_raster>")
-        sys.exit(1)
+        gs.fatal("Usage: python o3.py <input_3d_raster>")
     
     input_raster = sys.argv[1]
     ozone_map, mean_ozone = estimate_ozone(input_raster, verbose=True)
-    print(f"Ozone estimation complete. Mean ozone: {mean_ozone:.1f} DU")
-    print(f"Ozone map created: {ozone_map}")
+    if gs.verbosity() > 0:
+        gs.message(f"Ozone estimation complete. Mean ozone: {mean_ozone:.1f} DU")
+        gs.message(f"Ozone map created: {ozone_map}")

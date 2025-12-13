@@ -163,7 +163,8 @@ if gisbase is None:
     gisbase = gs.parse_command("g.gisenv", flags="n")["GISBASE"]
 
 lib_path = Path(gisbase) / "etc" / "i_hyper_lib"
-print(lib_path)
+if gs.verbosity() > 0:
+    gs.message(f"Library path: {lib_path}")
 
 if lib_path.exists():
     sys.path.insert(0, str(lib_path))

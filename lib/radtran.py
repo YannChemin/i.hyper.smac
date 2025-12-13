@@ -39,7 +39,8 @@ class LibRadtranRunner:
             uvspec_path = os.path.join(path, 'bin', 'uvspec')
             if os.path.isfile(uvspec_path) and os.access(uvspec_path, os.X_OK):
                 if self.verbose:
-                    print(f"Found libRadtran at: {path}")
+                    if self.verbose:
+                        gs.message(f"Found libRadtran at: {path}")
                 return path
         
         raise RuntimeError("libRadtran not found. Please install libRadtran or set LIBRADTRAN_DIR environment variable.")
@@ -98,7 +99,8 @@ class LibRadtranRunner:
         cmd = [uvspec_path, '<', input_file]
         
         if self.verbose:
-            print(f"Running: {' '.join(cmd)}")
+            if self.verbose:
+                gs.message(f"Running: {' '.join(cmd)}")
         
         try:
             # Run libRadtran
@@ -114,8 +116,8 @@ class LibRadtranRunner:
             return self._parse_output(result.stdout)
             
         except subprocess.CalledProcessError as e:
-            print(f"Error running libRadtran: {e}")
-            print(f"Stderr: {e.stderr}")
+            gs.error(f"Error running libRadtran: {e}")
+            gs.error(f"Stderr: {e.stderr}")
             raise
     
     def _parse_output(self, output):
@@ -240,4 +242,5 @@ if __name__ == "__main__":
         aerosol_model='continental',
         verbose=True
     )
-    print("SMAC Parameters:", params)
+    if gs.verbosity() > 0:
+        gs.message(f"SMAC Parameters: {params}")

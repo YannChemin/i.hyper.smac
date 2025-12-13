@@ -582,5 +582,6 @@ if __name__ == "__main__":
         gs.run_command('g.rename', raster=f"{wvc_map},{args.output}", overwrite=True)
         wvc_map = args.output
     
-    print(f"WVC map created: {wvc_map}")
-    print(f"Mean WVC: {mean_wvc:.3f} g/cm²")
+    if gs.verbosity() > 0:
+        gs.message(f"WVC map created: {wvc_map}")
+        gs.message(f"Mean WVC: {mean_wvc:.3f} g/cm²")
