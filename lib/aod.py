@@ -154,7 +154,7 @@ class AODEstimator:
         return ndvi_map
     
     def _estimate_aod_ddv(self):
-        """Estimate AOD using the Dense Dark Vegetation (DDV) method."""
+        """Estimate AOD using the Dense Dark Vegetation (DDV) method with fallback to spectral shape."""
         if not self.ndvi:
             self._calculate_ndvi()
         
@@ -182,9 +182,10 @@ class AODEstimator:
         except:
             ddv_count = 0
         
-        if ddv_count == 0:
-            gs.warning("No suitable DDV pixels found for AOD estimation. Using default value.")
-            return self._create_constant_aod(0.15)  # Default AOD
+        if ddv_count < 100:  # Minimum number of DDV pixels needed
+            if self.verbose:
+                gs.message(f"Only {ddv_count} DDV pixels found. Falling back to spectral shape method.")
+            return self._estimate_aod_spectral_shape()
         
         if self.verbose:
             gs.message(f"Found {ddv_count} DDV pixels for AOD estimation")
@@ -200,17 +201,94 @@ class AODEstimator:
         try:
             stats = gs.parse_command('r.univar', map=aod_est, flags='g')
             mean_aod = float(stats['mean'])
+            if self.verbose:
+                gs.message(f"DDV AOD estimation complete. Mean AOD: {mean_aod:.3f}")
+            return aod_est, mean_aod
         except:
-            mean_aod = 0.15
+            gs.warning("Error calculating AOD statistics. Falling back to spectral shape method.")
+            return self._estimate_aod_spectral_shape()  
+    
+    def _estimate_aod_spectral_shape(self):
+        """Estimate AOD using spectral shape analysis when DDV pixels are not available.
         
-        # Constrain to reasonable range
-        mean_aod = max(DEFAULT_AOD_MIN, min(mean_aod, DEFAULT_AOD_MAX))
-        
+        This method uses the spectral shape in the NIR-SWIR region where the surface 
+        reflectance is less affected by aerosols, and the atmospheric path radiance 
+        is minimal.
+        """
         if self.verbose:
-            gs.message(f"Estimated AOD @ 550nm: {mean_aod:.3f}")
+            gs.message("Using spectral shape method for AOD estimation")
         
-        # Create constant AOD map with the estimated value
-        return self._create_constant_aod(mean_aod)
+        try:
+            # Find key wavelengths for AOD estimation
+            blue_band = self._find_nearest_band(470)  # Blue band for AOD sensitivity
+            green_band = self._find_nearest_band(550)  # Green band
+            red_band = self._find_nearest_band(670)   # Red band
+            nir_band = self._find_nearest_band(870)   # NIR band
+            swir1_band = self._find_nearest_band(1640)  # SWIR1 band
+            swir2_band = self._find_nearest_band(2130)  # SWIR2 band
+            
+            # Extract required bands
+            blue_map = self.extract_band_to_2d(blue_band['band'], output_map='temp_blue')
+            green_map = self.extract_band_to_2d(green_band['band'], output_map='temp_green')
+            red_map = self.extract_band_to_2d(red_band['band'], output_map='temp_red')
+            nir_map = self.extract_band_to_2d(nir_band['band'], output_map='temp_nir')
+            swir1_map = self.extract_band_to_2d(swir1_band['band'], output_map='temp_swir1') if swir1_band else None
+            swir2_map = self.extract_band_to_2d(swir2_band['band'], output_map='temp_swir2') if swir2_band else None
+            
+            # Calculate spectral indices
+            # 1. Aerosol Free Vegetation Index (AFRI) - less sensitive to aerosols
+            afri_map = f"tmp_afri_{os.getpid()}"
+            expr = f"{afri_map} = float({nir_map} - 0.5 * {swir1_map}) / float({nir_map} + 0.5 * {swir1_map} + 0.0001)" if swir1_map else None
+            if expr:
+                gs.run_command('r.mapcalc', expression=expr, overwrite=True, quiet=not self.verbose)
+                self.temp_maps.append(afri_map)
+            
+            # 2. Normalized Difference Vegetation Index (NDVI)
+            ndvi_map = f"tmp_ndvi_{os.getpid()}"
+            expr = f"{ndvi_map} = float({nir_map} - {red_map}) / float({nir_map} + {red_map} + 0.0001)"
+            gs.run_command('r.mapcalc', expression=expr, overwrite=True, quiet=not self.verbose)
+            self.temp_maps.append(ndvi_map)
+            
+            # 3. Blue/Red ratio - sensitive to aerosol content
+            blue_red_ratio = f"tmp_brr_{os.getpid()}"
+            expr = f"{blue_red_ratio} = float({blue_map} + 0.01) / float({red_map} + 0.01)"
+            gs.run_command('r.mapcalc', expression=expr, overwrite=True, quiet=not self.verbose)
+            self.temp_maps.append(blue_red_ratio)
+            
+            # Create a mask for valid pixels (non-water, non-cloud)
+            valid_mask = f"tmp_valid_{os.getpid()}"
+            if swir1_map and swir2_map:
+                # Use SWIR-based cloud/water mask
+                expr = (f"{valid_mask} = if({swir1_map} > 0.05 && {swir2_map} > 0.05 && "
+                       f"{ndvi_map} > -0.1 && {ndvi_map} < 0.8, 1, null())")
+            else:
+                # Fallback to NDVI-based mask
+                expr = f"{valid_mask} = if({ndvi_map} > -0.2 && {ndvi_map} < 0.8, 1, null())"
+            
+            gs.run_command('r.mapcalc', expression=expr, overwrite=True, quiet=not self.verbose)
+            self.temp_maps.append(valid_mask)
+            
+            # Estimate AOD using an empirical relationship based on blue/red ratio
+            aod_est = f"tmp_aod_est_{os.getpid()}"
+            expr = (f"{aod_est} = if({valid_mask}, "
+                   f"0.1 + 0.8 * (1.0 - exp(-2.5 * {blue_red_ratio})), null())")
+            gs.run_command('r.mapcalc', expression=expr, overwrite=True, quiet=not self.verbose)
+            self.temp_maps.append(aod_est)
+            
+            # Calculate mean AOD over valid pixels
+            try:
+                stats = gs.parse_command('r.univar', map=aod_est, flags='g')
+                mean_aod = float(stats['mean'])
+                if self.verbose:
+                    gs.message(f"Spectral shape AOD estimation complete. Mean AOD: {mean_aod:.3f}")
+                return aod_est, mean_aod
+            except:
+                gs.warning("Error calculating AOD statistics. Using default value.")
+                return self._create_constant_aod(0.15)
+                
+        except Exception as e:
+            gs.warning(f"Error in spectral shape AOD estimation: {str(e)}. Using default value.")
+            return self._create_constant_aod(0.15)
     
     def _create_constant_aod(self, value):
         """Create a constant AOD map with the given value."""
@@ -220,38 +298,113 @@ class AODEstimator:
         self.temp_maps.append(aod_map)
         return aod_map
     
-    def estimate_aod(self, method='ddv'):
+    def estimate_aod(self, method='auto'):
         """Estimate AOD using the specified method.
         
         Args:
-            method (str): AOD estimation method ('ddv', 'dark_pixel', 'constant')
-            
+            method (str): AOD estimation method:
+                - 'auto': Automatically select the best available method
+                - 'ddv': Dense Dark Vegetation method (default)
+                - 'spectral': Spectral shape analysis
+                - 'dark_pixel': Dark pixel method
+                - 'constant': Use a constant AOD value
+                
         Returns:
             tuple: (aod_map, mean_aod) where aod_map is the raster name and mean_aod is the value
         """
-        if method == 'ddv':
-            self.aod_map = self._estimate_aod_ddv()
+        if method == 'auto':
+            # First try DDV method
+            try:
+                aod_map, mean_aod = self._estimate_aod_ddv()
+                if mean_aod > 0:  # If we got a valid result
+                    return aod_map, mean_aod
+            except Exception as e:
+                if self.verbose:
+                    gs.message(f"DDV method failed: {str(e)}. Trying spectral method...")
+            
+            # Fall back to spectral method
+            try:
+                return self._estimate_aod_spectral_shape()
+            except Exception as e:
+                if self.verbose:
+                    gs.message(f"Spectral method failed: {str(e)}. Using constant AOD...")
+                return self._create_constant_aod(0.15), 0.15
+                
+        elif method == 'ddv':
+            return self._estimate_aod_ddv()
+            
+        elif method == 'spectral':
+            return self._estimate_aod_spectral_shape()
+            
         elif method == 'dark_pixel':
-            # Similar to DDV but with different thresholds and no vegetation requirement
-            gs.warning("Dark pixel method not fully implemented, using DDV method")
-            self.aod_map = self._estimate_aod_ddv()
+            return self._estimate_aod_dark_pixel()
+            
         elif method == 'constant':
             default_aod = 0.15
-            self.aod_map = self._create_constant_aod(default_aod)
+            aod_map = self._create_constant_aod(default_aod)
+            return aod_map, default_aod
+            
         else:
             raise ValueError(f"Unknown AOD estimation method: {method}")
-        
-        # Get mean AOD value
-        try:
-            stats = gs.parse_command('r.univar', map=self.aod_map, flags='g')
-            mean_aod = float(stats['mean'])
-        except:
-            mean_aod = 0.15
-        
+    
+    def _estimate_aod_dark_pixel(self):
+        """Estimate AOD using dark pixel method (similar to DDV but no vegetation requirement)."""
         if self.verbose:
-            gs.message(f"AOD estimation complete. Mean AOD: {mean_aod:.3f}")
+            gs.message("Using dark pixel method for AOD estimation")
         
-        return self.aod_map, mean_aod
+        try:
+            # Find blue band for AOD estimation
+            blue_band = self._find_nearest_band(470)  # Blue band for AOD sensitivity
+            swir2_band = self._find_nearest_band(2200)  # SWIR2 band for dark pixel detection
+            
+            # Extract bands
+            blue_map = self.extract_band_to_2d(blue_band['band'], output_map='temp_blue')
+            swir2_map = self.extract_band_to_2d(swir2_band['band'], output_map='temp_swir2') if swir2_band else None
+            
+            # Create mask for dark pixels (low SWIR2 reflectance)
+            dark_mask = f"tmp_dark_mask_{os.getpid()}"
+            if swir2_map:
+                expr = f"{dark_mask} = if({swir2_map} < 0.1, 1, null())"  # Very dark pixels in SWIR
+            else:
+                # Fallback to using blue band if SWIR is not available
+                expr = f"{dark_mask} = if({blue_map} < 0.05, 1, null())"  # Very dark pixels in blue
+            
+            gs.run_command('r.mapcalc', expression=expr, overwrite=True, quiet=not self.verbose)
+            self.temp_maps.append(dark_mask)
+            
+            # Count dark pixels
+            try:
+                stats = gs.parse_command('r.univar', map=dark_mask, flags='g')
+                dark_count = int(float(stats['n']))
+            except:
+                dark_count = 0
+            
+            if dark_count < 100:  # Minimum number of dark pixels needed
+                if self.verbose:
+                    gs.message(f"Only {dark_count} dark pixels found. Falling back to spectral method.")
+                return self._estimate_aod_spectral_shape()
+            
+            if self.verbose:
+                gs.message(f"Found {dark_count} dark pixels for AOD estimation")
+            
+            # For dark pixels, estimate AOD from blue band reflectance
+            aod_est = f"tmp_aod_est_{os.getpid()}"
+            # Empirical relationship for dark pixels
+            expr = f"{aod_est} = if({dark_mask}, 0.1 + 0.5 * (1.0 - exp(-5.0 * {blue_map})), null())"
+            gs.run_command('r.mapcalc', expression=expr, overwrite=True, quiet=not self.verbose)
+            self.temp_maps.append(aod_est)
+            
+            # Calculate mean AOD over dark pixels
+            stats = gs.parse_command('r.univar', map=aod_est, flags='g')
+            mean_aod = float(stats['mean'])
+            if self.verbose:
+                gs.message(f"Dark pixel AOD estimation complete. Mean AOD: {mean_aod:.3f}")
+            return aod_est, mean_aod
+            
+        except Exception as e:
+            if self.verbose:
+                gs.warning(f"Error in dark pixel AOD estimation: {str(e)}. Falling back to constant AOD.")
+            return self._create_constant_aod(0.15), 0.15
     
     def cleanup(self):
         """Clean up temporary maps."""
@@ -264,13 +417,13 @@ class AODEstimator:
                              name=map_name, quiet=True)
 
 
-def estimate_aod(input_raster, dem, method='ddv', sensor_config=None, verbose=False):
+def estimate_aod(input_raster, dem, method='auto', sensor_config=None, verbose=False):
     """Convenience function to estimate AOD from hyperspectral data.
     
     Args:
         input_raster (str): Name of the input 3D hyperspectral raster
         dem (str): Name of the digital elevation model (DEM) raster
-        method (str, optional): AOD estimation method. Defaults to 'ddv'.
+        method (str, optional): AOD estimation method. Defaults to 'auto'.
         sensor_config (dict, optional): Sensor configuration dictionary
         verbose (bool, optional): Enable verbose output
         
@@ -298,8 +451,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Estimate AOD from hyperspectral data')
     parser.add_argument('input', help='Input 3D hyperspectral raster')
     parser.add_argument('dem', help='Digital Elevation Model (DEM) raster')
-    parser.add_argument('--method', default='ddv', 
-                       choices=['ddv', 'dark_pixel', 'constant'],
+    parser.add_argument('--method', default='auto', 
+                       choices=['ddv', 'dark_pixel', 'constant', 'spectral'],
                        help='AOD estimation method')
     parser.add_argument('--output', help='Output AOD map name')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose output')

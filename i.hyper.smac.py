@@ -172,7 +172,7 @@ if lib_path.exists():
         import wvc
         estimate_aod = aod.estimate_aod
         estimate_wvc = wvc.estimate_wvc
-        get_smac_paramters = radtran.get_smac_parameters
+        get_smac_parameters = radtran.get_smac_parameters
     except ImportError as e:
         gs.fatal(f"Cannot import required modules. Make sure wvc.py and aod.py are in {lib_path}\n"
              f"Error: {e}")
@@ -339,7 +339,7 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
             
             # Convert the 3D raster to 2D with overwrite
             gs.run_command('r3.to.rast',
-                         input=input_raster,
+                         input=input_band,
                          output=input_band,
                          overwrite=True,
                          quiet=True)
@@ -354,7 +354,6 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
                          quiet=True)
             
             # Simplified atmospheric correction
-            # (Same correction calculations as before)
             tau_r = 0.008569 * (wavelength / 1000) ** (-4) * (1 + 0.0113 * (wavelength / 1000) ** (-2))
             tau_r *= pressure / 1013.25
             alpha = 1.3
@@ -383,6 +382,9 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
                           quiet=True)
             
         finally:
+            # Restore 3D g.region
+            gs.run_command('g.region', raster_3d=input_raster, quiet=True)
+            
             # Clean up temporary maps
             for temp_map in [input_band]:
                 gs.run_command('g.remove', flags='f', type='raster_3d', name=temp_map, quiet=True)
@@ -436,41 +438,34 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
             gs.message(f"Processing band {band_num}: {wavelength} nm")
             
             # Extract single band
-            band_name = f"{output_raster}_band{band_num}"
-            temp_mask = f"tmp_mask_{os.getpid()}_{band_num}"
-            # Create a 3D mask for the specific band
-            gs.run_command('r3.mapcalc',
-                  expression=f"{temp_mask} = if(z() == {band_num}, 1, -9999.9)",
-                  overwrite=True,
-                  quiet=True)
-    
-            # Remove any existing 3D mask
-            gs.run_command('g.remove', flags='f', type='raster_3d', name='RASTER3D_MASK', quiet=True)
-    
-            # Set the 3D mask
-            gs.run_command('r3.mask', 
-                  map=temp_mask, 
-                  maskvalues=-9999.9, 
-                  quiet=True)
-    
-            # Extract the band using r3.to.rast with the mask
-            gs.run_command('r3.to.rast',
-                  input=input_raster,
-                  output=band_num,
-                  overwrite=True,
-                  flags='m',  # Use 3D mask
-                  quiet=True)
-    
-            # Rename from output_name_00001 to output_name
-            gs.run_command('g.rename',
-                  raster=f"{band_num}_00001,{band_num}",
-                  overwrite=True,
-                  quiet=True)
+            # Extract band from 3D raster
+            input_band = f"tmp_input_{os.getpid()}_{band_num}"
             
-            # Clean up
-            gs.run_command('g.remove', flags='f', type='raster_3d', name=temp_mask, quiet=True)
-            gs.run_command('g.remove', flags='f', type='raster_3d', name='RASTER3D_MASK', quiet=True)    
-
+            # Set the 3D region to the specific band (using band_num + 0.1 to ensure top > bottom)
+            gs.run_command('g.region', t=band_num + 0.1, b=band_num, quiet=True)
+            
+            # Extract the band using the mask
+            gs.run_command('r3.mapcalc',
+                          expression=f"{input_band} = {input_raster}",
+                          overwrite=True,
+                          quiet=True)
+            
+            # Convert the 3D raster to 2D with overwrite
+            gs.run_command('r3.to.rast',
+                         input=input_band,
+                         output=input_band,
+                         overwrite=True,
+                         quiet=True)
+            
+            # The output will be named output_map_00001
+            input_file = f"{input_band}_00001"
+            
+            # Rename the output file to the desired name
+            gs.run_command('g.rename',
+                         raster=f"{input_file},{input_band}",
+                         overwrite=True,
+                         quiet=True)
+            
             try:
                 # Get SMAC parameters from libRadtran
                 smac_params = get_smac_parameters(
@@ -489,11 +484,11 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
                 # rho_surface = (L_toa - L_p) / (T_dir * T_dif) - s * rho_surface
                 # Solving for rho_surface: rho_surface = (L_toa - L_p) / (T_dir * T_dif + s * (L_toa - L_p))
                 
-                corrected_band = f"{band_name}_corr"
+                corrected_band = f"{input_band}_corr"
                 expr = (
-                    f"{corrected_band} = float({band_name} - {smac_params['path_radiance']}) / "
+                    f"{corrected_band} = float({input_band} - {smac_params['path_radiance']}) / "
                     f"({smac_params['direct_transmittance']} * {smac_params['diffuse_transmittance']} + "
-                    f"{smac_params['spherical_albedo']} * ({band_name} - {smac_params['path_radiance']}))"
+                    f"{smac_params['spherical_albedo']} * ({input_band} - {smac_params['path_radiance']}))"
                 )
                 
                 gs.run_command('r.mapcalc', expression=expr, overwrite=True, quiet=True)
