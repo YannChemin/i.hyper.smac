@@ -131,6 +131,12 @@ def estimate_ozone_chappuis(input_raster, verbose=False):
     try:
         # Get band information
         bands = get_band_info(input_raster, verbose=verbose)
+        if not bands:
+            raise ValueError("No bands with wavelength information found in the input raster")
+            
+        if verbose:
+            gs.message(f"Found {len(bands)} bands in input raster")
+            gs.message(f"Wavelength range: {bands[0]['wavelength']:.1f} - {bands[-1]['wavelength']:.1f} nm")
         
         # Find bands closest to key wavelengths
         target_wavelengths = [550, 600, 650]  # Reference, O3 peak, reference
@@ -142,48 +148,66 @@ def estimate_ozone_chappuis(input_raster, verbose=False):
                 gs.message(f"Using band {band['band']} ({band['wavelength']:.1f} nm) "
                           f"for {wl} nm")
             band_map = extract_band_to_2d(input_raster, band['band'], 
-                                        f"tmp_ozone_{wl}")
+                                       f"tmp_ozone_{wl}")
             band_maps.append((wl, band_map))
         
         # Calculate ozone using the Chappuis band ratio method
-        # This is a simplified approach - for production, consider using a LUT or RTM
         ozone_map = "ozone_estimate"
         
         # Get the band maps
-        ref1_band = next(b for wl, b in band_maps if abs(wl - 550) < 10)
-        o3_band = next(b for wl, b in band_maps if abs(wl - 600) < 10)
-        ref2_band = next(b for wl, b in band_maps if abs(wl - 650) < 10)
+        try:
+            ref1_band = next(b for wl, b in band_maps if abs(wl - 550) < 50)
+            o3_band = next(b for wl, b in band_maps if abs(wl - 600) < 50)
+            ref2_band = next(b for wl, b in band_maps if abs(wl - 650) < 50)
+        except StopIteration as e:
+            raise ValueError("Could not find appropriate bands for ozone estimation. "
+                           "Ensure the input data covers the 500-700nm range.")
+        
+        if verbose:
+            gs.message(f"Using bands for ozone estimation:")
+            gs.message(f"  Reference 1 (~550nm): {ref1_band}")
+            gs.message(f"  Ozone band (~600nm): {o3_band}")
+            gs.message(f"  Reference 2 (~650nm): {ref2_band}")
         
         # Calculate ozone using band ratios
         # This is a simplified empirical relationship
-        expr = f"{ozone_map} = 300.0 * (1.0 - float({o3_band}) / (0.5 * ({ref1_band} + {ref2_band}) + 0.0001))"
-        gs.mapcalc(expr, overwrite=True)
-        
-        # Apply reasonable bounds (150-500 DU)
-        expr = f"{ozone_map} = if({ozone_map} < 150, 150, if({ozone_map} > 500, 500, {ozone_map}))"
-        gs.mapcalc(expr, overwrite=True)
-        
-        # Calculate mean ozone
-        stats = gs.parse_command('r.univar', map=ozone_map, flags='g')
-        mean_ozone = float(stats['mean'])
-        
-        if verbose:
-            gs.message(f"Ozone estimation complete. Mean ozone: {mean_ozone:.1f} DU")
-        
-        # Clean up temporary maps
-        for _, band_map in band_maps:
-            gs.run_command('g.remove', flags='f', type='raster', 
-                          name=band_map, quiet=True)
-        
-        return ozone_map, mean_ozone
+        try:
+            expr = f"{ozone_map} = 300.0 * (1.0 - float({o3_band}) / (0.5 * ({ref1_band} + {ref2_band}) + 0.0001))"
+            gs.mapcalc(expr, overwrite=True)
+            
+            # Apply reasonable bounds (150-500 DU)
+            expr = f"{ozone_map} = if({ozone_map} < 150, 150, if({ozone_map} > 500, 500, {ozone_map}))"
+            gs.mapcalc(expr, overwrite=True)
+            
+            # Calculate mean ozone
+            stats = gs.parse_command('r.univar', map=ozone_map, flags='g')
+            mean_ozone = float(stats['mean'])
+            
+            if verbose:
+                gs.message(f"Ozone estimation complete. Mean ozone: {mean_ozone:.1f} DU")
+            
+            return ozone_map, mean_ozone
+            
+        except Exception as e:
+            raise RuntimeError(f"Error calculating ozone map: {str(e)}")
         
     except Exception as e:
         if verbose:
-            gs.warning(f"Error estimating ozone: {str(e)}. Using default value.")
+            gs.warning(f"Error in ozone estimation: {str(e)}")
+            gs.warning("Using default ozone value of 300 DU")
         
         # Create a constant ozone map with default value
         gs.mapcalc(f"ozone_estimate = {DEFAULT_OZONE}", overwrite=True)
         return "ozone_estimate", DEFAULT_OZONE
+    
+    finally:
+        # Clean up temporary maps
+        for _, band_map in locals().get('band_maps', []):
+            try:
+                gs.run_command('g.remove', flags='f', type='raster', 
+                             name=band_map, quiet=not verbose)
+            except:
+                pass
 
 
 def estimate_ozone(input_raster, method='chappuis', verbose=False):
@@ -198,13 +222,39 @@ def estimate_ozone(input_raster, method='chappuis', verbose=False):
         tuple: (ozone_map, mean_ozone) where ozone_map is the raster name and 
                mean_ozone is the mean value in Dobson Units (DU)
     """
-    if method == 'chappuis':
-        return estimate_ozone_chappuis(input_raster, verbose=verbose)
-    elif method == 'constant':
+    if verbose:
+        gs.message(f"Starting ozone estimation using method: {method}")
+    
+    try:
+        if method.lower() == 'chappuis':
+            if verbose:
+                gs.message("Attempting to estimate ozone using Chappuis band method...")
+            return estimate_ozone_chappuis(input_raster, verbose=verbose)
+        
+        # Fall back to constant if method is not 'chappuis' or if chappuis method fails
         if verbose:
+            if method.lower() != 'chappuis':
+                gs.message(f"Unknown method '{method}'. Using constant ozone value.")
             gs.message(f"Using constant ozone value: {DEFAULT_OZONE} DU")
-        gs.mapcalc(f"ozone_estimate = {DEFAULT_OZONE}", overwrite=True)
-        return "ozone_estimate", DEFAULT_OZONE
+        
+        # Create a constant map with default value
+        ozone_map = "ozone_estimate"
+        gs.mapcalc(f"{ozone_map} = {DEFAULT_OZONE}", overwrite=True)
+        
+        if verbose:
+            gs.message(f"Created constant ozone map '{ozone_map}' with value {DEFAULT_OZONE} DU")
+        
+        return ozone_map, DEFAULT_OZONE
+        
+    except Exception as e:
+        if verbose:
+            gs.warning(f"Error in estimate_ozone: {str(e)}")
+            gs.warning("Falling back to constant ozone value")
+        
+        # Ensure we have a valid return value even in case of errors
+        ozone_map = "ozone_estimate"
+        gs.mapcalc(f"{ozone_map} = {DEFAULT_OZONE}", overwrite=True)
+        return ozone_map, DEFAULT_OZONE
     else:
         raise ValueError(f"Unknown ozone estimation method: {method}")
 
