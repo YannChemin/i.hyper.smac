@@ -302,67 +302,32 @@ def estimate_pressure_from_dem(dem):
     return pressure
 
 def apply_smac_correction_simple(input_raster, output_raster, bands, 
-                               aod, water_vapor, ozone, pressure,
-                               solar_zenith, solar_azimuth,
-                               view_zenith, view_azimuth,
-                               keep_temp=False):
-    """Apply simplified SMAC atmospheric correction using in-place 3D updates."""
+                                  aod, water_vapor, ozone, pressure,
+                                  solar_zenith, solar_azimuth,
+                                  view_zenith, view_azimuth,
+                                  keep_temp=False):
+    """Optimized SMAC correction with 2D band processing."""
     
-    gs.message("Applying atmospheric correction to bands...")
+    gs.message("Applying optimized atmospheric correction with 2D band processing...")
     
-    # Convert angles to radians
+    # Convert angles to radians once
     theta_s = np.radians(solar_zenith)
     theta_v = np.radians(view_zenith)
-    
-    # Cosines
     cos_theta_s = np.cos(theta_s)
     cos_theta_v = np.cos(theta_v)
-    
-    # Air mass
     m = 1.0 / cos_theta_s + 1.0 / cos_theta_v
     
-    # Create empty output 3D raster with same dimensions as input
-    gs.message("Creating output 3D raster...")
-    gs.run_command('r3.mapcalc', 
-                  expression=f"{output_raster} = {input_raster} * 0",
-                  overwrite=True)
+    # Create a temporary directory
+    temp_dir = Path(tempfile.mkdtemp(prefix='smac_'))
+    temp_bands = []
     
-    for idx, band in enumerate(bands):
-        gs.percent(idx, len(bands), 2)
-        
-        band_num = band['band_num']
-        wavelength = band['wavelength']
-        
-        # Extract band from 3D raster
-        input_band = f"tmp_input_{os.getpid()}_{band_num}"
-        
-        try:
-            # Set the 3D region to the specific band (using band_num + 0.1 to ensure top > bottom)
-            gs.run_command('g.region', t=band_num + 0.1, b=band_num, quiet=True)
+    try:
+        # Pre-compute all band corrections
+        band_corrections = []
+        for band in bands:
+            wavelength = band['wavelength']
             
-            # Extract the band using the mask
-            gs.run_command('r3.mapcalc',
-                          expression=f"{input_band} = {input_raster}",
-                          overwrite=True,
-                          quiet=True)
-            
-            # Convert the 3D raster to 2D with overwrite
-            gs.run_command('r3.to.rast',
-                         input=input_band,
-                         output=input_band,
-                         overwrite=True,
-                         quiet=True)
-            
-            # The output will be named output_map_00001
-            input_file = f"{input_band}_00001"
-            
-            # Rename the output file to the desired name
-            gs.run_command('g.rename',
-                         raster=f"{input_file},{input_band}",
-                         overwrite=True,
-                         quiet=True)
-            
-            # Simplified atmospheric correction
+            # Atmospheric calculations
             tau_r = 0.008569 * (wavelength / 1000) ** (-4) * (1 + 0.0113 * (wavelength / 1000) ** (-2))
             tau_r *= pressure / 1013.25
             alpha = 1.3
@@ -384,25 +349,76 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
             t_total = t_down * t_up * t_gas
             rho_atm = 0.02 * tau
             
-            # Restore 3D g.region
-            gs.run_command('g.region', raster_3d=input_raster, quiet=True)
-
-            # Apply correction and update the output 3D raster in place
-            gs.run_command('r3.mapcalc',
-                          expression=f"{output_raster} = if(z() == {band_num}, ({input_band} - {rho_atm:.6f}) / {t_total:.6f}, {output_raster})",
+            band_corrections.append({
+                'band_num': band['band_num'],
+                't_total': t_total,
+                'rho_atm': rho_atm
+            })
+        
+        # Export all bands to 2D rasters
+        gs.message("Exporting bands to 2D rasters...")
+        for i, band in enumerate(bands):
+            band_num = band['band_num']
+            temp_band = f"temp_band_{band_num}_{os.getpid()}"
+            temp_bands.append(temp_band)
+            
+            # Set region to the specific band
+            gs.run_command('g.region', t=band_num + 0.1, b=band_num, quiet=True)
+            
+            # Export the band
+            gs.run_command('r3.to.rast',
+                          input=input_raster,
+                          output=temp_band,
                           overwrite=True,
                           quiet=True)
             
-        finally:
-            # Restore 3D g.region
-            gs.run_command('g.region', raster_3d=input_raster, quiet=True)
+            # The output will be named temp_band_00001, rename it
+            gs.run_command('g.rename',
+                          raster=f"{temp_band}_00001,{temp_band}",
+                          overwrite=True,
+                          quiet=True)
             
-            # Clean up temporary maps
-            for temp_map in [input_band]:
-                gs.run_command('g.remove', flags='f', type='raster_3d', name=temp_map, quiet=True)
-    
-    gs.percent(1, 1, 1)
-    gs.message(f"Atmospheric correction complete: {output_raster}")
+            gs.percent(i, len(bands), 1)
+        
+        # Process each band
+        gs.message("Applying atmospheric correction to bands...")
+        for i, (band, corr) in enumerate(zip(bands, band_corrections)):
+            band_num = band['band_num']
+            temp_band = f"temp_band_{band_num}_{os.getpid()}"
+            temp_band_corr = f"{temp_band}_corr"
+            
+            # Apply the correction
+            expr = f"{temp_band_corr} = ({temp_band} - {corr['rho_atm']:.6f}) / {corr['t_total']:.6f}"
+            gs.run_command('r.mapcalc', expression=expr, overwrite=True, quiet=True)
+            
+            # Clean up the temporary band
+            if not keep_temp:
+                gs.run_command('g.remove', flags='f', type='raster', name=temp_band, quiet=True)
+            
+            gs.percent(i, len(bands), 1)
+        
+        # Combine corrected bands back into a 3D raster
+        gs.message("Combining corrected bands into 3D raster...")
+        corrected_bands = [f"temp_band_{b['band_num']}_{os.getpid()}_corr" for b in bands]
+        gs.run_command('r.to.rast3', 
+                      input=','.join(corrected_bands),
+                      output=output_raster,
+                      overwrite=True)
+        
+        gs.percent(1, 1, 1)
+        gs.message("Optimized atmospheric correction complete")
+        
+    finally:
+        # Clean up temporary files
+        if not keep_temp:
+            gs.message("Cleaning up temporary files...")
+            for temp_band in temp_bands:
+                # Remove both the original and corrected bands
+                for suffix in ['', '_corr']:
+                    band_name = f"{temp_band}{suffix}"
+                    if gs.find_file(band_name, element='cell')['file']:
+                        gs.run_command('g.remove', flags='f', type='raster', 
+                                     name=band_name, quiet=True)
 
 def apply_smac_correction_libradtran(input_raster, output_raster, bands, 
                                    aod, water_vapor, ozone, pressure,
