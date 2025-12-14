@@ -417,7 +417,11 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
                         band_comment += f", FWHM: {fwhm} {unit}"
                 except (IndexError, ValueError) as e:
                     gs.warning(f"Could not parse wavelength info for band {band_num}: {e}")
-            
+                    # Get timestamp from input raster (use r3.timestamp for 3D rasters)
+            try:
+                timestamp = gs.read_command('r3.timestamp', map=input_raster)
+            except:
+                timestamp = ""
             # Use r.support to add metadata to the specific band
             gs.run_command('r.support', map=temp_band_corr,  # Apply to the corrected band
                   title=f"SMAC corrected {input_raster} band {band_num}",
@@ -426,7 +430,7 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
                             f"Solar Z: {solar_zenith}°, View Z: {view_zenith}°\n" +
                             f"AOD: {aod}, Water Vapor: {water_vapor} g/cm², Ozone: {ozone} cm-atm",
                   source1="GRASS GIS i.hyper.smac module",
-                  history=gs.read_command('r.timestamp', map=input_raster),
+                  history=timestamp,
                   semantic_label=f"band_{band_num}",
                   vdatum="WGS84",
                   comment=band_comment,
