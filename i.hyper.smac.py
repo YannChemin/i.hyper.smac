@@ -422,19 +422,25 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
                 timestamp = gs.read_command('r3.timestamp', map=input_raster)
             except:
                 timestamp = ""
+            description = (
+                "Atmospherically corrected using SMAC method\n"
+                f"Original band: {band_wl_info if band_wl_info is not None else 'N/A'}\n"
+                f"Solar Z: {solar_zenith}°, View Z: {view_zenith}°\n"
+                f"AOD: {aod}, Water Vapor: {water_vapor} g/cm², Ozone: {ozone} cm-atm\n"
+                f"Wavelength: {band_wavelength} nm"
+            )
+            if 'fwhm' in band:
+                description += f", FWHM: {band['fwhm']} nm"
             # Use r.support to add metadata to the specific band
-            gs.run_command('r.support', map=temp_band_corr,  # Apply to the corrected band
-                  title=f"SMAC corrected {input_raster} band {band_num}",
-                  description="Atmospherically corrected using SMAC method\n" +
-                            f"Original band: {band_wl_info or 'N/A'}\n" +
-                            f"Solar Z: {solar_zenith}°, View Z: {view_zenith}°\n" +
-                            f"AOD: {aod}, Water Vapor: {water_vapor} g/cm², Ozone: {ozone} cm-atm" +
-                            f"{band_comment}",
-                  source1="GRASS GIS i.hyper.smac module",
-                  history=timestamp,
-                  semantic_label=f"band_{band_num}",
-                  vdatum="WGS84",
-                  quiet=True)
+            gs.run_command('r.support',
+                          map=temp_band_corr,
+                          title=f"SMAC corrected {input_raster} band {band_num}",
+                          description=description,
+                          source1="GRASS GIS i.hyper.smac module",
+                          history=timestamp,
+                          semantic_label=f"band_{band_num}",
+                          vdatum="WGS84",
+                          quiet=True)
             
             # Clean up the temporary band
             if not keep_temp:
