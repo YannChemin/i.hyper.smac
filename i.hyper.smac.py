@@ -154,7 +154,6 @@ import tempfile
 import numpy as np
 import grass.script as gs
 from pathlib import Path
-import importlib.util
 
 # Get GISBASE (GRASS installation prefix)
 gisbase = os.environ.get("GISBASE")
@@ -318,7 +317,6 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
     m = 1.0 / cos_theta_s + 1.0 / cos_theta_v
     
     # Create a temporary directory
-    temp_dir = Path(tempfile.mkdtemp(prefix='smac_'))
     temp_bands = []
     
     try:
@@ -355,6 +353,11 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
                 'rho_atm': rho_atm
             })
         
+        # 
+        # Get wavelength information from input raster
+        input_info = gs.read_command('r3.info', flags='h', map=input_raster)
+        wavelength_info = [line.strip() for line in input_info.split('\n') if 'Wavelength' in line]
+
         # Export all bands to 2D rasters
         gs.message("Exporting bands to 2D rasters...")
         for i, band in enumerate(bands):
@@ -390,6 +393,30 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
             # Apply the correction
             expr = f"{temp_band_corr} = ({temp_band} - {corr['rho_atm']:.6f}) / {corr['t_total']:.6f}"
             gs.run_command('r.mapcalc', expression=expr, overwrite=True, quiet=True)
+
+            # Add wavelength and FWHM to the output band
+            band_wavelength = band['wavelength']
+            band_comment = f"Band {band_num}: {band_wavelength} nm"
+            if 'fwhm' in band:
+                band_comment += f", FWHM: {band['fwhm']} nm"
+            
+            # Find the corresponding wavelength info for this band
+            band_wl_info = next((wl for wl in wavelength_info if f"Band {band_num}:" in wl), None)
+            if band_wl_info:
+                # Extract the wavelength and unit from the info
+                try:
+                    wl_parts = band_wl_info.split(':')[1].strip().split()
+                    wavelength = float(wl_parts[0])
+                    unit = wl_parts[1] if len(wl_parts) > 1 else 'nm'
+                    band_comment = f"Band {band_num}: {wavelength} {unit}"
+                    
+                    # If there's FWHM in the original info, include it
+                    if 'FWHM' in band_wl_info:
+                        fwhm_part = band_wl_info.split('FWHM:')[1].strip()
+                        fwhm = float(fwhm_part.split()[0])
+                        band_comment += f", FWHM: {fwhm} {unit}"
+                except (IndexError, ValueError) as e:
+                    gs.warning(f"Could not parse wavelength info for band {band_num}: {e}")
             
             # Clean up the temporary band
             if not keep_temp:
@@ -399,6 +426,8 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
         
         # Combine corrected bands back into a 3D raster
         gs.message("Combining corrected bands into 3D raster...")
+        # Set the 3D region back
+        gs.run_command('g.region', raster_3d=input_raster, quiet=True)
         corrected_bands = [f"temp_band_{b['band_num']}_{os.getpid()}_corr" for b in bands]
         gs.run_command('r.to.rast3', 
                       input=','.join(corrected_bands),
