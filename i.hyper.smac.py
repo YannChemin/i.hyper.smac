@@ -422,26 +422,66 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
                 timestamp = gs.read_command('r3.timestamp', map=input_raster)
             except:
                 timestamp = ""
-            description = (
-                "Atmospherically corrected using SMAC method\n"
-                f"Original band: {band_wl_info if band_wl_info is not None else 'N/A'}\n"
-                f"Solar Z: {solar_zenith}°, View Z: {view_zenith}°\n"
-                f"AOD: {aod}, Water Vapor: {water_vapor} g/cm², Ozone: {ozone} cm-atm\n"
-                f"Wavelength: {band_wavelength} nm"
-            )
-            if 'fwhm' in band:
-                description += f", FWHM: {band['fwhm']} nm"
-            # Use r.support to add metadata to the specific band
-            gs.run_command('r.support',
-                          map=temp_band_corr,
-                          title=f"SMAC corrected {input_raster} band {band_num}",
-                          description=description,
-                          source1="GRASS GIS i.hyper.smac module",
-                          history=timestamp,
-                          semantic_label=f"band_{band_num}",
-                          vdatum="WGS84",
+
+    # After creating the output 3D raster, transfer metadata
+    try:
+        # Get metadata from input raster
+        input_info = gs.read_command('r3.info', flags='h', map=input_raster).strip()
+        
+        # Extract measurement type and units
+        measurement = None
+        units = None
+        for line in input_info.split('\n'):
+            if 'Measurement:' in line:
+                measurement = line.split(':', 1)[1].strip()
+            elif 'Measurement Units:' in line:
+                units = line.split(':', 1)[1].strip()
+        
+        # Set basic metadata on output raster
+        gs.run_command('r3.support',
+                      map=output_raster,
+                      title=f"SMAC corrected {input_raster}",
+                      description=f"Atmospherically corrected using SMAC method\n"
+                                f"Original raster: {input_raster}\n"
+                                f"Solar Z: {solar_zenith}°, View Z: {view_zenith}°\n"
+                                f"AOD: {aod}, Water Vapor: {water_vapor} g/cm², Ozone: {ozone} cm-atm",
+                      source1="GRASS GIS i.hyper.smac module",
+                      vdatum="WGS84",
+                      quiet=True)
+        
+        # Set measurement type and units if available
+        if measurement:
+            gs.run_command('r3.support',
+                          map=output_raster,
+                          source1=f"Measurement: {measurement}",
                           quiet=True)
-            
+        if units:
+            gs.run_command('r3.support',
+                          map=output_raster,
+                          source2=f"Measurement Units: {units}",
+                          quiet=True)
+        
+        # Transfer all band information
+        for line in input_info.split('\n'):
+            if 'Band ' in line and ('nm' in line or 'um' in line):
+                # This is a band information line, extract the band info
+                band_info = line.strip()
+                gs.run_command('r3.support',
+                              map=output_raster,
+                              source3=band_info,
+                              quiet=True)
+    
+    # Copy timestamp from input to output
+    try:
+        timestamp = gs.read_command('r3.timestamp', map=input_raster).strip()
+        if timestamp:
+            gs.run_command('r3.timestamp', map=output_raster, date=timestamp)
+    except:
+        pass
+        
+except Exception as e:
+    gs.warning(f"Could not transfer all metadata to output raster: {str(e)}")            
+
             # Clean up the temporary band
             if not keep_temp:
                 gs.run_command('g.remove', flags='f', type='raster', name=temp_band, quiet=True)
