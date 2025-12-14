@@ -444,18 +444,14 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
             input_info = gs.read_command('r3.info', flags='h', map=input_raster).strip()
             
             # Extract measurement type and units
-            measurement = None
-            units = None
+            measurement = 'Reflectance'
+            units = '-'
             bands_info = []
             
             # Parse the input info to get all metadata
             for line in input_info.split('\n'):
                 line = line.strip()
-                if 'Measurement:' in line:
-                    measurement = line.split(':', 1)[1].strip()
-                elif 'Measurement Units:' in line:
-                    units = line.split(':', 1)[1].strip()
-                elif line.startswith('Band ') and ('nm' in line or 'um' in line):
+                if line.startswith('Band ') and ('nm' in line or 'um' in line):
                     bands_info.append(line)
             
             # Build the description string in the same format as Tanager import
