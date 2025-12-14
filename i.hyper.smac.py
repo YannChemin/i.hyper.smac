@@ -406,7 +406,7 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
                       overwrite=True)
         
         gs.percent(1, 1, 1)
-        gs.message("Optimized atmospheric correction complete")
+        gs.message("Simple atmospheric correction complete")
         
     finally:
         # Clean up temporary files
