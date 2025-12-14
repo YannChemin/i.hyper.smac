@@ -423,7 +423,7 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
             except:
                 timestamp = ""
             # Use r.support to add metadata to the specific band
-            gs.run_command('r.support', map=temp_band_corr,  # Apply to the corrected band
+            gs.run_command('r3.support', map=temp_band_corr,  # Apply to the corrected band
                   title=f"SMAC corrected {input_raster} band {band_num}",
                   description="Atmospherically corrected using SMAC method\n" +
                             f"Original band: {band_wl_info or 'N/A'}\n" +
