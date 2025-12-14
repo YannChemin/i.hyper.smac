@@ -443,9 +443,7 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
             # Get metadata from input raster
             input_info = gs.read_command('r3.info', flags='h', map=input_raster).strip()
             
-            # Extract measurement type and units
-            measurement = 'Reflectance'
-            units = '-'
+            # Extract Band number and fwhm
             bands_info = []
             
             # Parse the input info to get all metadata
@@ -459,11 +457,8 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
             desc.append(f"Original raster: {input_raster}")
             desc.append(f"Solar Z: {solar_zenith}°, View Z: {view_zenith}°")
             desc.append(f"AOD: {aod}, Water Vapor: {water_vapor} g/cm², Ozone: {ozone} cm-atm")
-            
-            if measurement:
-                desc.append(f"Measurement: {measurement}")
-            if units:
-                desc.append(f"Measurement Units: {units}")
+            desc.append("Measurement: Reflectance")
+            desc.append("Measurement Units: -")
             
             # Add band information
             if bands_info:
@@ -489,15 +484,6 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
         except Exception as e:
             gs.warning(f"Could not transfer all metadata to output raster: {str(e)}")
             
-        # Apply wavelength information to output raster
-        for wl_info in wavelength_info:
-            # Extract band number and wavelength
-            if 'Band' in wl_info:
-                gs.run_command('r3.support',
-                          map=output_raster,
-                          source1=wl_info,
-                          quiet=True)
-
         gs.percent(1, 1, 1)
         gs.message("Simple atmospheric correction complete")
         
