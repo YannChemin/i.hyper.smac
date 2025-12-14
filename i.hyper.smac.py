@@ -457,7 +457,15 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
                       input=','.join(corrected_bands),
                       output=output_raster,
                       overwrite=True)
-        
+        # Apply wavelength information to output raster
+        for wl_info in wavelength_info:
+            # Extract band number and wavelength
+            if 'Band' in wl_info:
+                gs.run_command('r3.support',
+                          map=output_raster,
+                          source1=wl_info,
+                          quiet=True)
+
         gs.percent(1, 1, 1)
         gs.message("Simple atmospheric correction complete")
         
