@@ -470,7 +470,9 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
                               map=output_raster,
                               source3=band_info,
                               quiet=True)
-    
+    except Exception as e:
+            gs.warning(f"Could not transfer all metadata to output raster: {str(e)}")
+       
     # Copy timestamp from input to output
     try:
         timestamp = gs.read_command('r3.timestamp', map=input_raster).strip()
