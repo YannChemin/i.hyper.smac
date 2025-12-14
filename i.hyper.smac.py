@@ -422,20 +422,6 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
                 timestamp = gs.read_command('r3.timestamp', map=input_raster)
             except:
                 timestamp = ""
-
-            # After creating the output 3D raster, transfer metadata
-            try:
-                # Get metadata from input raster
-                input_info = gs.read_command('r3.info', flags='h', map=input_raster).strip()
-                
-                # Extract measurement type and units
-                measurement = None
-                units = None
-                for line in input_info.split('\n'):
-                    if 'Measurement:' in line:
-                        measurement = line.split(':', 1)[1].strip()
-                    elif 'Measurement Units:' in line:
-                        units = line.split(':', 1)[1].strip()
                 
             # After creating the output 3D raster, transfer metadata
             try:
