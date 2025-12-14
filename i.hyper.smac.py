@@ -389,11 +389,9 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
             band_num = band['band_num']
             temp_band = f"temp_band_{band_num}_{os.getpid()}"
             temp_band_corr = f"{temp_band}_corr"
-            # Add a small epsilon to prevent division by zero
+            # Add a small epsilon to prevent division by zero and ensure values are in 0-1 range
             epsilon = 1e-10
-            expr = f"{temp_band_corr} = float(min(max(0.0, ({temp_band} - {rho_atm}) / max({t_total}, {epsilon})), 1.0))"
-            # Apply the correction
-            #expr = f"{temp_band_corr} = ({temp_band} - {corr['rho_atm']:.6f}) / {corr['t_total']:.6f}"
+            expr = f"{temp_band_corr} = float(min(max(0.0, ({temp_band} - {corr['rho_atm']}) / max({corr['t_total']}, {epsilon})), 1.0))"
             gs.run_command('r.mapcalc', expression=expr, overwrite=True, quiet=True)
 
             # Add wavelength and FWHM to the output band
