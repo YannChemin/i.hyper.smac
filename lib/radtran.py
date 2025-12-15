@@ -85,7 +85,7 @@ class LibRadtranRunner:
             low_wl= params['wavelength'] - params['fwhm']
             hig_wl= params['wavelength'] + params['fwhm']
             f.write(f"wavelength {low_wl} {hig_wl}\n")
-            f.write(f"wavelength_step {params['fwhm']}\n")
+            #f.write(f"wavelength_step {params['fwhm']}\n")
 
             # For path radiance, add: TODO satellite altitude and zenith angle
             f.write("zout 100.0\n")  # Satellite altitude in km (e.g., 100 km)
