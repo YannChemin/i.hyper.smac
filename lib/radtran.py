@@ -61,10 +61,11 @@ class LibRadtranRunner:
             transmisttance (bool): False (default), if True write transmittances
         """
         with open(input_file, 'w') as f:
+            dp=os.path.join(self.libradtran_path, 'share/libRadtran/data/')
             # Atmospheric parameters
-            f.write(f"data_files_path {os.path.join(self.libradtran_path, 'share/libRadtran/data/')}\n")
-            f.write(f"atmosphere_file {os.path.join(self.libradtran_path, 'share/libRadtran/data/atmmod/afglus.dat')}\n")
-            f.write(f"source solar {os.path.join(self.libradtran_path, 'share/libRadtran/data/solar_flux/atlas_plus_modtran')}\n")
+            f.write(f"data_files_path {dp}\n")
+            f.write(f"atmosphere_file {os.path.join(dp, 'atmmod/afglus.dat')}\n")
+            f.write(f"source solar {os.path.join(dp, 'solar_flux/atlas_plus_modtran')}\n")
             
             f.write(f"albedo {params.get('surface_albedo', 0.1)}\n")
             f.write(f"sza {params.get('solar_zenith', 30.0)}\n")
@@ -73,7 +74,7 @@ class LibRadtranRunner:
             # Aerosols
             if 'aerosol_model' in params:
                 f.write("aerosol_default\n")
-                f.write(f"aerosol_species_file {os.path.join(self.libradtran_path, 'share/libRadtran/data/', params['aerosol_model'])}\n")
+                f.write(f"aerosol_species_file {os.path.join(dp, params['aerosol_model'])}\n")
                 f.write(f"aerosol_modify tau set {params.get('aod_550', 0.1)}\n")
             
             # Molecular absorption
