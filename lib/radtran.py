@@ -73,7 +73,7 @@ class LibRadtranRunner:
             # Aerosols
             if 'aerosol_model' in params:
                 f.write("aerosol_default\n")
-                f.write(f"aerosol_species_file {params['aerosol_model']}\n")
+                f.write(f"aerosol_species_file {os.path.join(self.libradtran_path, 'share/libRadtran/data/', params['aerosol_model'])}\n")
                 f.write(f"aerosol_modify tau set {params.get('aod_550', 0.1)}\n")
             
             # Molecular absorption
@@ -227,11 +227,7 @@ def get_smac_parameters(wavelength, fwhm, sza=30.0, aod_550=0.1, water_vapor=2.0
             'water_vapor': water_vapor,
             'ozone': ozone,
             'surface_albedo': surface_albedo,
-            'aerosol_model': os.path.join(
-                runner.libradtran_path, 
-                'data/optmod', 
-                f"{aerosol_models.get(aerosol_model, 'continental_clean')}.dat"
-            )
+            'aerosol_model': f"{aerosol_models.get(aerosol_model, 'continental_clean')}.dat"
         }
         
         # Run simulation
