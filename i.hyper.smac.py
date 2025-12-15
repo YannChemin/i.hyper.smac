@@ -346,6 +346,7 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
             t_up = np.exp(-tau / cos_theta_v)
             t_total = t_down * t_up * t_gas
             rho_atm = 0.02 * tau
+            
             # Enhanced correction for blue/green region (400-550nm)
             if wavelength < 550:
                 # Rayleigh optical thickness approximation (varies with wavelength^-4)
@@ -366,7 +367,7 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
                 
                 # Apply enhanced correction
                 t_total *= enhancement
-                rho_atm *= (1.0 + (enhancement - 1.0) * 0.7)  # Slight adjustment to path radiance
+                rho_atm *= (1.0 + (tau - 1.0) * 0.7)  # Slight adjustment to path radiance
 
             band_corrections.append({
                 'band_num': band['band_num'],
