@@ -75,15 +75,15 @@ class LibRadtranRunner:
             # Molecular absorption
             f.write("mol_abs_param reptran\n")
             f.write("mol_modify O3 {:.3f} DU\n".format(params.get('ozone', 0.3) * 1000))  # Convert to DU
-            f.write("mol_modify H2O {:.3f} MOLEC\n".format(params.get('water_vapor', 2.0) * 1e-3))  # Convert to g/cm²
+            f.write("mol_modify H2O {:.3f} MM\n".format(params.get('water_vapor', 2.0)))  # Takes WVC in mm
             
             # Wavelength grid
-            f.write(f"wavelength {params['wavelength'] - params['fwhm']/2} {params['wavelength'] + params['fwhm']/2}\n")
-            f.write("wavelength_grid_centers_only\n")
+            f.write(f"wavelength {params['wavelength']}\n")
+            f.write(f"wavelength_step {params['fwhm']}\n")
             
             # Output
             f.write("output_quantity transmittance\n")
-            f.write("output_user lambda edir edn eup enet esum tsca tsca_dir tsca_dif\n")
+            f.write("output_user lambda T_dir T_dif s T_tot L_p E_dir E_dif E_tot\n")
             f.write("quiet\n")
     
     def run_simulation(self, params):
