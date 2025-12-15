@@ -64,7 +64,7 @@ class LibRadtranRunner:
             # Atmospheric parameters
             f.write(f"data_files_path {os.path.join(self.libradtran_path, 'data/')}\n")
             f.write(f"atmosphere_file {os.path.join(self.libradtran_path, 'data/atmmod/afglus.dat')}\n")
-            f.write(f"source_solar {os.path.join(self.libradtran_path, 'data/solar_flux/atlas_plus_modtran')}\n")
+            f.write(f"source solar {os.path.join(self.libradtran_path, 'data/solar_flux/atlas_plus_modtran')}\n")
             
             f.write(f"albedo {params.get('surface_albedo', 0.1)}\n")
             f.write(f"sza {params.get('solar_zenith', 30.0)}\n")
