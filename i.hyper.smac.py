@@ -391,7 +391,8 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
             temp_band_corr = f"{temp_band}_corr"
             # Add a small epsilon to prevent division by zero and ensure values are in 0-1 range
             epsilon = 1e-10
-            expr = f"{temp_band_corr} = float(min(max(0.0, ({temp_band} - {corr['rho_atm']}) / max({corr['t_total']}, {epsilon})), 1.0))"
+            # Using GRASS GIS if() syntax instead of min()/max()
+            expr = f"{temp_band_corr} = float(if(({temp_band} - {corr['rho_atm']}) / if({corr['t_total']} > {epsilon}, {corr['t_total']}, {epsilon}) > 1.0, 1.0, if(({temp_band} - {corr['rho_atm']}) / if({corr['t_total']} > {epsilon}, {corr['t_total']}, {epsilon}) < 0.0, 0.0, ({temp_band} - {corr['rho_atm']}) / if({corr['t_total']} > {epsilon}, {corr['t_total']}, {epsilon}))))"
             gs.run_command('r.mapcalc', expression=expr, overwrite=True, quiet=True)
 
             # Add wavelength and FWHM to the output band
