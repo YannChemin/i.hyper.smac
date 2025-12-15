@@ -25,26 +25,31 @@ class LibRadtranRunner:
         self.libradtran_path = self._find_libradtran()
         
     def _find_libradtran(self):
-        """Find the libRadtran installation path."""
-        # Check common installation paths
-        paths = [
-            '/usr/local/lib/libRadtran',
-            '/usr/local/libRadtran',
-            '/opt/libRadtran',
-            '/usr/local/share/libRadtran',
-            '/usr/share/libRadtran',
+        """Find the libRadtran installation path considering typical layouts."""
+        # Common base paths
+        potential_bases = [
+            '/usr/local',
+            '/opt',
+            '/usr',
             os.environ.get('LIBRADTRAN_DIR', '')
         ]
         
-        for path in paths:
-            uvspec_path = os.path.join(path, '../../bin', 'uvspec')
+        for base in filter(None, potential_bases):
+            uvspec_path = os.path.join(base, 'bin', 'uvspec')
+            lib_path = os.path.join(base, 'lib', 'libRadtran')
+            share_path = os.path.join(base, 'share', 'libRadtran')
+    
+            # Check if uvspec executable exists
             if os.path.isfile(uvspec_path) and os.access(uvspec_path, os.X_OK):
-                if self.verbose:
+                # Verify that at least one of the data/library directories exist
+                if os.path.isdir(lib_path) or os.path.isdir(share_path):
                     if self.verbose:
-                        gs.message(f"Found libRadtran at: {path}")
-                return path
-        
-        raise RuntimeError("libRadtran not found. Please install libRadtran or set LIBRADTRAN_DIR environment variable.")
+                        gs.message(f"Found libRadtran at: {base} (uvspec in bin/, lib/data found)")
+                    # Return base path so other parts can find subdirs easily
+                    return base
+    
+        raise RuntimeError("libRadtran not found. Ensure uvspec is in PATH and data directories exist.")
+
     
     def _create_input_file(self, params, input_file):
         """
