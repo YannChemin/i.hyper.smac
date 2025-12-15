@@ -73,7 +73,7 @@ class LibRadtranRunner:
             # Aerosols
             if 'aerosol_model' in params:
                 f.write("aerosol_default\n")
-                f.write(f"aerosol_species_file {params.get['aerosol_model']}\n")
+                f.write(f"aerosol_species_file {params['aerosol_model']}\n")
                 f.write(f"aerosol_modify tau set {params.get('aod_550', 0.1)}\n")
             
             # Molecular absorption
