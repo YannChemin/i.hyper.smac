@@ -73,7 +73,7 @@ class LibRadtranRunner:
             # Aerosols
             if 'aerosol_model' in params:
                 f.write("aerosol_default\n")
-                f.write(f"aerosol_species_file {params['aerosol_model']}\n")
+                f.write(f"aerosol_species_file {params.get['aerosol_model']}\n")
                 f.write(f"aerosol_modify tau set {params.get('aod_550', 0.1)}\n")
             
             # Molecular absorption
@@ -89,8 +89,8 @@ class LibRadtranRunner:
 
             # For path radiance, add: TODO satellite altitude and zenith angle
             f.write("zout 100.0\n")  # Satellite altitude in km (e.g., 100 km)
-            f.write("umu 1.0\n")     # Looking straight down
-            f.write("phi {params.get('satellite_azimuth', 0.0)}\n") # Azimuth angle   
+            f.write("umu 1.0\n")     # Satellite Zenith Angle (1.0 Looking straight down)
+            f.write("phi {params.get('view_azimuth', 0.0)}\n") # Satellite Azimuth angle   
 
             # Output
             if transmittance == True:
