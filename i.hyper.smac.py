@@ -324,7 +324,7 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
         band_corrections = []
         for band in bands:
             wavelength = band['wavelength']
-            
+
             # Atmospheric calculations
             tau_r = 0.008569 * (wavelength / 1000) ** (-4) * (1 + 0.0113 * (wavelength / 1000) ** (-2))
             tau_r *= pressure / 1013.25
@@ -346,7 +346,28 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
             t_up = np.exp(-tau / cos_theta_v)
             t_total = t_down * t_up * t_gas
             rho_atm = 0.02 * tau
-            
+            # Enhanced correction for blue/green region (400-550nm)
+            if wavelength < 550:
+                # Rayleigh optical thickness approximation (varies with wavelength^-4)
+                tau_r = 0.008569 * (wavelength/1000)**(-4) * (pressure/1013.25)
+                
+                # Aerosol optical thickness (Angstrom's law)
+                alpha = 1.3  # Angstrom exponent, typical for continental aerosols
+                tau_a = aod * (wavelength/550.0)**(-alpha)
+                
+                # Total optical thickness
+                tau = tau_r + tau_a
+                
+                # Enhanced correction factor for blue region
+                if wavelength < 450:  # Stronger correction for blue
+                    enhancement = 1.0 + (450 - wavelength) * 0.01  # Adjust multiplier as needed
+                else:  # Moderate correction for green
+                    enhancement = 1.0 + (550 - wavelength) * 0.005
+                
+                # Apply enhanced correction
+                t_total *= enhancement
+                rho_atm *= (1.0 + (enhancement - 1.0) * 0.7)  # Slight adjustment to path radiance
+
             band_corrections.append({
                 'band_num': band['band_num'],
                 't_total': t_total,
@@ -389,10 +410,8 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
             band_num = band['band_num']
             temp_band = f"temp_band_{band_num}_{os.getpid()}"
             temp_band_corr = f"{temp_band}_corr"
-            # Add a small epsilon to prevent division by zero and ensure values are in 0-1 range
-            epsilon = 1e-10
             # Using GRASS GIS if() syntax instead of min()/max()
-            expr = f"{temp_band_corr} = float(if(({temp_band} - {corr['rho_atm']}) / if({corr['t_total']} > {epsilon}, {corr['t_total']}, {epsilon}) > 1.0, 1.0, if(({temp_band} - {corr['rho_atm']}) / if({corr['t_total']} > {epsilon}, {corr['t_total']}, {epsilon}) < 0.0, 0.0, ({temp_band} - {corr['rho_atm']}) / if({corr['t_total']} > {epsilon}, {corr['t_total']}, {epsilon}))))"
+            expr = f"{temp_band_corr} = float(({temp_band} - {corr['rho_atm']}) / {corr['t_total']})"
             gs.run_command('r.mapcalc', expression=expr, overwrite=True, quiet=True)
 
             # Add wavelength and FWHM to the output band
