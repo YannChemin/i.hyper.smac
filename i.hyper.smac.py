@@ -548,7 +548,7 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
     """
     
     gs.message("Applying libradtran-based SMAC atmospheric correction...")
-    temp_dir = Path(tempfile.mkdtemp(prefix='smac_libradtran_'))
+    #temp_dir = Path(tempfile.mkdtemp(prefix='smac_libradtran_'))
     
     try:
         # Process each band
