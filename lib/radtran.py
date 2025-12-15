@@ -51,17 +51,21 @@ class LibRadtranRunner:
         raise RuntimeError("libRadtran not found. Ensure uvspec is in PATH and data directories exist.")
 
     
-    def _create_input_file(self, params, input_file):
+    def _create_input_file(self, params, input_file, transmittance=False):
         """
         Create a libRadtran input file.
         
         Args:
             params (dict): Dictionary containing the parameters for the simulation
             input_file (str): Path to the input file to create
+            transmisttance (bool): False (default), if True write transmittances
         """
         with open(input_file, 'w') as f:
             # Atmospheric parameters
+            f.write(f"data_files_path {os.path.join(self.libradtran_path, 'data/')}\n")
             f.write(f"atmosphere_file {os.path.join(self.libradtran_path, 'data/atmmod/afglus.dat')}\n")
+            f.write(f"source_solar {os.path.join(self.libradtran_path, 'data/solar_flux/atlas_plus_modtran')}\n")
+            
             f.write(f"albedo {params.get('surface_albedo', 0.1)}\n")
             f.write(f"sza {params.get('solar_zenith', 30.0)}\n")
             f.write(f"phi0 {params.get('solar_azimuth', 0.0)}\n")
@@ -89,8 +93,10 @@ class LibRadtranRunner:
             f.write("phi {params.get('satellite_azimuth', 0.0)}\n") # Azimuth angle   
 
             # Output
-            f.write("output_quantity transmittance\n")
-            f.write("output_user lambda edir edn eup enet eglo spher_alb uu\n")
+            if transmittance == True:
+                f.write("output_quantity transmittance\n")
+            else:
+                f.write("output_user lambda edir edn eup enet eglo spher_alb uu\n")
             f.write("quiet\n")
     
     def run_simulation(self, params):
@@ -154,20 +160,20 @@ class LibRadtranRunner:
         if len(data) < 9:
             raise ValueError("Unexpected number of columns in libRadtran output")
             
-        # Extract parameters lambda edir edn eup enet eglo spher_alb
+        # Extract parameters lambda edir edn eup enet eglo spher_alb uu
         return {
-            'wavelength': float(data[0]),  # nm lambda
-            'direct_irradiance': float(data[1]),  # edir
-            'diffuse_irradiance_down': float(data[2]),  # edn (down)
-            'diffuse_irradiance_up': float(data[3]),  # eup (up)
+            'wavelength': float(data[0]),           # lambda (nm)
+            'direct_irradiance': float(data[1]),    # edir
+            'diffuse_irradiance': float(data[2]),   # edn (downward)
+            'upward_irradiance': float(data[3]),    # eup
+            'net_irradiance': float(data[4]),       # enet
+            'global_irradiance': float(data[5]),    # eglo = edir + edn
+            'spherical_albedo': float(data[6]),     # spher_alb
+            'path_radiance': float(data[7]),        # uu
 
-            'total_irradiance': float(data[5])  # eglo
-            'spherical_albedo': float(data[6]),  # s
-
-            'direct_transmittance': float(data[1]),  # T_dir
-            'diffuse_transmittance': float(data[2]),  # T_dif
-            'total_transmittance': float(data[4]),  # T_tot
-            'path_radiance': float(data[5]),  # L_p
+            'direct_transmittance': float(data[8]),  # T_dir
+            'diffuse_transmittance': float(data[9]),  # T_dif
+            'total_transmittance': float(data[10]),  # T_tot
         }
     
     def cleanup(self):
