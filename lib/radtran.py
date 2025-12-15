@@ -90,7 +90,7 @@ class LibRadtranRunner:
             # For path radiance, add: TODO satellite altitude and zenith angle
             f.write("zout 100.0\n")  # Satellite altitude in km (e.g., 100 km)
             f.write("umu 1.0\n")     # Satellite Zenith Angle (1.0 Looking straight down)
-            f.write("phi {params.get('view_azimuth', 0.0)}\n") # Satellite Azimuth angle   
+            f.write(f"phi {params.get('view_azimuth', 0.0)}\n") # Satellite Azimuth angle   
 
             # Output
             if transmittance == True:
