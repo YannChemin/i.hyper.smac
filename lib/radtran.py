@@ -64,7 +64,7 @@ class LibRadtranRunner:
             dp=os.path.join(self.libradtran_path, 'share/libRadtran/data/')
             dp_atmosph=os.path.join(self.libradtran_path, 'share/libRadtran/data/atmmod/')
             dp_solarfl=os.path.join(self.libradtran_path, 'share/libRadtran/data/solar_flux/')
-            dp_aerosol=os.path.join(self.libradtran_path, 'share/libRadtran/data/aerosol/OPAC/standard_aerosol_files/')
+            dp_aerosol='aerosol/OPAC/standard_aerosol_files/'
             # Atmospheric parameters
             f.write(f"data_files_path {dp}\n")
             f.write(f"atmosphere_file {os.path.join(dp_atmosph, 'afglus.dat')}\n")
