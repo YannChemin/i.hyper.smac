@@ -28,8 +28,10 @@ class LibRadtranRunner:
         """Find the libRadtran installation path."""
         # Check common installation paths
         paths = [
+            '/usr/local/lib/libRadtran',
             '/usr/local/libRadtran',
             '/opt/libRadtran',
+            '/usr/local/share/libRadtran',
             '/usr/share/libRadtran',
             os.environ.get('LIBRADTRAN_DIR', '')
         ]
