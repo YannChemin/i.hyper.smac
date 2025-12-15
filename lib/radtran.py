@@ -37,7 +37,7 @@ class LibRadtranRunner:
         ]
         
         for path in paths:
-            uvspec_path = os.path.join(path, 'bin', 'uvspec')
+            uvspec_path = os.path.join(path, '../../bin', 'uvspec')
             if os.path.isfile(uvspec_path) and os.access(uvspec_path, os.X_OK):
                 if self.verbose:
                     if self.verbose:
