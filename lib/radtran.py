@@ -78,12 +78,19 @@ class LibRadtranRunner:
             f.write("mol_modify H2O {:.3f} MM\n".format(params.get('water_vapor', 2.0)))  # Takes WVC in mm
             
             # Wavelength grid
-            f.write(f"wavelength {params['wavelength']}\n")
+            low_wl= params['wavelength'] - params['fwhm']
+            hig_wl= params['wavelength'] + params['fwhm']
+            f.write(f"wavelength {low_wl} {hig_wl}\n")
             f.write(f"wavelength_step {params['fwhm']}\n")
-            
+
+            # For path radiance, add: TODO satellite altitude and zenith angle
+            f.write("zout 100.0\n")  # Satellite altitude in km (e.g., 100 km)
+            f.write("umu 1.0\n")     # Looking straight down
+            f.write("phi {params.get('satellite_azimuth', 0.0)}\n") # Azimuth angle   
+
             # Output
             f.write("output_quantity transmittance\n")
-            f.write("output_user lambda T_dir T_dif s T_tot L_p E_dir E_dif E_tot\n")
+            f.write("output_user lambda edir edn eup enet eglo spher_alb uu\n")
             f.write("quiet\n")
     
     def run_simulation(self, params):
@@ -97,6 +104,8 @@ class LibRadtranRunner:
             dict: Dictionary containing the atmospheric correction parameters
         """
         # Create input file
+        input_file = os.path.join('/home/yann/RSDATA/Tanager/Kanpur/','lradtran.inp')
+        self._create_input_file(params, input_file)
         input_file = os.path.join(self.temp_dir, 'lradtran.inp')
         self._create_input_file(params, input_file)
         
@@ -145,17 +154,20 @@ class LibRadtranRunner:
         if len(data) < 9:
             raise ValueError("Unexpected number of columns in libRadtran output")
             
-        # Extract parameters
+        # Extract parameters lambda edir edn eup enet eglo spher_alb
         return {
-            'wavelength': float(data[0]),  # nm
+            'wavelength': float(data[0]),  # nm lambda
+            'direct_irradiance': float(data[1]),  # edir
+            'diffuse_irradiance_down': float(data[2]),  # edn (down)
+            'diffuse_irradiance_up': float(data[3]),  # eup (up)
+
+            'total_irradiance': float(data[5])  # eglo
+            'spherical_albedo': float(data[6]),  # s
+
             'direct_transmittance': float(data[1]),  # T_dir
             'diffuse_transmittance': float(data[2]),  # T_dif
-            'spherical_albedo': float(data[3]),  # s
             'total_transmittance': float(data[4]),  # T_tot
             'path_radiance': float(data[5]),  # L_p
-            'direct_irradiance': float(data[6]),  # E_dir
-            'diffuse_irradiance': float(data[7]),  # E_dif
-            'total_irradiance': float(data[8])  # E_tot
         }
     
     def cleanup(self):
