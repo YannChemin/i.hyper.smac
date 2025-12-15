@@ -106,12 +106,12 @@
 # %end
 
 # %option
-# % key: aerosol_type
+# % key: aerosol_model
 # % type: string
 # % required: no
 # % options: continental,maritime,urban,desert
 # % answer: continental
-# % description: Aerosol type for atmospheric correction
+# % description: Aerosol model type for atmospheric correction
 # % guisection: Atmospheric
 # %end
 
@@ -525,7 +525,7 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
                                    solar_zenith, solar_azimuth,
                                    view_zenith, view_azimuth,
                                    sensor_type, aot_lut=None, visibility=None,
-                                   aerosol_type='continental', keep_temp=False):
+                                   aerosol_model='continental', keep_temp=False):
     """Apply libradtran-based SMAC atmospheric correction.
     
     Args:
@@ -543,7 +543,7 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
         sensor_type (str): Sensor type (e.g., 'AVIRIS', 'PRISMA')
         aot_lut (str, optional): Path to AOT look-up table
         visibility (float, optional): Visibility in km
-        aerosol_type (str): Type of aerosol model
+        aerosol_model (str): Type of aerosol model
         keep_temp (bool): Whether to keep temporary files
     """
     
@@ -781,10 +781,10 @@ def main():
     if method == 'libradtran':
         sensor_type = options.get('sensor', '').upper()
         visibility = float(options['visibility']) if options.get('visibility') else None
-        aerosol_type = options.get('aerosol_type', 'continental') # continental is default
+        aerosol_model = options.get('aerosol_type', 'continental') # continental is default
         
         gs.message(f"  Sensor: {sensor_type}")
-        gs.message(f"  Aerosol type: {aerosol_type}")
+        gs.message(f"  Aerosol model: {aerosol_model}")
         if visibility:
             gs.message(f"  Visibility: {visibility} km")
     
@@ -806,7 +806,7 @@ def main():
             solar_zenith, solar_azimuth,
             view_zenith, view_azimuth,
             sensor_type, visibility,
-            aerosol_type, keep_temp
+            aerosol_model, keep_temp
         )
     else:
         gs.fatal(f"Unknown method: {method}. Choose 'simple' or 'libradtran'.")
