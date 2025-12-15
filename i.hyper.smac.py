@@ -604,7 +604,7 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
                     water_vapor=water_vapor,
                     ozone=ozone,  # This will be the estimated or provided ozone value
                     surface_albedo=0.1,  # Initial guess, will be updated
-                    aerosol_type=aerosol_type,
+                    aerosol_model=aerosol_model,
                     verbose=gs.verbosity() > 0
                 )
                 
@@ -781,7 +781,7 @@ def main():
     if method == 'libradtran':
         sensor_type = options.get('sensor', '').upper()
         visibility = float(options['visibility']) if options.get('visibility') else None
-        aerosol_model = options.get('aerosol_type', 'continental') # continental is default
+        aerosol_model = options.get('aerosol_model', 'continental') # continental is default
         
         gs.message(f"  Sensor: {sensor_type}")
         gs.message(f"  Aerosol model: {aerosol_model}")
