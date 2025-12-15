@@ -10,8 +10,7 @@ using libRadtran for SMAC atmospheric correction.
 import os
 import tempfile
 import subprocess
-import numpy as np
-from pathlib import Path
+import grass.script as gs
 
 class LibRadtranRunner:
     def __init__(self, verbose=False):
