@@ -607,7 +607,15 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
                     aerosol_model=aerosol_model,
                     verbose=gs.verbosity() > 0
                 )
-                
+                theta_s = solar_zenith
+                theta_v = view_zenith
+                phi_s = sun_azimuth
+                phi_v = view_azimuth
+                pressure = 1013
+                taup550 = 0.01
+                uo3 = 0.3
+                uh2o = 0.3
+                rho_surface = smac_inv(r_toa , theta_s, phi_s, theta_v, phi_v, pressure, taup550, uo3, uh20, coefs)
                 # Apply atmospheric correction using SMAC parameters
                 # rho_surface = (L_toa - L_p) / (T_dir * T_dif) - s * rho_surface
                 # Solving for rho_surface: rho_surface = (L_toa - L_p) / (T_dir * T_dif + s * (L_toa - L_p))
@@ -618,7 +626,6 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
                     f"({smac_params['direct_transmittance']} * {smac_params['diffuse_transmittance']} + "
                     f"{smac_params['spherical_albedo']} * ({input_band} - {smac_params['path_radiance']}))"
                 )
-                
                 gs.run_command('r.mapcalc', expression=expr, overwrite=True, quiet=True)
                 output_bands.append(corrected_band)
                 
