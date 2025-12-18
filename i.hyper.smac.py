@@ -150,9 +150,9 @@
 
 import sys
 import os
-import tempfile
 import numpy as np
 import grass.script as gs
+from grass.pygrass.raster import RasterRow
 from pathlib import Path
 
 # Get GISBASE (GRASS installation prefix)
@@ -168,6 +168,7 @@ if gs.verbosity() > 0:
 if lib_path.exists():
     sys.path.insert(0, str(lib_path))
     try:
+        import smac
         import radtran
         import aod
         import wvc
@@ -594,40 +595,55 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
                          overwrite=True,
                          quiet=True)
             
+            # Get input_band data into numpy array
+            r = RasterRow(input_band)
+            r.open('r')
+            # Convert entire raster to NumPy array (rows x cols)
+            rad_toa_band = np.array(r)
+            r.close()
+            
+            # Convert radiance to Refl TOA using libradtran
+            # rad_toa_band: 2D array of TOA radiance for your band (from RasterRow)
+            # E0_band: exo-atmospheric irradiance for the band (from libradtran + band integration)
+            # d2: Earth-Sun distance squared (in AU^2)
+            # theta_s: solar zenith angle (in radians here)
+            theta_s = solar_zenith
+            E0_band = radtran.E0(wavelength, band.get('fwhm', 10.0))
+            # Get current date or acquisition date 
+            # TODO get from metadata
+            d2 = radtran.earth_sun_distance(2025, 12, 18) ** 2
+            refl_toa_band = (np.pi * rad_toa_band * d2) / (E0_band * np.cos(theta_s))
+            
             try:
-                # Get SMAC parameters from libRadtran
-                smac_params = get_smac_parameters(
+                # Get SMAC coefficients from libRadtran
+                coefs = get_smac_parameters(
                     wavelength=wavelength,
-                    fwhm=band.get('fwhm', 10.0),  # Default to 10nm if not specified
+                    fwhm=band.get('fwhm', 10.0),
                     sza=solar_zenith,
+                    vza=view_zenith,
                     aod_550=aod,
                     water_vapor=water_vapor,
-                    ozone=ozone,  # This will be the estimated or provided ozone value
-                    surface_albedo=0.1,  # Initial guess, will be updated
+                    ozone=ozone,
+                    pressure=pressure,
                     aerosol_model=aerosol_model,
                     verbose=gs.verbosity() > 0
                 )
-                theta_s = solar_zenith
-                theta_v = view_zenith
-                phi_s = sun_azimuth
-                phi_v = view_azimuth
-                pressure = 1013
-                taup550 = 0.01
-                uo3 = 0.3
-                uh2o = 0.3
-                rho_surface = smac_inv(r_toa , theta_s, phi_s, theta_v, phi_v, pressure, taup550, uo3, uh20, coefs)
-                # Apply atmospheric correction using SMAC parameters
-                # rho_surface = (L_toa - L_p) / (T_dir * T_dif) - s * rho_surface
-                # Solving for rho_surface: rho_surface = (L_toa - L_p) / (T_dir * T_dif + s * (L_toa - L_p))
                 
-                corrected_band = f"{input_band}_corr"
-                expr = (
-                    f"{corrected_band} = float({input_band} - {smac_params['path_radiance']}) / "
-                    f"({smac_params['direct_transmittance']} * {smac_params['diffuse_transmittance']} + "
-                    f"{smac_params['spherical_albedo']} * ({input_band} - {smac_params['path_radiance']}))"
+                # Apply SMAC correction for the whole band
+                refl_boa_band = smac.smac_inv(
+                    r_toa=refl_toa_band,  # TOA reflectance numpy array
+                    tetas=solar_zenith,
+                    phis=solar_azimuth,
+                    tetav=view_zenith,
+                    phiv=view_azimuth,
+                    pressure=pressure,
+                    taup550=aod,
+                    uo3=ozone,
+                    uh2o=water_vapor,
+                    coef=coefs
                 )
-                gs.run_command('r.mapcalc', expression=expr, overwrite=True, quiet=True)
-                output_bands.append(corrected_band)
+                
+                output_bands.append(refl_boa_band)
                 
             except Exception as e:
                 gs.fatal(f"Error processing band {band_num}: {str(e)}")
@@ -638,7 +654,7 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
         # Combine corrected bands back into a 3D raster
         gs.message("Combining corrected bands...")
         gs.run_command('r.to.rast3', input=','.join(output_bands), output=output_raster, overwrite=True)
-            
+        
     except Exception as e:
         gs.fatal(f"Error in libradtran processing: {str(e)}")
         
