@@ -525,7 +525,7 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
                                    aod, water_vapor, ozone, pressure,
                                    solar_zenith, solar_azimuth,
                                    view_zenith, view_azimuth,
-                                   sensor_type, aot_lut=None, visibility=None,
+                                   sensor_type, visibility=None,
                                    aerosol_model='continental', keep_temp=False):
     """Apply libradtran-based SMAC atmospheric correction.
     
@@ -542,83 +542,105 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
         view_zenith (float): View zenith angle (degrees)
         view_azimuth (float): View azimuth angle (degrees)
         sensor_type (str): Sensor type (e.g., 'AVIRIS', 'PRISMA')
-        aot_lut (str, optional): Path to AOT look-up table
         visibility (float, optional): Visibility in km
         aerosol_model (str): Type of aerosol model
         keep_temp (bool): Whether to keep temporary files
     """
     
     gs.message("Applying libradtran-based SMAC atmospheric correction...")
-    #temp_dir = Path(tempfile.mkdtemp(prefix='smac_libradtran_'))
+    
+    # Get acquisition date from metadata (or use current date as fallback)
+    try:
+        timestamp = gs.read_command('r3.timestamp', map=input_raster).strip()
+        if timestamp:
+            # Parse timestamp (format: "day month year")
+            from datetime import datetime
+            dt = datetime.strptime(timestamp.split()[0], "%d/%m/%Y")
+            year, month, day = dt.year, dt.month, dt.day
+        else:
+            raise ValueError("No timestamp")
+    except:
+        # Fallback to current date
+        from datetime import datetime
+        dt = datetime.now()
+        year, month, day = dt.year, dt.month, dt.day
+        gs.warning(f"Could not get acquisition date from metadata, using current date: {year}-{month:02d}-{day:02d}")
+    
+    # Convert angles to radians for calculations
+    theta_s_rad = np.radians(solar_zenith)
+    theta_v_rad = np.radians(view_zenith)
+    
+    # Calculate Earth-Sun distance
+    d2 = radtran.earth_sun_distance(year, month, day) ** 2
+    
+    # Get wavelength information from input raster
+    input_info = gs.read_command('r3.info', flags='h', map=input_raster)
+    wavelength_info = [line.strip() for line in input_info.split('\n') if 'Band' in line and 'nm' in line]
+    
+    # Store temporary band names for cleanup
+    temp_bands = []
+    corrected_bands = []
     
     try:
         # Process each band
-        output_bands = []
-        
-        for band in bands:
+        for i, band in enumerate(bands):
             band_num = band['band_num']
             wavelength = band['wavelength']
+            fwhm = band.get('fwhm', 10.0)
             
             # Skip bands outside the valid range for libradtran
             if wavelength < 300 or wavelength > 4000:
                 gs.warning(f"Skipping band {band_num} with wavelength {wavelength} nm (outside 300-4000 nm range)")
                 continue
-                
-            gs.message(f"Processing band {band_num}: {wavelength} nm")
             
-            # Extract single band
+            gs.message(f"Processing band {band_num}: {wavelength:.2f} nm")
+            
             # Extract band from 3D raster
             input_band = f"tmp_input_{os.getpid()}_{band_num}"
+            temp_bands.append(input_band)
             
-            # Set the 3D region to the specific band (using band_num + 0.1 to ensure top > bottom)
+            # Set the 3D region to the specific band
             gs.run_command('g.region', t=band_num + 0.1, b=band_num, quiet=True)
             
-            # Extract the band using the mask
-            gs.run_command('r3.mapcalc',
-                          expression=f"{input_band} = {input_raster}",
+            # Extract the band
+            gs.run_command('r3.to.rast',
+                          input=input_raster,
+                          output=input_band,
                           overwrite=True,
                           quiet=True)
             
-            # Convert the 3D raster to 2D with overwrite
-            gs.run_command('r3.to.rast',
-                         input=input_band,
-                         output=input_band,
-                         overwrite=True,
-                         quiet=True)
-            
-            # The output will be named output_map_00001
-            input_file = f"{input_band}_00001"
-            
-            # Rename the output file to the desired name
+            # The output will be named input_band_00001, rename it
             gs.run_command('g.rename',
-                         raster=f"{input_file},{input_band}",
-                         overwrite=True,
-                         quiet=True)
+                          raster=f"{input_band}_00001,{input_band}",
+                          overwrite=True,
+                          quiet=True)
             
-            # Get input_band data into numpy array
-            r = RasterRow(input_band)
-            r.open('r')
-            # Convert entire raster to NumPy array (rows x cols)
-            rad_toa_band = np.array(r)
-            r.close()
+            # Read raster data into numpy array
+            with RasterRow(input_band) as r:
+                r.open('r')
+                rad_toa_band = np.array(r)
             
-            # Convert radiance to Refl TOA using libradtran
-            # rad_toa_band: 2D array of TOA radiance for your band (from RasterRow)
-            # E0_band: exo-atmospheric irradiance for the band (from libradtran + band integration)
-            # d2: Earth-Sun distance squared (in AU^2)
-            # theta_s: solar zenith angle (in radians here)
-            theta_s = solar_zenith
-            E0_band = radtran.E0(wavelength, band.get('fwhm', 10.0))
-            # Get current date or acquisition date 
-            # TODO get from metadata
-            d2 = radtran.earth_sun_distance(2025, 12, 18) ** 2
-            refl_toa_band = (np.pi * rad_toa_band * d2) / (E0_band * np.cos(theta_s))
+            # Get exo-atmospheric irradiance for this band
+            try:
+                E0_band = radtran.E0(wavelength, fwhm)
+            except Exception as e:
+                gs.warning(f"Could not get E0 for band {band_num} at {wavelength} nm: {e}")
+                gs.warning("Using approximate value")
+                # Approximate E0 based on solar constant and wavelength
+                E0_band = 1.0  # Placeholder - should be calculated properly
+            
+            # Convert radiance to TOA reflectance
+            # Formula: refl_toa = (π * L_toa * d²) / (E0 * cos(θs))
+            refl_toa_band = (np.pi * rad_toa_band * d2) / (E0_band * np.cos(theta_s_rad))
+            
+            # Clip to valid reflectance range [0, 1]
+            refl_toa_band = np.clip(refl_toa_band, 0.0, 1.0)
             
             try:
                 # Get SMAC coefficients from libRadtran
                 coefs = get_smac_parameters(
                     wavelength=wavelength,
-                    fwhm=band.get('fwhm', 10.0),
+                    fwhm=fwhm,
                     sza=solar_zenith,
                     vza=view_zenith,
                     aod_550=aod,
@@ -629,9 +651,9 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
                     verbose=gs.verbosity() > 0
                 )
                 
-                # Apply SMAC correction for the whole band
+                # Apply SMAC correction
                 refl_boa_band = smac.smac_inv(
-                    r_toa=refl_toa_band,  # TOA reflectance numpy array
+                    r_toa=refl_toa_band,
                     tetas=solar_zenith,
                     phis=solar_azimuth,
                     tetav=view_zenith,
@@ -643,44 +665,114 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
                     coef=coefs
                 )
                 
-                output_bands.append(refl_boa_band)
+                # Clip to valid reflectance range
+                refl_boa_band = np.clip(refl_boa_band, 0.0, 1.0)
+                
+                # Write corrected band back to a raster
+                output_band = f"tmp_corr_{os.getpid()}_{band_num}"
+                corrected_bands.append(output_band)
+                
+                # Create output raster
+                with RasterRow(output_band, mode='w', mtype='DCELL', overwrite=True) as r:
+                    for row_idx, row_data in enumerate(refl_boa_band):
+                        r.put_row(row_data)
+                
+                # Add wavelength metadata to corrected band
+                band_comment = f"Band {band_num}: {wavelength:.2f} nm"
+                if fwhm:
+                    band_comment += f", FWHM: {fwhm:.2f} nm"
+                
+                gs.run_command('r.support',
+                              map=output_band,
+                              title=band_comment,
+                              units="reflectance",
+                              quiet=True)
+                
+                gs.percent(i, len(bands), 1)
                 
             except Exception as e:
                 gs.fatal(f"Error processing band {band_num}: {str(e)}")
         
-        # Restore 3D g.region
+        if not corrected_bands:
+            gs.fatal("No bands were successfully processed")
+        
+        # Restore 3D region
         gs.run_command('g.region', raster_3d=input_raster, quiet=True)
-
+        
         # Combine corrected bands back into a 3D raster
-        gs.message("Combining corrected bands...")
-        gs.run_command('r.to.rast3', input=','.join(output_bands), output=output_raster, overwrite=True)
+        gs.message("Combining corrected bands into 3D raster...")
+        gs.run_command('r.to.rast3',
+                      input=','.join(corrected_bands),
+                      output=output_raster,
+                      overwrite=True)
+        
+        # Transfer metadata to output raster
+        try:
+            # Build metadata description
+            desc = ["Atmospheric Correction Metadata (libRadtran):"]
+            desc.append(f"Original raster: {input_raster}")
+            desc.append(f"Method: libRadtran SMAC")
+            desc.append(f"Solar Z: {solar_zenith}°, View Z: {view_zenith}°")
+            desc.append(f"AOD: {aod}, Water Vapor: {water_vapor} g/cm²")
+            desc.append(f"Ozone: {ozone} cm-atm, Pressure: {pressure} hPa")
+            desc.append(f"Aerosol model: {aerosol_model}")
+            desc.append("Measurement: Reflectance (Bottom of Atmosphere)")
+            desc.append("Measurement Units: -")
+            
+            # Add band information
+            if wavelength_info:
+                desc.append(f"Valid Bands: {len(corrected_bands)}")
+                for i, band in enumerate(bands):
+                    if i < len(corrected_bands):
+                        wl_line = next((w for w in wavelength_info if f"Band {band['band_num']}:" in w), None)
+                        if wl_line:
+                            desc.append(wl_line)
+            
+            # Set metadata
+            gs.run_command('r3.support',
+                          map=output_raster,
+                          title=f"SMAC corrected (libRadtran) {input_raster}",
+                          description="\n".join(desc),
+                          source1="GRASS GIS i.hyper.smac module (libRadtran)",
+                          quiet=True)
+            
+            # Copy timestamp
+            try:
+                timestamp = gs.read_command('r3.timestamp', map=input_raster).strip()
+                if timestamp:
+                    gs.run_command('r3.timestamp', map=output_raster, date=timestamp)
+            except:
+                pass
+                
+        except Exception as e:
+            gs.warning(f"Could not transfer all metadata to output raster: {str(e)}")
+        
+        gs.percent(1, 1, 1)
+        gs.message(f"Libradtran-based atmospheric correction complete: {output_raster}")
         
     except Exception as e:
         gs.fatal(f"Error in libradtran processing: {str(e)}")
         
     finally:
-        # Restore 3D g.region
+        # Restore 3D region
         gs.run_command('g.region', raster_3d=input_raster, quiet=True)
-
+        
         # Clean up temporary files
         if not keep_temp:
             gs.message("Cleaning up temporary files...")
-            temp_bands = gs.parse_command('g.list', type='raster', 
-                                         pattern=f"{output_raster}_band*", 
-                                         mapset='.')
-            if temp_bands:
-                gs.run_command('g.remove', flags='f', type='raster', 
-                              name=','.join(temp_bands), quiet=True)
             
-            temp_bands_corr = gs.parse_command('g.list', type='raster', 
-                                             pattern=f"{output_raster}_band*_corr", 
-                                             mapset='.')
-            if temp_bands_corr:
-                gs.run_command('g.remove', flags='f', type='raster', 
-                              name=','.join(temp_bands_corr), quiet=True)
+            # Remove input temporary bands
+            for temp_band in temp_bands:
+                if gs.find_file(temp_band, element='cell')['file']:
+                    gs.run_command('g.remove', flags='f', type='raster',
+                                  name=temp_band, quiet=True)
+            
+            # Remove corrected temporary bands
+            for corr_band in corrected_bands:
+                if gs.find_file(corr_band, element='cell')['file']:
+                    gs.run_command('g.remove', flags='f', type='raster',
+                                  name=corr_band, quiet=True)
     
-    gs.message(f"Libradtran-based atmospheric correction complete: {output_raster}")
-
 def main():
     """Main function."""    
     options, flags = gs.parser()
