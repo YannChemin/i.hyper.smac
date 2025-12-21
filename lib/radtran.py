@@ -262,8 +262,7 @@ atmosphere_file {atmosphere_file}
 source solar {solar_file}
 wavelength {wl_min} {wl_max}
 output_quantity 1
-output_user lambda eglo
-output_quantity_per_nm
+output_user lambda egs
 verbose
 """
         # Write input file
