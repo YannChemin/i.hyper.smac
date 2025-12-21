@@ -15,6 +15,13 @@ import numpy as np
 import sys
 from datetime import datetime
 
+# i18n
+import gettext
+
+# Setup i18n
+gettext.install('grasslibs', os.path.join(os.getenv("GISBASE"), 'locale'), unicode=True)
+_ = gs.get_translator()
+
 # Import smac module for coefficient class
 try:
     import smac
