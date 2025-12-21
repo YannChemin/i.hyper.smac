@@ -19,7 +19,7 @@ from datetime import datetime
 import gettext
 
 # Setup i18n
-gettext.install('grasslibs', os.path.join(os.getenv("GISBASE"), 'locale'), unicode=True)
+gettext.install('grasslibs', os.path.join(os.getenv("GISBASE"), 'locale'))
 _ = gs.get_translator()
 
 # Import smac module for coefficient class
