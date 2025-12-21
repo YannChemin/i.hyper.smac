@@ -237,23 +237,26 @@ def gaussian_rsp(wl, wl_center, fwhm):
 def E0(wl_center, fwhm,
        uvspec_bin="/usr/local/bin/uvspec",
        solar_file="/usr/local/share/libRadtran/data/solar_flux/kurudz_1.0nm.dat",
-       atmosphere_file="/usr/local/share/libRadtran/data/atmmod/afglus.dat"):
+       atmosphere_file="/usr/local/share/libRadtran/data/atmmod/afglus.dat",
+       verbose=True):
     """
     Compute band-integrated exo-atmospheric irradiance E0_band using libRadtran.
     """
+    if verbose:
+        gs.message(_(f"\n{'='*80}"))
+        gs.message(_(f"Processing band: {wl_center:.2f} nm, FWHM: {fwhm:.2f} nm"))
+        gs.message(_(f"Using solar file: {solar_file}"))
+        gs.message(_(f"Using atmosphere file: {atmosphere_file}"))
+        gs.message(_(f"{'='*80}"))
+
     # Calculate wavelength range (nm)
     wl_min = wl_center - 2 * fwhm
     wl_max = wl_center + 2 * fwhm
 
-    # Create a temporary directory
-    import tempfile
-    import os
-    import numpy as np
-
     with tempfile.TemporaryDirectory() as tmpdir:
         out_path = os.path.join(tmpdir, "E0_spectrum.dat")
         
-        # Build uvspec input file (TOA solar irradiance spectrum)
+        # Build uvspec input file
         uvspec_inp = f"""\
 atmosphere_file {atmosphere_file}
 source solar {solar_file} per_nm
@@ -271,18 +274,69 @@ verbose
         with open(inp_path, 'w') as f:
             f.write(uvspec_inp)
 
+        if verbose:
+            gs.message(_(f"\nUVSPEC Input ({inp_path}):"))
+            gs.message(_("-" * 40))
+            for line in uvspec_inp.split('\n'):
+                gs.message(_(line))
+            gs.message(_("-" * 40))
+            gs.message(_(f"Running uvspec for {wl_center:.2f} nm..."))
+            gs.message(_(f"Command: {uvspec_bin} < {inp_path}"))
+
         # Run uvspec
-        import subprocess
         try:
             result = subprocess.run(
                 [uvspec_bin, "<", inp_path],
-                capture_output=True, text=True, shell=True
+                capture_output=True, 
+                text=True, 
+                shell=True
             )
+            
+            if verbose and result.stdout:
+                gs.message(_("\nUVSPEC Output:"))
+                gs.message(_("-" * 40))
+                for line in result.stdout.split('\n')[:10]:  # Show first 10 lines
+                    gs.message(_(line))
+                if len(result.stdout.split('\n')) > 10:
+                    gs.message(_("... (truncated)"))
+                gs.message(_("-" * 40))
+                
+            if result.stderr:
+                gs.warning(_("\nUVSPEC Warnings/Errors:"))
+                gs.warning(_("-" * 40))
+                for line in result.stderr.split('\n'):
+                    gs.warning(_(line))
+                gs.warning(_("-" * 40))
+                    
             if result.returncode != 0:
-                print(f"Error running uvspec: {result.stderr}")
+                gs.error(_(f"uvspec failed with code {result.returncode}"))
                 return None
+                
         except Exception as e:
-            print(f"Error: {e}")
+            gs.error(_(f"Error running uvspec: {e}"))
+            return None
+
+        # Process output
+        if not os.path.exists(out_path):
+            gs.error(_(f"Output file not found at {out_path}"))
+            return None
+            
+        try:
+            data = np.loadtxt(out_path)
+            if len(data) == 0:
+                gs.error(_("Empty output from uvspec"))
+                return None
+                
+            if verbose:
+                gs.message(_(f"\nSuccessfully processed {wl_center:.2f} nm"))
+                gs.message(_(f"Output shape: {data.shape}"))
+                if len(data) > 0:
+                    gs.message(_("First few data points:"))
+                    for row in data[:3]:
+                        gs.message(_(f"  {row[0]:.2f} nm: {row[1]:.3e}"))
+                    
+        except Exception as e:
+            gs.error(_(f"Error processing output: {e}"))
             return None
 
         # Process output
@@ -296,8 +350,8 @@ verbose
 
     # Build band response and integrate
     R = gaussian_rsp(wavelengths, wl_center, fwhm)
-    num = np.trapz(E0_lambda * R, wavelengths)
-    den = np.trapz(R, wavelengths)
+    num = np.trapezoid(E0_lambda * R, wavelengths)
+    den = np.trapezoid(R, wavelengths)
     E0_band = num / den
 
     return E0_band
