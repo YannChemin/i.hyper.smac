@@ -207,7 +207,7 @@ class LibRadtranRunner:
         if os.path.exists(self.temp_dir):
             shutil.rmtree(self.temp_dir)
     
-    def __del_self):
+    def __del__(self):
         """Destructor to ensure cleanup."""
         try:
             self.cleanup()
