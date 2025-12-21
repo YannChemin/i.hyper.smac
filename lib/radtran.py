@@ -236,79 +236,71 @@ def gaussian_rsp(wl, wl_center, fwhm):
 
 def E0(wl_center, fwhm,
        uvspec_bin="/usr/local/bin/uvspec",
-       solar_file="/usr/local/share/libRadtran/data/solar_flux/atlas_plus_modtran",
+       solar_file="/usr/local/share/libRadtran/data/solar_flux/kurudz_1.0nm.dat",
        atmosphere_file="/usr/local/share/libRadtran/data/atmmod/afglus.dat"):
     """
     Compute band-integrated exo-atmospheric irradiance E0_band using libRadtran.
-
-    Parameters
-    ----------
-    wl_center : float
-        Band center wavelength in nm.
-    fwhm : float
-        Full width at half maximum (nm).
-    uvspec_bin : str
-        Path to uvspec executable.
-    solar_file : str
-        LibRadtran solar spectrum file.
-    atmosphere_file : str
-        LibRadtran atmosphere file.
-
-    Returns
-    -------
-    float
-        Band-integrated exo-atmospheric irradiance (units consistent
-        with libRadtran output, e.g. W m^-2 nm^-1 integrated over band).
     """
-    # Define spectral range for sampling, e.g. ± 5 * FWHM
-    wl_min = wl_center - 5 * fwhm
-    wl_max = wl_center + 5 * fwhm
-    # Choose spectral step smaller than FWHM (e.g. FWHM/10)
-    dwl = max(fwhm / 10.0, 0.1)  # at least 0.1 nm
-    wavelengths = np.arange(wl_min, wl_max + dwl, dwl)
+    # Calculate wavelength range (nm)
+    wl_min = wl_center - 2 * fwhm
+    wl_max = wl_center + 2 * fwhm
 
-    # Build uvspec input file (TOA solar irradiance spectrum)
-    # You may adjust options (solver, geometry, etc.) as needed.
-    uvspec_inp = f"""\
-atmosphere_file /usr/local/share/libRadtran/data/atmmod/afglus.dat
-data_files_path /usr/local/share/libRadtran/data
-atmosphere_file {atmosphere_file}
-source solar {solar_file}
-wavelength {wl_min} {wl_max}
-rte_solver disort
-sza 0
-zout toa
-output_user lambda edir
-"""
+    # Create a temporary directory
+    import tempfile
+    import os
+    import numpy as np
 
     with tempfile.TemporaryDirectory() as tmpdir:
+        out_path = os.path.join(tmpdir, "E0_spectrum.dat")
+        
+        # Build uvspec input file (TOA solar irradiance spectrum)
+        uvspec_inp = f"""\
+atmosphere_file {atmosphere_file}
+source solar {solar_file} per_nm
+wavelength {wl_min} {wl_max}
+spline
+output_quantity irradiance
+output_user lambda e_dir
+output_process sum
+output process_quantity per_nm
+output_skip_irradiance_scaling 1
+verbose
+"""
+        # Write input file
         inp_path = os.path.join(tmpdir, "uvspec.inp")
-        out_path = os.path.join(tmpdir, "uvspec.out")
-
-        with open(inp_path, "w") as f:
+        with open(inp_path, 'w') as f:
             f.write(uvspec_inp)
 
         # Run uvspec
-        with open(out_path, "w") as f_out:
-            subprocess.run([uvspec_bin], stdin=open(inp_path, "r"),
-                           stdout=f_out, check=True)
+        import subprocess
+        try:
+            result = subprocess.run(
+                [uvspec_bin, "<", inp_path],
+                capture_output=True, text=True, shell=True
+            )
+            if result.returncode != 0:
+                print(f"Error running uvspec: {result.stderr}")
+                return None
+        except Exception as e:
+            print(f"Error: {e}")
+            return None
 
-        # Read spectrum: columns typically "lambda edir edn eup ..."
+        # Process output
         data = np.loadtxt(out_path)
         lam_uv = data[:, 0]    # nm
         edir = data[:, 1]      # direct solar irradiance at TOA
 
     # Interpolate to regular wavelength grid, if needed
+    wavelengths = np.linspace(lam_uv.min(), lam_uv.max(), 1000)
     E0_lambda = np.interp(wavelengths, lam_uv, edir)
 
     # Build band response and integrate
     R = gaussian_rsp(wavelengths, wl_center, fwhm)
-    num = np.trapezoid(E0_lambda * R, wavelengths)
-    den = np.trapezoid(R, wavelengths)
+    num = np.trapz(E0_lambda * R, wavelengths)
+    den = np.trapz(R, wavelengths)
     E0_band = num / den
 
     return E0_band
-
 
 def generate_smac_coefficients_from_libradtran(wavelength, fwhm=10.0, 
                                                solar_zenith=30.0, 
