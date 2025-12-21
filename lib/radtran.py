@@ -15,13 +15,6 @@ import numpy as np
 import sys
 from datetime import datetime
 
-# i18n
-import gettext
-
-# Setup i18n
-gettext.install('grasslibs', os.path.join(os.getenv("GISBASE"), 'locale'))
-_ = gs.get_translator()
-
 # Import smac module for coefficient class
 try:
     import smac
@@ -30,7 +23,7 @@ except ImportError:
     from . import smac
 
 class LibRadtranRunner:
-    def __init__(self, verbose=False):
+    def __init_self, verbose=False):
         """
         Initialize the LibRadtran runner.
         
@@ -214,7 +207,7 @@ class LibRadtranRunner:
         if os.path.exists(self.temp_dir):
             shutil.rmtree(self.temp_dir)
     
-    def __del__(self):
+    def __del_self):
         """Destructor to ensure cleanup."""
         try:
             self.cleanup()
@@ -250,11 +243,11 @@ def E0(wl_center, fwhm,
     Compute band-integrated exo-atmospheric irradiance E0_band using libRadtran.
     """
     if verbose:
-        gs.message(_(f"\n{'='*80}"))
-        gs.message(_(f"Processing band: {wl_center:.2f} nm, FWHM: {fwhm:.2f} nm"))
-        gs.message(_(f"Using solar file: {solar_file}"))
-        gs.message(_(f"Using atmosphere file: {atmosphere_file}"))
-        gs.message(_(f"{'='*80}"))
+        gs.message(f"\n{'='*80}")
+        gs.message(f"Processing band: {wl_center:.2f} nm, FWHM: {fwhm:.2f} nm")
+        gs.message(f"Using solar file: {solar_file}")
+        gs.message(f"Using atmosphere file: {atmosphere_file}")
+        gs.message(f"{'='*80}")
 
     # Calculate wavelength range (nm)
     wl_min = wl_center - 2 * fwhm
@@ -282,13 +275,13 @@ verbose
             f.write(uvspec_inp)
 
         if verbose:
-            gs.message(_(f"\nUVSPEC Input ({inp_path}):"))
-            gs.message(_("-" * 40))
+            gs.message(f"\nUVSPEC Input ({inp_path}):")
+            gs.message("-" * 40)
             for line in uvspec_inp.split('\n'):
-                gs.message(_(line))
-            gs.message(_("-" * 40))
-            gs.message(_(f"Running uvspec for {wl_center:.2f} nm..."))
-            gs.message(_(f"Command: {uvspec_bin} < {inp_path}"))
+                gs.message(line)
+            gs.message("-" * 40)
+            gs.message(f"Running uvspec for {wl_center:.2f} nm...")
+            gs.message(f"Command: {uvspec_bin} < {inp_path}")
 
         # Run uvspec
         try:
@@ -300,50 +293,50 @@ verbose
             )
             
             if verbose and result.stdout:
-                gs.message(_("\nUVSPEC Output:"))
-                gs.message(_("-" * 40))
+                gs.message("\nUVSPEC Output:")
+                gs.message("-" * 40)
                 for line in result.stdout.split('\n')[:10]:  # Show first 10 lines
-                    gs.message(_(line))
+                    gs.message(line)
                 if len(result.stdout.split('\n')) > 10:
-                    gs.message(_("... (truncated)"))
-                gs.message(_("-" * 40))
+                    gs.message("... (truncated)")
+                gs.message("-" * 40))
                 
             if result.stderr:
-                gs.warning(_("\nUVSPEC Warnings/Errors:"))
-                gs.warning(_("-" * 40))
+                gs.warning("\nUVSPEC Warnings/Errors:")
+                gs.warning("-" * 40)
                 for line in result.stderr.split('\n'):
-                    gs.warning(_(line))
-                gs.warning(_("-" * 40))
+                    gs.warning(line)
+                gs.warning("-" * 40)
                     
             if result.returncode != 0:
-                gs.error(_(f"uvspec failed with code {result.returncode}"))
+                gs.error(f"uvspec failed with code {result.returncode}")
                 return None
                 
         except Exception as e:
-            gs.error(_(f"Error running uvspec: {e}"))
+            gs.error(f"Error running uvspec: {e}")
             return None
 
         # Process output
         if not os.path.exists(out_path):
-            gs.error(_(f"Output file not found at {out_path}"))
+            gs.error(f"Output file not found at {out_path}")
             return None
             
         try:
             data = np.loadtxt(out_path)
             if len(data) == 0:
-                gs.error(_("Empty output from uvspec"))
+                gs.error("Empty output from uvspec")
                 return None
                 
             if verbose:
-                gs.message(_(f"\nSuccessfully processed {wl_center:.2f} nm"))
-                gs.message(_(f"Output shape: {data.shape}"))
+                gs.message(f"\nSuccessfully processed {wl_center:.2f} nm")
+                gs.message(f"Output shape: {data.shape}")
                 if len(data) > 0:
-                    gs.message(_("First few data points:"))
+                    gs.message("First few data points:")
                     for row in data[:3]:
-                        gs.message(_(f"  {row[0]:.2f} nm: {row[1]:.3e}"))
+                        gs.message(f"  {row[0]:.2f} nm: {row[1]:.3e}")
                     
         except Exception as e:
-            gs.error(_(f"Error processing output: {e}"))
+            gs.error(f"Error processing output: {e}")
             return None
 
         # Process output
