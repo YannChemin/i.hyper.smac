@@ -259,14 +259,10 @@ def E0(wl_center, fwhm,
         # Build uvspec input file
         uvspec_inp = f"""\
 atmosphere_file {atmosphere_file}
-source solar {solar_file} per_nm
-wavelength {wl_min} {wl_max}
-spline
+source solar {solar_file}
+wavelength {wl_min} {wl_max} per_nm
 output_quantity irradiance
-output_user lambda e_dir
-output_process sum
-output process_quantity per_nm
-output_skip_irradiance_scaling 1
+output_user lambda eglo
 verbose
 """
         # Write input file
