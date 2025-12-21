@@ -270,6 +270,8 @@ def E0(wl_center, fwhm,
     # Build uvspec input file (TOA solar irradiance spectrum)
     # You may adjust options (solver, geometry, etc.) as needed.
     uvspec_inp = f"""\
+atmosphere_file /usr/local/share/libRadtran/data/atmmod/afglus.dat
+data_files_path /usr/local/share/libRadtran/data
 atmosphere_file {atmosphere_file}
 source solar {solar_file}
 wavelength {wl_min} {wl_max}
