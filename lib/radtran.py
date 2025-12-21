@@ -299,7 +299,7 @@ verbose
                     gs.message(line)
                 if len(result.stdout.split('\n')) > 10:
                     gs.message("... (truncated)")
-                gs.message("-" * 40))
+                gs.message("-" * 40)
                 
             if result.stderr:
                 gs.warning("\nUVSPEC Warnings/Errors:")
