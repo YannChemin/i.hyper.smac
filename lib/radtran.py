@@ -23,7 +23,7 @@ except ImportError:
     from . import smac
 
 class LibRadtranRunner:
-    def __init_self, verbose=False):
+    def __init__(self, verbose=False):
         """
         Initialize the LibRadtran runner.
         
