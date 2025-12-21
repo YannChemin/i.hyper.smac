@@ -236,8 +236,8 @@ def gaussian_rsp(wl, wl_center, fwhm):
 
 def E0(wl_center, fwhm,
        uvspec_bin="/usr/local/bin/uvspec",
-       solar_file="../share/libRadtran/data/solar_flux/atlas_plus_modtran",
-       atmosphere_file="../share/libRadtran/data/atmmod/afglus.dat"):
+       solar_file="/usr/local/share/libRadtran/data/solar_flux/atlas_plus_modtran",
+       atmosphere_file="/usr/local/share/libRadtran/data/atmmod/afglus.dat"):
     """
     Compute band-integrated exo-atmospheric irradiance E0_band using libRadtran.
 
@@ -303,8 +303,8 @@ output_user lambda edir
 
     # Build band response and integrate
     R = gaussian_rsp(wavelengths, wl_center, fwhm)
-    num = np.trapz(E0_lambda * R, wavelengths)
-    den = np.trapz(R, wavelengths)
+    num = np.trapezoid(E0_lambda * R, wavelengths)
+    den = np.trapezoid(R, wavelengths)
     E0_band = num / den
 
     return E0_band
