@@ -9,6 +9,11 @@ hyperspectral data using the Chappuis band absorption feature.
 
 import grass.script as gs
 
+try:
+    from .utils import get_band_info, find_nearest_band, extract_band_to_2d
+except ImportError:
+    from utils import get_band_info, find_nearest_band, extract_band_to_2d
+
 # Default ozone value (Dobson Units)
 DEFAULT_OZONE = 300.0  # Typical mid-latitude value (250-350 DU)
 
@@ -20,129 +25,6 @@ OZONE_ABSORPTION = {
     650: 2.5e-4   # Reference wavelength
 }
 
-def get_band_info(input_raster, verbose=False):
-    """Extract band information from the input raster metadata.
-    
-    Args:
-        input_raster (str): Name of the input 3D raster
-        verbose (bool, optional): Enable verbose output
-        
-    Returns:
-        list: List of band information dictionaries
-    """
-    try:
-        # Get the full metadata from the 3D raster
-        info = gs.raster3d_info(input_raster)
-        history = gs.read_command('r3.info', flags='h', map=input_raster)
-        
-        # Parse band information from the history
-        band_info = []
-        for line in history.split('\n'):
-            if line.strip().startswith('Band '):
-                try:
-                    # Parse line like: "Band 1: 376.44000244140625 nm, FWHM: 5.389999866485596 nm"
-                    parts = line.split('Band ')[1].split(':')
-                    band_num = int(parts[0].strip())
-                    wavelength = float(parts[1].split('nm')[0].strip())
-                    fwhm = float(parts[2].split('nm')[0].strip())
-                    
-                    band_info.append({
-                        'band': band_num,
-                        'wavelength': wavelength,
-                        'fwhm': fwhm,
-                        'valid': True
-                    })
-                except (ValueError, IndexError) as e:
-                    if verbose:
-                        gs.warning(f"Error parsing band info: {line} - {e}")
-        
-        if not band_info:
-            # Fallback to the original method if no bands were found
-            gs.warning("No band information found in history, using default band numbers")
-            for i in range(1, info['depths'] + 1):
-                band_info.append({
-                    'band': i,
-                    'wavelength': i,  # Just use band number as wavelength
-                    'fwhm': 10.0,     # Default FWHM
-                    'valid': True
-                })
-        
-        if verbose:
-            gs.message(f"Found {len(band_info)} bands in metadata")
-            for band in band_info[:5]:  # Show first 5 bands as example
-                gs.verbose(f"Band {band['band']}: {band['wavelength']:.2f} nm")
-            if len(band_info) > 5:
-                gs.verbose("...")
-                gs.verbose(f"Band {band_info[-1]['band']}: {band_info[-1]['wavelength']:.2f} nm")
-        
-        return band_info
-            
-    except Exception as e:
-        gs.fatal(f"Error getting band information: {e}")
-        return []
-
-
-def find_nearest_band(bands, target_wavelength):
-    """Find the band with wavelength closest to the target.
-    
-    Args:
-        bands (list): List of band information dictionaries
-        target_wavelength (float): Target wavelength in nm
-        
-    Returns:
-        dict: Band information for the closest band
-    """
-    # If bands is a list of tuples (wavelength, map_name), convert to list of dicts
-    if isinstance(bands[0], (list, tuple)):
-        bands = [{'wavelength': wl, 'band': i+1} for i, (wl, _) in enumerate(bands)]
-    
-    return min(bands, key=lambda x: abs(x['wavelength'] - target_wavelength))
-
-
-def extract_band_to_2d(input_raster, band_num, output_map=None):
-    """Extract a single band from 3D raster to 2D raster.
-    
-    Args:
-        input_raster (str): Input 3D raster name
-        band_num (int): Band number to extract (1-based index)
-        output_map (str, optional): Output 2D raster name
-        
-    Returns:
-        str: Name of the extracted 2D raster
-    """
-    if not output_map:
-        output_map = f"tmp_band_{band_num}"
-    
-    try:
-        # Set the 3D region to the specific band (using band_num + 0.1 to ensure top > bottom)
-        gs.run_command('g.region', t=band_num + 0.1, b=band_num, quiet=True)
-        
-        # Extract the band using r3.to.rast with 3D region
-        gs.run_command('r3.to.rast',
-                      input=input_raster,
-                      output=output_map,
-                      overwrite=True,
-                      quiet=True)
-         
-        # The output will be named output_map_00001
-        output_file = f"{output_map}_00001"
-         
-        # Rename the output file to the desired name
-        gs.run_command('g.rename',
-                     raster=f"{output_file},{output_map}",
-                     overwrite=True,
-                     quiet=True)
-                     
-        return output_map
-        
-    except Exception as e:
-        gs.warning(f"Error extracting band {band_num}: {str(e)}")
-        raise
-        
-    finally:
-        # Set the 3D region back
-        gs.run_command('g.region', raster_3d=input_raster, quiet=True)
-        
 
 def estimate_ozone_chappuis(input_raster, verbose=False):
     """Estimate total column ozone using the Chappuis band absorption.
@@ -281,8 +163,6 @@ def estimate_ozone(input_raster, method='chappuis', verbose=False):
         ozone_map = "ozone_estimate"
         gs.mapcalc(f"{ozone_map} = {DEFAULT_OZONE}", overwrite=True)
         return ozone_map, DEFAULT_OZONE
-    else:
-        raise ValueError(f"Unknown ozone estimation method: {method}")
 
 
 if __name__ == "__main__":

@@ -241,6 +241,17 @@ def E0(wl_center, fwhm,
        verbose=True):
     """
     Compute band-integrated exo-atmospheric irradiance E0_band using libRadtran.
+
+    Args:
+        wl_center (float): Central wavelength in nm
+        fwhm (float): Full width at half maximum in nm
+        uvspec_bin (str): Path to uvspec executable
+        solar_file (str): Path to solar flux data file
+        atmosphere_file (str): Path to atmosphere model file
+        verbose (bool): Enable verbose output
+
+    Returns:
+        float: Band-integrated exo-atmospheric irradiance, or None on error
     """
     if verbose:
         gs.message(f"\n{'='*80}")
@@ -254,16 +265,13 @@ def E0(wl_center, fwhm,
     wl_max = wl_center + 2 * fwhm
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        out_path = os.path.join(tmpdir, "E0_spectrum.dat")
-        
-        # Build uvspec input file
+        # Build uvspec input file (without verbose to get clean output)
         uvspec_inp = f"""\
 atmosphere_file {atmosphere_file}
 source solar {solar_file}
 wavelength {wl_min} {wl_max}
-output_quantity 1
 output_user lambda egs
-verbose
+quiet
 """
         # Write input file
         inp_path = os.path.join(tmpdir, "uvspec.inp")
@@ -277,70 +285,77 @@ verbose
                 gs.message(line)
             gs.message("-" * 40)
             gs.message(f"Running uvspec for {wl_center:.2f} nm...")
-            gs.message(f"Command: {uvspec_bin} < {inp_path}")
 
-        # Run uvspec
+        # Run uvspec with proper shell command (uvspec reads from stdin)
+        cmd = f"{uvspec_bin} < {inp_path}"
+
         try:
             result = subprocess.run(
-                [uvspec_bin, "<", inp_path],
-                capture_output=True, 
-                text=True, 
+                cmd,
+                capture_output=True,
+                text=True,
                 shell=True
             )
-            
-            if verbose and result.stdout:
-                gs.message("\nUVSPEC Output:")
-                gs.message("-" * 40)
-                for line in result.stdout.split('\n')[:10]:  # Show first 10 lines
-                    gs.message(line)
-                if len(result.stdout.split('\n')) > 10:
-                    gs.message("... (truncated)")
-                gs.message("-" * 40)
-                
-            if result.stderr:
+
+            if result.stderr and verbose:
                 gs.warning("\nUVSPEC Warnings/Errors:")
-                gs.warning("-" * 40)
-                for line in result.stderr.split('\n'):
-                    gs.warning(line)
-                gs.warning("-" * 40)
-                    
+                for line in result.stderr.strip().split('\n'):
+                    if line.strip():
+                        gs.warning(f"  {line}")
+
             if result.returncode != 0:
                 gs.error(f"uvspec failed with code {result.returncode}")
                 return None
-                
+
+            if not result.stdout.strip():
+                gs.error("Empty output from uvspec")
+                return None
+
         except Exception as e:
             gs.error(f"Error running uvspec: {e}")
             return None
 
-        # Process output
-        if not os.path.exists(out_path):
-            gs.error(f"Output file not found at {out_path}")
-            return None
-            
+        # Parse output directly from stdout
         try:
-            data = np.loadtxt(out_path)
-            if len(data) == 0:
-                gs.error("Empty output from uvspec")
+            lines = [l.strip() for l in result.stdout.strip().split('\n')
+                     if l.strip() and not l.startswith('#')]
+
+            if not lines:
+                gs.error("No data lines in uvspec output")
                 return None
-                
+
+            # Parse wavelength and irradiance data
+            data = []
+            for line in lines:
+                parts = line.split()
+                if len(parts) >= 2:
+                    try:
+                        wl = float(parts[0])
+                        irr = float(parts[1])
+                        data.append([wl, irr])
+                    except ValueError:
+                        continue
+
+            if not data:
+                gs.error("Could not parse uvspec output data")
+                return None
+
+            data = np.array(data)
+            lam_uv = data[:, 0]    # nm
+            edir = data[:, 1]      # direct solar irradiance at TOA
+
             if verbose:
                 gs.message(f"\nSuccessfully processed {wl_center:.2f} nm")
                 gs.message(f"Output shape: {data.shape}")
-                if len(data) > 0:
-                    gs.message("First few data points:")
-                    for row in data[:3]:
-                        gs.message(f"  {row[0]:.2f} nm: {row[1]:.3e}")
-                    
+                gs.message("First few data points:")
+                for row in data[:3]:
+                    gs.message(f"  {row[0]:.2f} nm: {row[1]:.3e}")
+
         except Exception as e:
-            gs.error(f"Error processing output: {e}")
+            gs.error(f"Error processing uvspec output: {e}")
             return None
 
-        # Process output
-        data = np.loadtxt(out_path)
-        lam_uv = data[:, 0]    # nm
-        edir = data[:, 1]      # direct solar irradiance at TOA
-
-    # Interpolate to regular wavelength grid, if needed
+    # Interpolate to regular wavelength grid
     wavelengths = np.linspace(lam_uv.min(), lam_uv.max(), 1000)
     E0_lambda = np.interp(wavelengths, lam_uv, edir)
 

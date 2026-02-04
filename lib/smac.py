@@ -13,7 +13,7 @@
 # Written by O.Hagolle CNES, from the original SMAC C routine
 #=============================================================================================
  
-from math import exp, cos, pi 
+from math import exp, cos, pi, sqrt, acos
 import numpy as np
  
 #=============================================================================================
@@ -29,7 +29,7 @@ def PdeZ(Z) :
 # TODO take directly the variables from the python structure made in radtran.py 
 class coeff:
   def __init__(self,smac_filename):
-    with file(smac_filename) as f:
+    with open(smac_filename) as f:
       lines=f.readlines()
     #H20
     temp=lines[0].strip().split()

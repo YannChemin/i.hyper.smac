@@ -1,143 +1,245 @@
 # i.hyper.smac - SMAC Atmospheric Correction for Hyperspectral Data
 
-## DESCRIPTION
-This module implements the Simplified Method for Atmospheric Correction (SMAC) for hyperspectral data in GRASS GIS. It provides two methods for atmospheric correction:
+A GRASS GIS addon module implementing the Simplified Method for Atmospheric Correction (SMAC) for hyperspectral imagery.
 
-1. **Simple SMAC**: A faster, less accurate method suitable for quick processing
-2. **Libradtran SMAC**: A more accurate method using the libRadtran radiative transfer model
+## Overview
 
-The module is based on the original SMAC algorithm developed by [Rahman and Dedieu (1994)](https://doi.org/10.1016/0034-4257(94)90119-8) and the implementation by [Olivier Hagolle](https://github.com/olivierhagolle/SMAC).
+This module converts top-of-atmosphere (TOA) radiance/reflectance to surface reflectance by correcting for atmospheric effects including:
+- Rayleigh (molecular) scattering
+- Aerosol scattering and absorption
+- Gaseous absorption (H2O, O3, O2, CO2, CH4, NO2, CO)
 
-## FEATURES
-- Supports multiple hyperspectral sensors (AVIRIS, HYPERION, PRISMA, etc.)
-- Two correction methods: simple and libradtran-based
-- Automatic estimation of atmospheric parameters:
-  - Aerosol Optical Depth (AOD) using the Dense Dark Vegetation (DDV) method
-  - Water Vapor Content (WVC) using atmospheric absorption features
-- Uses libRadtran for accurate atmospheric simulations (for libradtran method)
-- Handles both per-pixel and scene-average atmospheric correction
-- Preserves the original data structure and metadata
+Based on the SMAC algorithm by Rahman & Dedieu (1994) and the implementation by Olivier Hagolle.
 
-## REQUIREMENTS
-- GRASS GIS 8.0 or later
-- Python 3.x
-- NumPy
-- PyEphem (for solar zenith angle estimation)
-- libRadtran (for atmospheric simulations)
-- scipy (for interpolation and optimization)
-- pandas (for data handling)
-- scikit-learn (for regression models in AOD estimation)
+## Features
 
-## USAGE
-```bash
-# Simple SMAC (default)
-i.hyper.smac input=name output=name elevation=name [sensor=string]
-             [aod=float] [water_vapor=float] [ozone=float] 
-             [solar_zenith=float] [solar_azimuth=float]
-             [view_zenith=float] [view_azimuth=float]
-             [--overwrite] [--verbose] [--quiet] [--keep-temp]
-
-# Libradtran SMAC
-i.hyper.smac input=name output=name elevation=name method=libradtran
-             sensor=string [aod=float] [water_vapor=float] [ozone=float]
-             [solar_zenith=float] [solar_azimuth=float]
-             [view_zenith=float] [view_azimuth=float]
-             [aot_lut=name] [visibility=float]
-             [aerosol_type=string] [--overwrite] [--verbose] [--quiet] [--keep-temp]
-```
-
-## PARAMETERS
-### Input/Output
-- **input** - Name of input 3D raster map
-- **output** - Name for output 3D raster map
-- **elevation** - Name of elevation raster map (default: DEM from GRASS location)
-
-### Method Selection
-- **method** - Atmospheric correction method (simple, libradtran; default: simple)
-
-### Atmospheric Parameters (both methods)
-- **sensor** - Sensor type (AVIRIS, HYPERION, PRISMA, etc.)
-- **aod** - Aerosol Optical Depth at 550nm (if not provided, will be estimated)
-- **water_vapor** - Water vapor content in g/cm² (if not provided, will be estimated)
-- **ozone** - Ozone content in cm-atm (default: 0.3)
-- **solar_zenith** - Solar zenith angle in degrees (required)
-- **solar_azimuth** - Solar azimuth angle in degrees (default: 0)
-- **view_zenith** - View zenith angle in degrees (default: 0)
-- **view_azimuth** - View azimuth angle in degrees (default: 0)
-- **aerosol_type** - Aerosol type (continental, maritime, urban, desert; default: continental)
-
-### Libradtran-specific Parameters
-- **aot_lut** - Look-up table for AOD estimation (if not provided, will be generated)
-- **visibility** - Visibility in km (if not provided, will be estimated from AOD)
-
-## EXAMPLES
-### Simple SMAC with automatic parameter estimation
-```bash
-# Automatically estimate AOD and water vapor
-i.hyper.smac input=hyperspectral output=corrected elevation=dem sensor=AVIRIS
-```
-
-### Simple SMAC with manual parameter specification
-```bash
-# Manually specify AOD and water vapor
-i.hyper.smac input=hyperspectral output=corrected elevation=dem sensor=AVIRIS \
-  aod=0.2 water_vapor=2.5
-```
-
-### Simple SMAC with specific atmospheric parameters
-```bash
-i.hyper.smac input=hyperspectral output=corrected elevation=dem sensor=HYPERION \
-  aod=0.2 water_vapor=2.5 solar_zenith=30
-```
-
-### Libradtran SMAC with custom parameters
-```bash
-i.hyper.smac input=hyperspectral output=corrected elevation=dem method=libradtran \
-  sensor=AVIRIS aod=0.15 water_vapor=2.0 solar_zenith=25 \
-  aerosol_type=maritime visibility=50
-```
-
-### Using an AOT look-up table with Libradtran
-```bash
-i.hyper.smac input=hyperspectral output=corrected elevation=dem method=libradtran \
-  sensor=PRISMA aot_lut=aot_lookup.txt solar_zenith=30
-```
-
-## NOTES
+- **Hyperspectral Support**: Handles hundreds of spectral bands (400-2500nm)
+- **Multiple Sensors**: Pre-configured for PRISMA, AVIRIS, AVIRIS-NG, HYPERION, EnMAP, EMIT, Tanager, and more
 - **Automatic Parameter Estimation**:
-  - AOD is estimated using the Dense Dark Vegetation (DDV) method, which identifies dark vegetation pixels and uses their reflectance in the blue region
-  - Water vapor is estimated using atmospheric absorption features around 940nm and 1130nm
-  - If estimation fails, default values are used (AOD=0.15, Water Vapor=2.0 g/cm²)
-  
-- **Performance Considerations**:
-  - The simple method is faster but less accurate than the libradtran method
-  - AOD and WVC estimation add computational overhead but improve accuracy
-  - The module creates temporary files in the current mapset (use `--keep-temp` to preserve them)
+  - Aerosol Optical Depth (AOD) using Dense Dark Vegetation (DDV) method
+  - Water Vapor Content (WVC) using 940nm/1130nm absorption features
+  - Ozone from climatological data or TOMS/OMI
+- **Coefficient Generation**: Generate SMAC coefficients using libRadtran or analytical formulas
+- **Four Aerosol Models**: Continental, Maritime, Urban, Desert
 
-- **Requirements**:
-  - The libradtran method requires the libRadtran software to be installed and properly configured
-  - Additional Python packages (scipy, pandas, scikit-learn) are required for parameter estimation
+## Project Structure
 
-- **Supported Sensors**:
-  - PRISMA, AVIRIS, AVIRIS_NG, HYPERION, ENMAP, OSK_GHOST, PIXEL, ESPER, IPERLITE, KUVASPACE_23, KUVASPACE_32, WYVERN_23, WYVERN_32, HYP4U, TANAGER
+```
+i.hyper.smac/
+├── i.hyper.smac.py          # Main GRASS GIS module
+├── i.hyper.smac.html        # GRASS HTML manual
+├── i.hyper.smac.md          # Module documentation
+├── Makefile                 # GRASS module build file
+├── lib/                     # Support library
+│   ├── __init__.py          # Package exports
+│   ├── smac.py              # Core SMAC algorithm
+│   ├── aod.py               # AOD estimation (DDV method)
+│   ├── wvc.py               # Water vapor estimation
+│   ├── o3.py                # Ozone estimation
+│   ├── radtran.py           # libRadtran integration
+│   ├── smac_coef_generator.py  # Coefficient generation
+│   └── utils.py             # Shared utilities
+├── scripts/
+│   └── generate_hyperspectral_coefs.py  # Batch coefficient generation
+├── COEFS/                   # Pre-generated coefficient files
+│   ├── CONTINENTAL/         # Continental aerosol (43 files)
+│   ├── MARITIME/            # Maritime aerosol (43 files)
+│   ├── URBAN/               # Urban aerosol (43 files)
+│   └── DESERT/              # Desert aerosol (43 files)
+├── tests/                   # Unit tests
+│   ├── test_smac.py         # SMAC algorithm tests
+│   └── test_utils.py        # Utility function tests
+└── docs/
+    └── SMAC_COEFFICIENT_SPECIFICATION.md
+```
 
-- **Best Practices**:
-  - For best results, provide as much metadata as possible
-  - Verify the estimated parameters using the module's output messages
-  - Consider using the `--keep-temp` flag for debugging if results are unexpected
+## Requirements
 
-## REFERENCES
-- Rahman, H., & Dedieu, G. (1994). SMAC: a simplified method for the atmospheric correction of satellite measurements in the solar spectrum. *International Journal of Remote Sensing*, 15(1), 123-143.
-- Original SMAC implementation: [https://github.com/olivierhagolle/SMAC](https://github.com/olivierhagolle/SMAC)
+### Required
+- GRASS GIS 8.0+
+- Python 3.8+
+- NumPy
+- SciPy
 
-## AUTHORS
-- Original SMAC algorithm: H. Rahman and G. Dedieu
-- GRASS GIS implementation: [Yann Chemin] <dr.yann.chemin@gmail.com>
+### Optional
+- libRadtran (for coefficient generation from radiative transfer simulations)
+- ephem (for solar position calculations)
+- scikit-learn (for advanced AOD estimation)
 
-## SOURCE CODE
-Available at: [GRASS GIS Addons Repository](https://github.com/OSGeo/grass-addons)
+## Installation
 
-## SEE ALSO
-- [r.smap](https://grass.osgeo.org/grass-stable/manuals/r.smap.html)
-- [i.atcorr](https://grass.osgeo.org/grass-stable/manuals/i.atcorr.html)
-- [i.vi](https://grass.osgeo.org/grass-stable/manuals/i.vi.html)
+### As GRASS GIS Addon
+```bash
+# From GRASS GIS
+g.extension extension=i.hyper.smac url=/path/to/i.hyper.smac
+```
+
+### Manual Installation
+```bash
+# Clone/copy to GRASS addons directory
+cp -r i.hyper.smac $GISBASE/scripts/
+
+# Or add to GRASS_ADDON_PATH
+export GRASS_ADDON_PATH=/path/to/i.hyper.smac:$GRASS_ADDON_PATH
+```
+
+## Usage
+
+### Basic Usage
+```bash
+# With automatic parameter estimation
+i.hyper.smac input=toa_radiance output=surface_reflectance \
+    elevation=dem solar_zenith=30 sensor=AVIRIS
+
+# With manual atmospheric parameters
+i.hyper.smac input=toa_radiance output=surface_reflectance \
+    elevation=dem solar_zenith=30 sensor=PRISMA \
+    aod=0.15 water_vapor=2.0 ozone=0.34
+```
+
+### Parameters
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| input | Input 3D raster (TOA radiance/reflectance) | required |
+| output | Output 3D raster (surface reflectance) | required |
+| elevation | DEM raster for pressure correction | required |
+| sensor | Sensor type for band configuration | - |
+| solar_zenith | Solar zenith angle (degrees) | required |
+| solar_azimuth | Solar azimuth angle (degrees) | 0 |
+| view_zenith | View zenith angle (degrees) | 0 |
+| view_azimuth | View azimuth angle (degrees) | 0 |
+| aod | Aerosol optical depth at 550nm | auto |
+| water_vapor | Water vapor column (g/cm²) | auto |
+| ozone | Ozone column (cm-atm) | 0.30 |
+| aerosol_type | continental/maritime/urban/desert | continental |
+
+### Supported Sensors
+
+- PRISMA (ASI)
+- AVIRIS, AVIRIS-NG (NASA)
+- HYPERION (EO-1)
+- EnMAP (DLR)
+- EMIT (NASA/JPL)
+- Tanager (Planet)
+- Generic VNIR/Full-range configurations
+
+## Coefficient Generation
+
+### Using Pre-generated Coefficients
+The `COEFS/` directory contains coefficients for 400-2500nm at 50nm intervals for all four aerosol types (172 files total).
+
+### Generate New Coefficients
+
+#### With libRadtran (recommended)
+```bash
+cd scripts
+python generate_hyperspectral_coefs.py --sensor PRISMA --aerosol continental
+```
+
+#### Analytical Mode (no libRadtran required)
+```bash
+python generate_hyperspectral_coefs.py --sensor AVIRIS --analytical
+```
+
+#### Custom Wavelength Range
+```bash
+python generate_hyperspectral_coefs.py --start 400 --end 1000 --step 5 --fwhm 5
+```
+
+## Library API
+
+The `lib/` package can be used independently:
+
+```python
+from lib import smac, estimate_aod, estimate_wvc, estimate_ozone
+from lib.smac_coef_generator import generate_smac_coefficients
+
+# Load coefficients and apply SMAC
+coef = smac.coeff('COEFS/CONTINENTAL/coef_550nm_CONTINENTAL.dat')
+surface_refl = smac.smac_inv(toa_refl, theta_s, phi_s, theta_v, phi_v,
+                              pressure, taup550, uo3, uh2o, coef)
+
+# Estimate atmospheric parameters
+aod = estimate_aod(red_band, nir_band, blue_band)
+wvc = estimate_wvc(band_940nm, band_865nm)
+o3 = estimate_ozone(latitude, day_of_year)
+
+# Generate coefficients
+coef = generate_smac_coefficients(
+    wavelength_nm=550.0,
+    fwhm_nm=10.0,
+    aerosol_type='continental',
+    output_file='coef_550nm.dat'
+)
+```
+
+## Testing
+
+```bash
+# Run all tests
+python -m pytest tests/ -v
+
+# Run specific test module
+python -m pytest tests/test_smac.py -v
+```
+
+Current test coverage: 23 tests covering:
+- SMAC forward/inverse transforms
+- Pressure altitude correction
+- Round-trip accuracy
+- Utility functions
+- Atmospheric parameter estimation bounds
+
+## Algorithm Details
+
+### SMAC Equation
+
+Surface reflectance ρ is computed from TOA reflectance ρ* using:
+
+```
+ρ = (ρ* - ρ_atm) / (T_gas × T_scat × (1 + s×ρ))
+```
+
+Where:
+- ρ_atm = atmospheric path reflectance
+- T_gas = gaseous transmission (H2O, O3, etc.)
+- T_scat = scattering transmission (Rayleigh + aerosol)
+- s = spherical albedo of atmosphere
+
+### Gaseous Transmission
+```
+T_gas = exp(a × (u × m)^n)
+```
+- u = gas column content
+- m = air mass (1/cos(θs) + 1/cos(θv))
+- a, n = fitted coefficients
+
+### Rayleigh Optical Thickness
+```
+τ_r = 0.008569 × λ^(-4) × (1 + 0.0113×λ^(-2))
+```
+Where λ is wavelength in micrometers.
+
+## References
+
+1. Rahman, H., & Dedieu, G. (1994). SMAC: a simplified method for the atmospheric correction of satellite measurements in the solar spectrum. *International Journal of Remote Sensing*, 15(1), 123-143.
+
+2. Hagolle, O. SMAC Python implementation. https://github.com/olivierhagolle/SMAC
+
+3. libRadtran radiative transfer package. https://www.libradtran.org/
+
+## Authors
+
+- **Original SMAC Algorithm**: H. Rahman and G. Dedieu (CESBIO)
+- **GRASS GIS Implementation**: Yann Chemin <dr.yann.chemin@gmail.com>
+
+## License
+
+GNU General Public License v2 or later (GPLv2+)
+
+## See Also
+
+- [i.atcorr](https://grass.osgeo.org/grass-stable/manuals/i.atcorr.html) - 6S-based atmospheric correction
+- [i.vi](https://grass.osgeo.org/grass-stable/manuals/i.vi.html) - Vegetation indices
+- [r3.in.xyz](https://grass.osgeo.org/grass-stable/manuals/r3.in.xyz.html) - Import 3D raster data

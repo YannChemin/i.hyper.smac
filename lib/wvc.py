@@ -11,6 +11,11 @@ around 940nm and 1130nm water vapor absorption bands.
 import os
 import grass.script as gs
 
+try:
+    from .utils import get_band_info, find_nearest_band, convert_wavelength_to_nm, get_raster3d_info
+except ImportError:
+    from utils import get_band_info, find_nearest_band, convert_wavelength_to_nm, get_raster3d_info
+
 # Water vapor absorption features (in nm)
 WATER_VAPOR_BANDS = {
     '940': {
@@ -28,103 +33,6 @@ WATER_VAPOR_BANDS = {
 # Default parameters for WVC estimation
 DEFAULT_WVC_MIN = 0.1  # g/cm²
 DEFAULT_WVC_MAX = 8.0  # g/cm²
-
-
-def get_raster3d_info(raster3d):
-    """Get information about 3D raster."""
-    try:
-        info = gs.raster3d_info(raster3d)
-        return info
-    except Exception as e:
-        gs.fatal(f"Cannot get info for 3D raster {raster3d}: {e}")
-
-
-def get_band_info(input_raster, verbose=False):
-    """Extract band information from the input raster metadata.
-    
-    Args:
-        input_raster (str): Name of the input 3D raster
-        verbose (bool, optional): Enable verbose output
-        
-    Returns:
-        list: List of band information dictionaries
-    """
-    try:
-        # Get the full metadata from the 3D raster
-        info = gs.raster3d_info(input_raster)
-        history = gs.read_command('r3.info', flags='h', map=input_raster)
-        
-        # Parse band information from the history
-        band_info = []
-        for line in history.split('\n'):
-            if line.strip().startswith('Band '):
-                try:
-                    # Parse line like: "Band 1: 376.44000244140625 nm, FWHM: 5.389999866485596 nm"
-                    parts = line.split('Band ')[1].split(':')
-                    band_num = int(parts[0].strip())
-                    wavelength = float(parts[1].split('nm')[0].strip())
-                    fwhm = float(parts[2].split('nm')[0].strip())
-                    
-                    band_info.append({
-                        'band': band_num,
-                        'wavelength': wavelength,
-                        'fwhm': fwhm,
-                        'valid': True
-                    })
-                except (ValueError, IndexError) as e:
-                    if verbose:
-                        gs.warning(f"Error parsing band info: {line} - {e}")
-        
-        if not band_info:
-            # Fallback to the original method if no bands were found
-            gs.warning("No band information found in history, using default band numbers")
-            for i in range(1, info['depths'] + 1):
-                band_info.append({
-                    'band': i,
-                    'wavelength': i,  # Just use band number as wavelength
-                    'fwhm': 10.0,     # Default FWHM
-                    'valid': True
-                })
-        
-        if verbose:
-            gs.message(f"Found {len(band_info)} bands in metadata")
-            for band in band_info[:5]:  # Show first 5 bands as example
-                gs.verbose(f"Band {band['band']}: {band['wavelength']:.2f} nm")
-            if len(band_info) > 5:
-                gs.verbose("...")
-                gs.verbose(f"Band {band_info[-1]['band']}: {band_info[-1]['wavelength']:.2f} nm")
-        
-        return band_info
-        
-    except Exception as e:
-        gs.fatal(f"Error getting band information: {e}")
-
-
-def find_nearest_band(band_info, target_wavelength):
-    """Find the band closest to the target wavelength.
-    
-    Args:
-        band_info (list): List of band information dictionaries
-        target_wavelength (float): Target wavelength in nm
-        
-    Returns:
-        dict: Band information for the closest band
-    """
-    return min(band_info, key=lambda x: abs(x['wavelength'] - target_wavelength))
-
-def convert_wavelength_to_nm(wavelength, unit):
-    """Convert wavelength to nanometers."""
-    unit = unit.lower().strip()
-    
-    if unit in ['nm', 'nanometer', 'nanometers']:
-        return wavelength
-    elif unit in ['um', 'µm', 'micrometer', 'micrometers', 'micron', 'microns']:
-        return wavelength * 1000.0
-    elif unit in ['m', 'meter', 'meters']:
-        return wavelength * 1e9
-    else:
-        gs.warning(f"Unknown wavelength unit '{unit}', assuming nanometers")
-        return wavelength
 
 
 class WVCEstimator:

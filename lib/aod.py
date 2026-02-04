@@ -15,7 +15,11 @@ FIXES:
 
 import os
 import grass.script as gs
-from wvc import get_band_info, find_nearest_band
+
+try:
+    from .utils import get_band_info, find_nearest_band
+except ImportError:
+    from utils import get_band_info, find_nearest_band
 
 # Wavelengths for common AOD estimation methods (in nm)
 AOD_REFERENCE_WAVELENGTH = 550.0  # Standard reference wavelength for AOD

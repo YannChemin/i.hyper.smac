@@ -7,7 +7,7 @@ include $(MODULE_TOPDIR)/include/Make/Html.make
 include $(MODULE_TOPDIR)/include/Make/Other.make
 include $(MODULE_TOPDIR)/include/Make/Python.make
 
-MODULES = smac aod wvc radtran o3
+MODULES = smac aod wvc radtran o3 utils smac_coef_generator
 ETCDIR = $(ETC)/i_hyper_lib
 PYFILES := $(patsubst %,$(ETCDIR)/%.py,$(MODULES))
 MODULE_SRCS := $(patsubst %,lib/%.py,$(MODULES))
