@@ -91,7 +91,7 @@ class LibRadtranRunner:
             # Aerosols
             if 'aerosol_model' in params:
                 f.write("aerosol_default\n")
-                f.write(f"aerosol_modify tau set {params.get('aod_550', 0.1)}\n")
+                f.write(f"aerosol_modify tau550 set {params.get('aod_550', 0.1)}\n")
             
             # Molecular absorption
             f.write("mol_abs_param reptran\n")
@@ -182,18 +182,22 @@ class LibRadtranRunner:
         data = data_line.split()
             
         if output_type == 'transmittance':
+            # Default output: wavelength edir edn eup ...
             return {
-                'direct_transmittance': float(data[0]),
-                'diffuse_transmittance': float(data[1]),
-                'total_transmittance': float(data[2]),
+                'wavelength': float(data[0]),
+                'direct_transmittance': float(data[1]),
+                'diffuse_transmittance': float(data[2]),
+                'total_transmittance': float(data[1]) + float(data[2]),
             }
         elif output_type == 'radiance':
+            # output_user: lambda spher_alb uu
             return {
                 'wavelength': float(data[0]),
                 'spherical_albedo': float(data[1]),
                 'path_radiance': float(data[2]),
             }
         else:  # reflectance
+            # output_user: lambda edir edn eup
             return {
                 'wavelength': float(data[0]),
                 'direct_irradiance': float(data[1]),
@@ -260,17 +264,26 @@ def E0(wl_center, fwhm,
         gs.message(f"Using atmosphere file: {atmosphere_file}")
         gs.message(f"{'='*80}")
 
-    # Calculate wavelength range (nm)
-    wl_min = wl_center - 2 * fwhm
-    wl_max = wl_center + 2 * fwhm
+    # Calculate wavelength range (nm), clamp to integer boundaries
+    # for compatibility with solar flux file grid
+    wl_min = int(np.floor(wl_center - 2 * fwhm))
+    wl_max = int(np.ceil(wl_center + 2 * fwhm))
+    # Ensure within Kurucz solar file range (250-10000nm)
+    wl_min = max(wl_min, 250)
+    wl_max = min(wl_max, 10000)
+
+    # Derive data_files_path from solar_file path
+    data_path = os.path.dirname(os.path.dirname(solar_file))
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Build uvspec input file (without verbose to get clean output)
+        # Build uvspec input file for TOA extraterrestrial irradiance
         uvspec_inp = f"""\
+data_files_path {data_path}
 atmosphere_file {atmosphere_file}
-source solar {solar_file}
+source solar {solar_file} per_nm
 wavelength {wl_min} {wl_max}
-output_user lambda egs
+zout toa
+output_user lambda edir
 quiet
 """
         # Write input file
@@ -282,7 +295,8 @@ quiet
             gs.message(f"\nUVSPEC Input ({inp_path}):")
             gs.message("-" * 40)
             for line in uvspec_inp.split('\n'):
-                gs.message(line)
+                if line.strip():
+                    gs.message(line)
             gs.message("-" * 40)
             gs.message(f"Running uvspec for {wl_center:.2f} nm...")
 

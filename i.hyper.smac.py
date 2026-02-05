@@ -153,6 +153,7 @@ import os
 import numpy as np
 import grass.script as gs
 from grass.pygrass.raster import RasterRow
+from grass.pygrass.raster.buffer import Buffer
 from pathlib import Path
 
 # Get GISBASE (GRASS installation prefix)
@@ -623,11 +624,17 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
             # Get exo-atmospheric irradiance for this band
             try:
                 E0_band = radtran.E0(wavelength, fwhm)
+                if E0_band is None:
+                    raise ValueError("E0 returned None")
             except Exception as e:
                 gs.warning(f"Could not get E0 for band {band_num} at {wavelength} nm: {e}")
-                gs.warning("Using approximate value")
-                # Approximate E0 based on solar constant and wavelength
-                E0_band = 1.0  # Placeholder - should be calculated properly
+                gs.warning("Using approximate E0 from blackbody model")
+                # Approximate E0 using 5778K blackbody scaled to solar constant
+                # F(λ) = Ω_sun × B(λ, T_sun), result in mW/(m² nm)
+                wl_m = wavelength * 1e-9  # nm to meters
+                hc_kT = 6.626e-34 * 2.998e8 / (wl_m * 1.381e-23 * 5778.0)
+                B = 2 * 6.626e-34 * (2.998e8)**2 / (wl_m**5 * (np.exp(hc_kT) - 1.0))
+                E0_band = 6.794e-5 * B * 1e-6  # W/m³ → mW/(m² nm)
             
             # Convert radiance to TOA reflectance
             # Formula: refl_toa = (π * L_toa * d²) / (E0 * cos(θs))
@@ -673,9 +680,12 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
                 corrected_bands.append(output_band)
                 
                 # Create output raster
+                ncols = refl_boa_band.shape[1] if refl_boa_band.ndim > 1 else refl_boa_band.shape[0]
                 with RasterRow(output_band, mode='w', mtype='DCELL', overwrite=True) as r:
                     for row_idx, row_data in enumerate(refl_boa_band):
-                        r.put_row(row_data)
+                        buf = Buffer((ncols,), mtype='DCELL')
+                        buf[:] = row_data
+                        r.put_row(buf)
                 
                 # Add wavelength metadata to corrected band
                 band_comment = f"Band {band_num}: {wavelength:.2f} nm"
