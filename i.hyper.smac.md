@@ -14,33 +14,45 @@ imagery, atmospheric correction, hyperspectral, reflectance, SMAC
 
 **i.hyper.smac --help**
 
-**i.hyper.smac** input=*name* output=*name* elevation=*name* solar_zenith=*float* [sensor=*string*] [solar_azimuth=*float*] [view_zenith=*float*] [view_azimuth=*float*] [aod=*float*] [water_vapor=*float*] [ozone=*float*] [aerosol_type=*string*] [coef_dir=*string*] [--overwrite] [--verbose] [--quiet]
+**i.hyper.smac** input=*name* output=*name* dem=*name* solar_zenith=*float* [method=*string*] [sensor=*string*] [solar_azimuth=*float*] [view_zenith=*float*] [view_azimuth=*float*] [aod=*float*] [water_vapor=*float*] [ozone=*float*] [pressure=*float*] [aerosol_model=*string*] [visibility=*float*] [**-k**] [**-g**] [--overwrite] [--verbose] [--quiet]
 
 ## DESCRIPTION
 
-**i.hyper.smac** performs atmospheric correction on hyperspectral imagery using the Simplified Method for Atmospheric Correction (SMAC). It converts top-of-atmosphere (TOA) radiance or reflectance to surface reflectance by removing atmospheric effects.
+**i.hyper.smac** performs atmospheric correction on hyperspectral imagery using the Simplified Method for Atmospheric Correction (SMAC). It converts top-of-atmosphere (TOA) radiance to surface reflectance by removing atmospheric effects.
 
 The module corrects for:
 
-- **Rayleigh scattering**: Molecular scattering that increases toward shorter wavelengths (blue)
+- **Rayleigh scattering**: Molecular scattering that increases toward shorter wavelengths
 - **Aerosol scattering and absorption**: Particle-related atmospheric effects
 - **Gaseous absorption**: H2O, O3, O2, CO2, CH4, NO2, CO absorption bands
 
-The SMAC algorithm uses pre-computed coefficients derived from radiative transfer simulations. These coefficients encode the atmospheric correction parameters as simple polynomial functions, enabling fast processing of large hyperspectral datasets.
+Two correction methods are available:
+
+1. **simple**: Fast analytical correction using wavelength-dependent empirical formulas
+2. **libradtran**: Accurate correction using pre-generated SMAC coefficients fitted to libRadtran radiative transfer simulations
 
 ### Algorithm
 
-The surface reflectance (ρ) is computed from TOA reflectance (ρ*) using:
+The surface reflectance (rho) is computed from TOA reflectance (rho*) using:
 
 ```
-ρ = (ρ* - ρ_atm) / (T_gas × T_scat × (1 + s×ρ))
+rho = (rho* - rho_atm) / (T_gas * T_scat * (1 + s*rho))
 ```
 
 Where:
-- ρ_atm = atmospheric path reflectance
+- rho_atm = atmospheric path reflectance
 - T_gas = total gaseous transmission
 - T_scat = scattering transmission (Rayleigh + aerosol)
 - s = spherical albedo of the atmosphere
+
+The SMAC coefficients encode these atmospheric functions as simple polynomial
+formulas fitted to full radiative transfer simulations:
+
+- **Gaseous transmission**: T = exp(a * (u*m)^n)
+- **Total transmission**: T = a0T + a1T*tau/cos(theta) + (a2T*P + a3T)/(1+cos(theta))
+- **Spherical albedo**: s = a0s*P + a3s + a1s*tau + a2s*tau^2
+- **Rayleigh optical thickness**: Hansen & Travis (1974) analytical formula
+- **Aerosol scaling**: Angstrom law tau(lambda) = tau(550) * (lambda/550)^(-alpha)
 
 ### Automatic Parameter Estimation
 
@@ -48,28 +60,31 @@ When atmospheric parameters are not provided, the module can estimate them:
 
 - **AOD (Aerosol Optical Depth)**: Uses the Dense Dark Vegetation (DDV) method, identifying dark vegetation pixels and inferring AOD from blue band reflectance
 - **Water Vapor**: Uses the differential absorption technique with bands near 940nm and reference bands at 865nm
-- **Ozone**: Uses climatological values based on latitude and day of year, or can retrieve from TOMS/OMI data
+- **Ozone**: Uses the Chappuis band method (500-700nm), converted from DU to cm-atm
 
 ## PARAMETERS
 
 ### Required Parameters
 
 **input**=*name*
-:   Name of input 3D raster map containing TOA radiance or reflectance
+:   Name of input 3D raster map containing TOA radiance (W/m^2/sr/um)
 
 **output**=*name*
 :   Name for output 3D raster map (surface reflectance)
 
-**elevation**=*name*
-:   Name of elevation raster map (DEM) for atmospheric pressure correction
+**dem**=*name*
+:   Name of Digital Elevation Model raster (meters) for atmospheric pressure correction
 
 **solar_zenith**=*float*
 :   Solar zenith angle in degrees (0-90)
 
 ### Optional Parameters
 
+**method**=*string*
+:   Atmospheric correction method. Options: simple, libradtran. Default: simple
+
 **sensor**=*string*
-:   Sensor type for automatic band configuration. Options: PRISMA, AVIRIS, AVIRIS_NG, HYPERION, ENMAP, EMIT, TANAGER, GENERIC_VNIR, GENERIC_FULL
+:   Sensor type for automatic band configuration. Options: PRISMA, AVIRIS, AVIRIS_NG, HYPERION, ENMAP, OSK_GHOST, PIXXEL, ESPER, IPERLITE, KUVASPACE_23, KUVASPACE_32, WYVERN_23, WYVERN_32, HYP4U, TANAGER
 
 **solar_azimuth**=*float*
 :   Solar azimuth angle in degrees (0-360). Default: 0
@@ -81,59 +96,75 @@ When atmospheric parameters are not provided, the module can estimate them:
 :   View azimuth angle in degrees (0-360). Default: 0
 
 **aod**=*float*
-:   Aerosol optical depth at 550nm. Range: 0.0-2.0. If not specified, estimated automatically using DDV method
+:   Aerosol optical depth at 550nm. If not specified, estimated automatically using DDV method
 
 **water_vapor**=*float*
-:   Water vapor column content in g/cm². Range: 0.1-7.0. If not specified, estimated from absorption bands
+:   Water vapor column content in g/cm^2. If not specified, estimated from absorption bands
 
 **ozone**=*float*
-:   Ozone column content in cm-atm. Range: 0.2-0.5. Default: 0.30
+:   Ozone column content in cm-atm. Default: 0.3
 
-**aerosol_type**=*string*
+**pressure**=*float*
+:   Atmospheric pressure in hPa. If not specified, estimated from DEM
+
+**aerosol_model**=*string*
 :   Aerosol model type. Options: continental, maritime, urban, desert. Default: continental
 
-**coef_dir**=*string*
-:   Directory containing SMAC coefficient files. Default: module's COEFS directory
+**visibility**=*float*
+:   Visibility in km. If not provided, estimated from AOD
+
+### Flags
+
+**-k**
+:   Keep temporary bands (for debugging)
+
+**-g**
+:   Generate SMAC coefficients from libRadtran at runtime instead of using
+    pre-generated files. Requires libRadtran and scipy. Only applies to
+    method=libradtran. Generated coefficients are cached to the COEFS directory
+    for reuse in subsequent runs.
 
 ## EXAMPLES
 
 ### Basic atmospheric correction with automatic parameter estimation
 
 ```bash
-i.hyper.smac input=aviris_toa output=aviris_sr elevation=dem \
-    solar_zenith=35 sensor=AVIRIS
+i.hyper.smac input=tanager_toa output=tanager_sr dem=elevation \
+    solar_zenith=29 method=libradtran
 ```
 
 ### Correction with specified atmospheric parameters
 
 ```bash
-i.hyper.smac input=prisma_toa output=prisma_sr elevation=dem \
-    solar_zenith=28 solar_azimuth=145 sensor=PRISMA \
+i.hyper.smac input=prisma_toa output=prisma_sr dem=elevation \
+    solar_zenith=28 solar_azimuth=145 method=libradtran \
     aod=0.12 water_vapor=1.8 ozone=0.32
 ```
 
 ### Maritime aerosol model for coastal scenes
 
 ```bash
-i.hyper.smac input=coastal_toa output=coastal_sr elevation=dem \
-    solar_zenith=40 sensor=AVIRIS_NG \
-    aerosol_type=maritime aod=0.08 water_vapor=3.5
+i.hyper.smac input=coastal_toa output=coastal_sr dem=elevation \
+    solar_zenith=40 method=libradtran \
+    aerosol_model=maritime aod=0.08 water_vapor=3.5
 ```
 
 ### Off-nadir viewing geometry
 
 ```bash
-i.hyper.smac input=offnadir_toa output=offnadir_sr elevation=dem \
+i.hyper.smac input=offnadir_toa output=offnadir_sr dem=elevation \
     solar_zenith=30 solar_azimuth=120 \
     view_zenith=15 view_azimuth=270 \
-    sensor=HYPERION aod=0.2
+    method=libradtran aod=0.2
 ```
 
-### Using custom coefficient directory
+### Runtime coefficient generation with -g flag
 
 ```bash
-i.hyper.smac input=custom_toa output=custom_sr elevation=dem \
-    solar_zenith=25 coef_dir=/path/to/my/coefficients
+# Generate SMAC coefficients from libRadtran on the fly
+# Useful when pre-generated files are not available or exact wavelength match is needed
+i.hyper.smac input=tanager_toa output=tanager_sr dem=elevation \
+    solar_zenith=29 method=libradtran aerosol_model=continental -g
 ```
 
 ## NOTES
@@ -141,17 +172,42 @@ i.hyper.smac input=custom_toa output=custom_sr elevation=dem \
 ### Input Data Requirements
 
 - Input must be a 3D raster (GRASS RASTER3D) with spectral bands as the third dimension
-- Values should be in TOA radiance (W/m²/sr/nm) or TOA reflectance (0-1)
-- Band wavelengths should be stored in the raster metadata or specified via sensor type
+- Values should be in TOA radiance (W/m^2/sr/um)
+- Band wavelengths and FWHM should be stored in the raster metadata (as set by i.hyper.import)
 
-### Coefficient Files
+### SMAC Coefficient Files
 
-SMAC requires wavelength-specific coefficient files. The module includes pre-generated coefficients for:
-- Wavelength range: 400-2500nm at 50nm intervals
-- Aerosol types: Continental, Maritime, Urban, Desert
-- Total: 172 coefficient files
+The libradtran method uses pre-generated SMAC coefficient files from the
+`COEFS/` directory. Each file contains 49 coefficients (19 lines) encoding
+the atmospheric correction model for one wavelength and aerosol type.
 
-For wavelengths not exactly matching available coefficients, the module uses the nearest available wavelength.
+**Pre-generated coefficients**:
+- Wavelength range: 350-2500nm at 10nm intervals (216 wavelengths)
+- Aerosol models: Continental, Maritime, Urban, Desert
+- Total: 864 coefficient files
+
+At runtime, the module selects the nearest available coefficient file (max 5nm
+mismatch with the 10nm grid). For exact wavelength matching, use the **-g** flag.
+
+**Generating custom coefficients**:
+
+The `smac_coef_generator.py` tool generates coefficients by running libRadtran
+simulations and fitting the SMAC analytical formulas using `scipy.optimize.curve_fit`.
+
+```bash
+# Single wavelength
+python3 lib/smac_coef_generator.py single 550 --aerosol continental --verbose
+
+# Batch at 10nm resolution (default)
+python3 lib/smac_coef_generator.py batch
+
+# Batch at 1nm resolution for maximum spectral accuracy
+python3 lib/smac_coef_generator.py batch --min 350 --max 2500 --step 1
+
+# Single aerosol type at 1nm (faster, ~2h)
+python3 lib/smac_coef_generator.py batch --min 350 --max 2500 --step 1 \
+    --aerosol continental --verbose
+```
 
 ### Aerosol Models
 
@@ -164,14 +220,15 @@ For wavelengths not exactly matching available coefficients, the module uses the
 
 ### Performance Considerations
 
-- The SMAC algorithm is computationally efficient, suitable for large hyperspectral datasets
+- The simple method is faster but less accurate than the libradtran method
+- The **-g** flag adds overhead (several seconds per band for libRadtran fitting) but generated coefficients are cached for reuse
 - Automatic AOD/WVC estimation adds overhead but improves accuracy
-- For time-series processing, consider pre-computing atmospheric parameters
+- For time-series processing, consider pre-computing atmospheric parameters and pre-generating coefficients
 
 ### Limitations
 
 - Assumes horizontally homogeneous atmosphere
-- Best accuracy for AOD < 0.5 and SZA < 70°
+- Best accuracy for AOD < 0.5 and SZA < 70 degrees
 - May underperform in presence of clouds, shadows, or extreme aerosol loading
 - Water bodies and snow may not be accurately corrected
 
@@ -181,6 +238,10 @@ Rahman, H., & Dedieu, G. (1994). SMAC: a simplified method for the atmospheric c
 
 Hagolle, O. SMAC Python implementation. GitHub repository. https://github.com/olivierhagolle/SMAC
 
+libRadtran radiative transfer package. https://www.libradtran.org/
+
+Hansen, J.E. & Travis, L.D. (1974). Light scattering in planetary atmospheres. *Space Science Reviews*, 16, 527-610.
+
 ## SEE ALSO
 
 *[i.atcorr](https://grass.osgeo.org/grass-stable/manuals/i.atcorr.html)* - Atmospheric correction using 6S model
@@ -188,8 +249,6 @@ Hagolle, O. SMAC Python implementation. GitHub repository. https://github.com/ol
 *[i.vi](https://grass.osgeo.org/grass-stable/manuals/i.vi.html)* - Vegetation indices
 
 *[r3.info](https://grass.osgeo.org/grass-stable/manuals/r3.info.html)* - 3D raster information
-
-*[r3.stats](https://grass.osgeo.org/grass-stable/manuals/r3.stats.html)* - 3D raster statistics
 
 ## AUTHOR
 

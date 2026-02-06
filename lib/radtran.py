@@ -8,19 +8,42 @@ using libRadtran for SMAC atmospheric correction.
 """
 
 import os
+import re
 import tempfile
 import subprocess
-import grass.script as gs
 import numpy as np
 import sys
 from datetime import datetime
+
+# Try to import GRASS, provide fallback for standalone testing
+try:
+    import grass.script as gs
+except ImportError:
+    # Fallback for standalone testing without GRASS
+    class MockGS:
+        @staticmethod
+        def message(msg):
+            print(msg)
+        @staticmethod
+        def warning(msg):
+            print(f"WARNING: {msg}", file=sys.stderr)
+        @staticmethod
+        def error(msg):
+            print(f"ERROR: {msg}", file=sys.stderr)
+        @staticmethod
+        def fatal(msg):
+            print(f"FATAL: {msg}", file=sys.stderr)
+            sys.exit(1)
+    gs = MockGS()
 
 # Import smac module for coefficient class
 try:
     import smac
 except ImportError:
-    gs.warning("Could not import smac module directly, will attempt relative import")
-    from . import smac
+    try:
+        from . import smac
+    except ImportError:
+        gs.warning("Could not import smac module, some functions may not work")
 
 class LibRadtranRunner:
     def __init__(self, verbose=False):
@@ -381,23 +404,241 @@ quiet
 
     return E0_band
 
-def generate_smac_coefficients_from_libradtran(wavelength, fwhm=10.0, 
-                                               solar_zenith=30.0, 
+def find_coef_file(wavelength, aerosol_model='continental', coef_dir=None):
+    """
+    Find the nearest pre-generated SMAC coefficient file for a given wavelength.
+
+    Args:
+        wavelength (float): Central wavelength in nm
+        aerosol_model (str): Aerosol model type (continental, maritime, urban, desert)
+        coef_dir (str): Optional path to coefficient directory. If None, uses
+                        the COEFS directory relative to this module.
+
+    Returns:
+        tuple: (coef_file_path, actual_wavelength) or (None, None) if not found
+    """
+    # Determine coefficient directory
+    if coef_dir is None:
+        module_dir = os.path.dirname(os.path.abspath(__file__))
+        # Search candidate locations:
+        # 1. COEFS/ next to this module (installed in GRASS etc/i_hyper_lib/COEFS/)
+        # 2. COEFS/ in the parent directory (development layout)
+        candidates = [
+            os.path.join(module_dir, 'COEFS'),
+            os.path.join(os.path.dirname(module_dir), 'COEFS'),
+        ]
+        coef_dir = None
+        for candidate in candidates:
+            if os.path.isdir(candidate):
+                coef_dir = candidate
+                break
+        if coef_dir is None:
+            return None, None
+
+    # Map aerosol model to directory name
+    aerosol_dir_map = {
+        'continental': 'CONTINENTAL',
+        'maritime': 'MARITIME',
+        'urban': 'URBAN',
+        'desert': 'DESERT'
+    }
+
+    aerosol_dir_name = aerosol_dir_map.get(aerosol_model.lower(), 'CONTINENTAL')
+    aerosol_dir = os.path.join(coef_dir, aerosol_dir_name)
+
+    if not os.path.isdir(aerosol_dir):
+        return None, None
+
+    # Scan directory for available coefficient files
+    pattern = re.compile(r'coef_(\d+)nm_' + aerosol_dir_name + r'\.dat')
+    available_wavelengths = []
+    for f in os.listdir(aerosol_dir):
+        m = pattern.match(f)
+        if m:
+            available_wavelengths.append(int(m.group(1)))
+
+    if not available_wavelengths:
+        return None, None
+
+    # Find nearest wavelength
+    nearest_wl = min(available_wavelengths, key=lambda x: abs(x - wavelength))
+
+    # Construct filename
+    coef_filename = f"coef_{nearest_wl}nm_{aerosol_dir_name}.dat"
+    coef_path = os.path.join(aerosol_dir, coef_filename)
+
+    if os.path.isfile(coef_path):
+        return coef_path, nearest_wl
+
+    return None, None
+
+
+def get_smac_parameters(wavelength, fwhm=10.0, sza=30.0, vza=0.0,
+                       aod_550=0.1, water_vapor=2.0, ozone=0.3,
+                       pressure=1013.25, surface_albedo=0.1,
+                       aerosol_model='continental', coef_dir=None,
+                       generate=False, verbose=False):
+    """
+    Get SMAC atmospheric correction parameters for a specific wavelength.
+
+    By default, loads pre-generated SMAC coefficients from the COEFS directory.
+    When generate=True, uses libRadtran and scipy to fit SMAC coefficients
+    at runtime, saving them for future reuse.
+
+    Args:
+        wavelength (float): Central wavelength in nm
+        fwhm (float): Full width at half maximum in nm
+        sza (float): Solar zenith angle in degrees
+        vza (float): View zenith angle in degrees
+        aod_550 (float): Aerosol optical depth at 550nm
+        water_vapor (float): Total column water vapor in g/cm²
+        ozone (float): Total column ozone in cm-atm
+        pressure (float): Atmospheric pressure in hPa
+        surface_albedo (float): Surface albedo (0-1)
+        aerosol_model (str): Aerosol model (continental, maritime, urban, desert)
+        coef_dir (str): Optional path to coefficient directory
+        generate (bool): If True, generate coefficients from libRadtran instead
+                        of loading pre-generated files (requires libRadtran + scipy)
+        verbose (bool): Enable verbose output
+
+    Returns:
+        smac.coeff: SMAC coefficient object for use with smac_inv
+
+    Raises:
+        FileNotFoundError: If no coefficient file is found and generate=False
+        RuntimeError: If generation fails (libRadtran not found, scipy missing, etc.)
+    """
+    if generate:
+        return _generate_and_cache_coefficients(
+            wavelength, fwhm, aerosol_model, coef_dir, verbose
+        )
+
+    # Find the nearest coefficient file
+    coef_path, nearest_wl = find_coef_file(wavelength, aerosol_model, coef_dir)
+
+    if coef_path is None:
+        raise FileNotFoundError(
+            f"No SMAC coefficient file found for wavelength {wavelength} nm "
+            f"and aerosol model '{aerosol_model}'. "
+            f"Check that the COEFS directory exists and contains the required files. "
+            f"Or use the -g flag to generate coefficients from libRadtran."
+        )
+
+    if verbose:
+        wl_diff = abs(wavelength - nearest_wl)
+        if wl_diff > 0:
+            gs.message(f"Loading SMAC coefficients for {wavelength:.1f} nm "
+                      f"(using nearest: {nearest_wl} nm, diff: {wl_diff:.1f} nm)")
+        else:
+            gs.message(f"Loading SMAC coefficients for {wavelength:.1f} nm")
+
+    # Load and return the coefficients
+    coefs = smac.coeff(coef_path)
+
+    return coefs
+
+
+def _generate_and_cache_coefficients(wavelength, fwhm, aerosol_model,
+                                      coef_dir, verbose):
+    """
+    Generate SMAC coefficients from libRadtran and cache them to disk.
+
+    Args:
+        wavelength (float): Central wavelength in nm
+        fwhm (float): Full width at half maximum in nm
+        aerosol_model (str): Aerosol model type
+        coef_dir (str): Optional coefficient directory for caching
+        verbose (bool): Enable verbose output
+
+    Returns:
+        smac.coeff: SMAC coefficient object
+    """
+    try:
+        from smac_coef_generator import generate_smac_coefficients
+    except ImportError:
+        try:
+            from lib.smac_coef_generator import generate_smac_coefficients
+        except ImportError:
+            raise RuntimeError(
+                "Cannot import smac_coef_generator. Make sure scipy is installed "
+                "and smac_coef_generator.py is available."
+            )
+
+    # Round wavelength to nearest integer for file naming
+    wl_int = int(round(wavelength))
+    aerosol_upper = aerosol_model.upper()
+
+    # Determine cache directory
+    if coef_dir is None:
+        module_dir = os.path.dirname(os.path.abspath(__file__))
+        candidates = [
+            os.path.join(module_dir, 'COEFS'),
+            os.path.join(os.path.dirname(module_dir), 'COEFS'),
+        ]
+        for candidate in candidates:
+            if os.path.isdir(candidate):
+                coef_dir = candidate
+                break
+        if coef_dir is None:
+            # Create COEFS next to this module
+            coef_dir = os.path.join(os.path.dirname(module_dir), 'COEFS')
+
+    # Check if already cached
+    cache_dir = os.path.join(coef_dir, aerosol_upper)
+    cache_file = os.path.join(cache_dir, f"coef_{wl_int}nm_{aerosol_upper}.dat")
+
+    if os.path.isfile(cache_file):
+        if verbose:
+            gs.message(f"Using cached generated coefficients: {cache_file}")
+        return smac.coeff(cache_file)
+
+    # Generate coefficients
+    if verbose:
+        gs.message(f"Generating SMAC coefficients for {wavelength:.1f} nm "
+                  f"({aerosol_model}) from libRadtran...")
+
+    coef_obj = generate_smac_coefficients(
+        wavelength_nm=wavelength,
+        fwhm_nm=fwhm,
+        aerosol_type=aerosol_model,
+        verbose=verbose
+    )
+
+    # Save to cache
+    os.makedirs(cache_dir, exist_ok=True)
+    coef_obj.to_file(cache_file)
+    if verbose:
+        gs.message(f"Cached coefficients to: {cache_file}")
+
+    # Load through smac.coeff for consistent return type
+    return smac.coeff(cache_file)
+
+
+def generate_smac_coefficients_from_libradtran(wavelength, fwhm=10.0,
+                                               solar_zenith=30.0,
                                                solar_azimuth=0.0,
                                                view_zenith=0.0,
                                                view_azimuth=0.0,
                                                aod_550=0.1,
-                                               water_vapor=2.0, 
+                                               water_vapor=2.0,
                                                ozone=0.3,
                                                pressure=1013.25,
                                                aerosol_model='continental',
                                                verbose=False):
     """
-    Generate SMAC-compatible coefficient object from libRadtran simulations.
-    
-    This function runs multiple libRadtran simulations to estimate the coefficients
-    needed by the SMAC atmospheric correction model.
-    
+    EXPERIMENTAL: Generate SMAC coefficients from libRadtran simulations.
+
+    WARNING: This function is not fully implemented and produces incorrect
+    coefficients. Use get_smac_parameters() with pre-generated coefficient
+    files instead.
+
+    The proper implementation would require:
+    1. Running multiple libRadtran simulations varying AOD, SZA, surface albedo
+    2. Fitting the SMAC analytical formulas to the simulation results
+    3. Extracting polynomial coefficients from the fits
+
+    This is kept for future development but should NOT be used for production.
+
     Args:
         wavelength (float): Central wavelength in nm
         fwhm (float): Full width at half maximum in nm
@@ -411,206 +652,179 @@ def generate_smac_coefficients_from_libradtran(wavelength, fwhm=10.0,
         pressure (float): Atmospheric pressure in hPa
         aerosol_model (str): Aerosol model type
         verbose (bool): Enable verbose output
-        
+
     Returns:
-        smac.coeff: SMAC coefficient object compatible with smac.py
+        smac.coeff: SMAC coefficient object (WARNING: coefficients are approximate)
     """
-    
+    gs.warning("generate_smac_coefficients_from_libradtran() is experimental and "
+               "produces approximate coefficients. Use get_smac_parameters() with "
+               "pre-generated coefficient files for accurate results.")
+
+    # Try to use pre-generated coefficients first
+    coef_path, nearest_wl = find_coef_file(wavelength, aerosol_model)
+    if coef_path is not None:
+        if verbose:
+            gs.message(f"Using pre-generated coefficients for {nearest_wl} nm")
+        return smac.coeff(coef_path)
+
+    # Fall back to analytical approximation (for wavelengths outside 400-2500nm range)
     if verbose:
-        gs.message(f"Generating SMAC coefficients for {wavelength} nm using libRadtran...")
-    
-    runner = LibRadtranRunner(verbose=verbose)
-    
+        gs.message(f"Generating analytical SMAC coefficients for {wavelength} nm...")
+
+    # Create temporary file for coefficients
+    temp_dir = tempfile.mkdtemp(prefix='smac_coef_')
+    temp_coef_file = os.path.join(temp_dir, f'smac_coef_{wavelength}.dat')
+
     try:
-        # Base parameters for all simulations
-        base_params = {
-            'wavelength': wavelength,
-            'solar_zenith': solar_zenith,
-            'solar_azimuth': solar_azimuth,
-            'view_azimuth': view_azimuth,
-            'aod_550': aod_550,
-            'water_vapor': water_vapor,
-            'ozone': ozone,
-            'pressure': pressure,
-            'surface_albedo': 0.1,
-            'aerosol_model': aerosol_model
-        }
-        
-        # Run simulations to get transmittances
-        trans_result = runner.run_simulation(base_params, 'transmittance')
-        
-        # Run simulation for spherical albedo and path radiance
-        rad_result = runner.run_simulation(base_params, 'radiance')
-        
-        # Create a temporary SMAC coefficient file
-        temp_coef_file = os.path.join(runner.temp_dir, f'smac_coef_{wavelength}.dat')
-        
-        # Generate approximate SMAC coefficients
-        # These are simplified approximations based on libRadtran output
         with open(temp_coef_file, 'w') as f:
-            # H2O coefficients (line 1)
-            ah2o = -0.1 if 850 < wavelength < 1050 else -0.01
-            f.write(f"{ah2o:.6f} 0.5\n")
-            
-            # O3 coefficients (line 2)
-            ao3 = -0.05 if 400 < wavelength < 700 else 0.0
-            f.write(f"{ao3:.6f} 0.5\n")
-            
-            # O2 coefficients (line 3)
-            f.write("0.0 0.0 1.0\n")
-            
-            # CO2 coefficients (line 4)
-            f.write("0.0 0.0 1.0\n")
-            
-            # CH4 coefficients (line 5)
-            f.write("0.0 0.0 1.0\n")
-            
-            # NO2 coefficients (line 6)
-            f.write("0.0 0.0 1.0\n")
-            
-            # CO coefficients (line 7)
-            f.write("0.0 0.0 1.0\n")
-            
-            # Rayleigh scattering coefficients (line 8)
-            # s = a0s*P + a3s + a1s*tau + a2s*tau^2
-            a0s = rad_result['spherical_albedo'] / (pressure / 1013.25)
-            a1s = 0.0
-            a2s = 0.0
+            # H2O absorption coefficients
+            # Strong absorption bands: 720, 820, 940, 1130, 1380, 1900nm
+            ah2o = 0.0
+            if 700 < wavelength < 750 or 800 < wavelength < 850:
+                ah2o = -0.02
+            elif 900 < wavelength < 980:
+                ah2o = -0.08
+            elif 1100 < wavelength < 1160:
+                ah2o = -0.05
+            elif 1350 < wavelength < 1420:
+                ah2o = -0.15
+            elif 1850 < wavelength < 1950:
+                ah2o = -0.20
+            f.write(f"{ah2o:.6e} 5.000000e-01\n")
+
+            # O3 absorption (Chappuis band 500-700nm)
+            ao3 = 0.0
+            if 500 < wavelength < 700:
+                # Peak absorption around 600nm
+                ao3 = -0.05 * np.exp(-((wavelength - 600) / 100)**2)
+            f.write(f"{ao3:.6e} 1.000000e+00\n")
+
+            # O2, CO2, CH4, NO2, CO - typically zero for most bands
+            f.write("0.000000e+00 0.000000e+00 0.000000e+00\n")  # O2
+            f.write("0.000000e+00 0.000000e+00 0.000000e+00\n")  # CO2
+            f.write("0.000000e+00 0.000000e+00 0.000000e+00\n")  # CH4
+            f.write("0.000000e+00 0.000000e+00 0.000000e+00\n")  # NO2
+            f.write("0.000000e+00 0.000000e+00 0.000000e+00\n")  # CO
+
+            # Spherical albedo coefficients: s = a0s*P + a3s + a1s*tau + a2s*tau^2
+            # Rayleigh contribution dominates at short wavelengths
+            taur = 0.008569 * (wavelength / 1000) ** (-4) * (1 + 0.0113 * (wavelength/1000)**(-2))
+            a0s = taur * 0.5  # Approximate spherical albedo from Rayleigh
+            a1s = 0.2   # Aerosol contribution
+            a2s = -0.05  # Second order
             a3s = 0.0
-            f.write(f"{a0s:.6f} {a1s:.6f} {a2s:.6f} {a3s:.6f}\n")
-            
-            # Transmission coefficients (line 9)
-            # T = a0T + a1T*tau/cos(theta) + (a2T*P + a3T)/(1+cos(theta))
-            a0T = trans_result['direct_transmittance']
-            a1T = 0.0
-            a2T = 0.0
-            a3T = 0.0
-            f.write(f"{a0T:.6f} {a1T:.6f} {a2T:.6f} {a3T:.6f}\n")
-            
-            # Rayleigh optical thickness (line 10)
-            taur = 0.008569 * (wavelength / 1000) ** (-4)
-            f.write(f"{taur:.6f} {taur:.6f}\n")
-            
-            # Aerosol optical thickness coefficients (line 11)
-            # taup = a0taup + a1taup*taup550
-            alpha = 1.3  # Angstrom exponent
+            f.write(f"{a0s:.6e} {a1s:.6e} {a2s:.6e} {a3s:.6e}\n")
+
+            # Transmission coefficients: T = a0T + a1T*tau/cos(θ) + (a2T*P + a3T)/(1+cos(θ))
+            # These are the critical coefficients for proper AOD-dependent correction
+            a0T = 1.0     # Base transmission (clear atmosphere)
+            a1T = -0.15   # AOD dependence (negative: more AOD = less transmission)
+            a2T = 0.0     # Pressure dependence
+            a3T = -0.10   # Geometric factor
+            f.write(f"{a0T:.6e} {a1T:.6e} {a2T:.6e} {a3T:.6e}\n")
+
+            # Rayleigh optical thickness
+            f.write(f"{taur:.6e} {taur:.6e}\n")
+
+            # Aerosol optical depth scaling: taup = a0taup + a1taup * taup550
+            # Angstrom law: tau(λ) = tau(550) * (λ/550)^(-α)
+            alpha = 1.3  # Typical Angstrom exponent for continental aerosol
             a0taup = 0.0
             a1taup = (wavelength / 550.0) ** (-alpha)
-            f.write(f"{a0taup:.6f} {a1taup:.6f}\n")
-            
-            # Aerosol single scattering albedo and asymmetry parameter (line 12)
-            wo = 0.9  # Typical single scattering albedo
-            gc = 0.7  # Typical asymmetry parameter
-            f.write(f"{wo:.6f} {gc:.6f}\n")
-            
-            # Phase function coefficients (line 13-14)
-            f.write("0.0 0.0 0.0\n")
-            f.write("0.0 0.0\n")
-            
-            # Residual terms (lines 15-19)
-            # These account for coupling effects and residuals
-            f.write("0.0 0.0\n")  # Rest1, Rest2
-            f.write("0.0 0.0\n")  # Rest3, Rest4
-            f.write("0.0 0.0 0.0\n")  # Resr1, Resr2, Resr3
-            f.write("0.0 0.0\n")  # Resa1, Resa2
-            f.write("0.0 0.0\n")  # Resa3, Resa4
-        
-        # Load the coefficients using smac.coeff class
+            f.write(f"{a0taup:.6e} {a1taup:.6e}\n")
+
+            # Aerosol single scattering albedo and asymmetry parameter
+            wo = 0.89  # Continental aerosol
+            gc = 0.65  # Continental aerosol
+            f.write(f"{wo:.6e} {gc:.6e}\n")
+
+            # Phase function coefficients (Henyey-Greenstein approximation)
+            # P(θ) = a0P + a1P*θ + a2P*θ² + a3P*θ³ + a4P*θ⁴
+            a0P = (1 - gc**2) / (1 + gc)**1.5
+            f.write(f"{a0P:.6e} 0.000000e+00 0.000000e+00\n")
+            f.write("0.000000e+00 0.000000e+00\n")
+
+            # Residual terms (small corrections)
+            f.write("0.000000e+00 0.000000e+00\n")  # Rest1, Rest2
+            f.write("0.000000e+00 0.000000e+00\n")  # Rest3, Rest4
+            f.write("0.000000e+00 0.000000e+00 0.000000e+00\n")  # Resr1, Resr2, Resr3
+            f.write("0.000000e+00 0.000000e+00\n")  # Resa1, Resa2
+            f.write("0.000000e+00 0.000000e+00\n")  # Resa3, Resa4
+
+        # Load the coefficients
         coefs = smac.coeff(temp_coef_file)
-        
         return coefs
-        
+
     finally:
-        runner.cleanup()
-
-
-def get_smac_parameters(wavelength, fwhm=10.0, sza=30.0, vza=0.0, 
-                       aod_550=0.1, water_vapor=2.0, ozone=0.3,
-                       pressure=1013.25, surface_albedo=0.1, 
-                       aerosol_model='continental', verbose=False):
-    """
-    Get SMAC atmospheric correction parameters for a specific wavelength.
-    
-    This function generates a full set of SMAC coefficients and returns them
-    in a format compatible with the smac_inv function.
-    
-    Args:
-        wavelength (float): Central wavelength in nm
-        fwhm (float): Full width at half maximum in nm
-        sza (float): Solar zenith angle in degrees
-        vza (float): View zenith angle in degrees
-        aod_550 (float): Aerosol optical depth at 550nm
-        water_vapor (float): Total column water vapor in g/cm²
-        ozone (float): Total column ozone in cm-atm
-        pressure (float): Atmospheric pressure in hPa
-        surface_albedo (float): Surface albedo (0-1)
-        aerosol_model (str): Aerosol model (continental, maritime, urban, desert)
-        verbose (bool): Enable verbose output
-        
-    Returns:
-        smac.coeff: SMAC coefficient object for use with smac_inv
-    """
-    
-    coefs = generate_smac_coefficients_from_libradtran(
-        wavelength=wavelength,
-        fwhm=fwhm,
-        solar_zenith=sza,
-        view_zenith=vza,
-        aod_550=aod_550,
-        water_vapor=water_vapor,
-        ozone=ozone,
-        pressure=pressure,
-        aerosol_model=aerosol_model,
-        verbose=verbose
-    )
-    
-    return coefs
+        # Cleanup
+        import shutil
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
 
 
 if __name__ == "__main__":
-    # Example usage
-    import sys
-    
-    # Test the coefficient generation
-    wavelength = 550.0
-    
+    # Example usage - can run standalone for testing
+    gs.message("Testing within GRASS environment" if 'grass' in sys.modules else
+               "Testing in standalone mode")
+
+    print("=" * 60)
+    print("Testing SMAC coefficient loading from pre-generated files")
+    print("=" * 60)
+
+    # Test multiple wavelengths
+    test_wavelengths = [400, 550, 850, 1000, 1600, 2200]
+
+    for wavelength in test_wavelengths:
+        try:
+            coefs = get_smac_parameters(
+                wavelength=wavelength,
+                aerosol_model='continental',
+                verbose=True
+            )
+
+            print(f"\n--- Coefficients for {wavelength} nm ---")
+            print(f"H2O: ah2o={coefs.ah2o:.6e}, nh2o={coefs.nh2o:.6f}")
+            print(f"O3:  ao3={coefs.ao3:.6e}, no3={coefs.no3:.6f}")
+            print(f"Rayleigh: taur={coefs.taur:.6f}")
+            print(f"Aerosol scaling: a0taup={coefs.a0taup:.6f}, a1taup={coefs.a1taup:.6f}")
+            print(f"Aerosol props: wo={coefs.wo:.6f}, gc={coefs.gc:.6f}")
+            print(f"Transmission: a0T={coefs.a0T:.6f}, a1T={coefs.a1T:.6f}, a3T={coefs.a3T:.6f}")
+            print(f"Sph. albedo: a0s={coefs.a0s:.6e}, a1s={coefs.a1s:.6f}")
+
+        except Exception as e:
+            print(f"Error loading coefficients for {wavelength} nm: {e}")
+
+    # Test SMAC correction with proper coefficients
+    print("\n" + "=" * 60)
+    print("Testing SMAC atmospheric correction")
+    print("=" * 60)
+
     try:
-        coefs = get_smac_parameters(
-            wavelength=wavelength,
-            fwhm=10.0,
-            sza=30.0,
-            aod_550=0.2,
-            water_vapor=2.5,
-            ozone=0.3,
-            surface_albedo=0.1,
-            aerosol_model='continental',
-            verbose=True
-        )
-        
-        print(f"\nGenerated SMAC coefficients for {wavelength} nm")
-        print(f"H2O: ah2o={coefs.ah2o:.6f}, nh2o={coefs.nh2o:.6f}")
-        print(f"O3: ao3={coefs.ao3:.6f}, no3={coefs.no3:.6f}")
-        print(f"Rayleigh: taur={coefs.taur:.6f}")
-        print(f"Aerosol: wo={coefs.wo:.6f}, gc={coefs.gc:.6f}")
-        
-        # Test the smac_inv function
-        r_toa = 0.2
-        theta_s = 30.0
+        coefs = get_smac_parameters(wavelength=850, aerosol_model='continental')
+
+        # Test parameters
+        r_toa = 0.27      # Typical NIR TOA reflectance
+        theta_s = 30.0    # Solar zenith
         phi_s = 0.0
-        theta_v = 0.0
+        theta_v = 0.0     # Nadir view
         phi_v = 0.0
         pressure = 1013.25
-        taup550 = 0.1
         uo3 = 0.3
         uh2o = 2.0
-        
-        r_surf = smac.smac_inv(r_toa, theta_s, phi_s, theta_v, phi_v,
-                               pressure, taup550, uo3, uh2o, coefs)
-        
-        print(f"\nTest atmospheric correction:")
-        print(f"TOA reflectance: {r_toa}")
-        print(f"Surface reflectance: {r_surf:.4f}")
-        
+
+        print(f"\nInput: TOA reflectance = {r_toa}")
+        print(f"       SZA = {theta_s}°, VZA = {theta_v}°")
+
+        # Test with different AOD values
+        for aod in [0.05, 0.1, 0.2, 0.5, 0.886]:
+            r_surf = smac.smac_inv(r_toa, theta_s, phi_s, theta_v, phi_v,
+                                   pressure, aod, uo3, uh2o, coefs)
+            print(f"AOD={aod:.3f}: BOA reflectance = {r_surf:.4f}")
+
+        print("\nExpected: BOA reflectance should be ~0.30-0.45 for vegetation at 850nm")
+
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
         sys.exit(1)

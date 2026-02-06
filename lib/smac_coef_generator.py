@@ -272,7 +272,7 @@ class LibRadtranRunner:
         inp_content = f"""\
 data_files_path {data_path}
 atmosphere_file {data_path}/atmmod/afglus.dat
-source solar {data_path}/solar_flux/kurudz_1.0nm.dat
+source solar {data_path}/solar_flux/kurudz_1.0nm.dat per_nm
 
 wavelength {wavelength:.2f} {wavelength:.2f}
 
@@ -535,22 +535,24 @@ class SMACCoefficientGenerator:
         s_values = []
 
         for aod in aod_values:
-            # Run two simulations with different surface albedos
+            # Run two simulations with different surface albedos at SURFACE level
+            # Spherical albedo is measured via multiple scattering at the surface:
+            # Eglo_sur(ρ) = Eglo_sur(0) / (1 - s*ρ)
+            # s = (E1-E2) / (ρ1*E1 - ρ2*E2)
             r1 = self.runner.run_simulation(
                 wavelength_nm, sza, vza, aod550=aod, albedo=albedo1,
-                aerosol_type=aerosol_type
+                aerosol_type=aerosol_type, output_level='sur'
             )
             r2 = self.runner.run_simulation(
                 wavelength_nm, sza, vza, aod550=aod, albedo=albedo2,
-                aerosol_type=aerosol_type
+                aerosol_type=aerosol_type, output_level='sur'
             )
 
             if r1 is None or r2 is None:
                 s_values.append(np.nan)
                 continue
 
-            # Compute spherical albedo
-            # s = (E_glo(ρ1) - E_glo(ρ2)) / (ρ1*E_glo(ρ1) - ρ2*E_glo(ρ2))
+            # Compute spherical albedo from surface global irradiance
             E1, E2 = r1['eglo'], r2['eglo']
             denom = albedo1 * E1 - albedo2 * E2
 
@@ -623,21 +625,22 @@ class SMACCoefficientGenerator:
                 continue
 
             for aod in aod_values:
-                # Get TOA irradiance (extraterrestrial)
+                # Get extraterrestrial irradiance at TOA (no atmosphere effects)
                 r_toa = self.runner.run_simulation(
                     wavelength_nm, 0.0, 0.0, aod550=0.0, albedo=0.0,
-                    aerosol_type=aerosol_type
+                    aerosol_type=aerosol_type, output_level='toa'
                 )
 
-                # Get surface irradiance
+                # Get irradiance at the surface after atmospheric attenuation
                 r_surf = self.runner.run_simulation(
                     wavelength_nm, sza, 0.0, aod550=aod, albedo=0.0,
-                    aerosol_type=aerosol_type
+                    aerosol_type=aerosol_type, output_level='sur'
                 )
 
                 if r_toa is not None and r_surf is not None:
                     # Transmission = E_surface / (E_TOA * cos(sza))
-                    T = r_surf['eglo'] / (r_toa['eglo'] * cos_sza)
+                    E_toa = r_toa['edir']  # Direct irradiance at TOA (normal incidence)
+                    T = r_surf['eglo'] / (E_toa * cos_sza)
                     T = max(0, min(1, T))
 
                     data_points.append({
@@ -720,8 +723,16 @@ class SMACCoefficientGenerator:
         coef.wo, coef.gc = aerosol_props.get(aerosol_type, (0.89, 0.65))
 
         # 4. Fit gaseous absorption
-        # H2O absorption (strong at 940nm, 1130nm)
-        if 850 < wavelength_nm < 1050 or 1050 < wavelength_nm < 1250:
+        # H2O absorption bands: 720, 820, 940, 1130, 1380, 1900nm
+        h2o_active = any([
+            700 < wavelength_nm < 750,    # 720nm band
+            790 < wavelength_nm < 850,    # 820nm band
+            880 < wavelength_nm < 1000,   # 940nm band
+            1080 < wavelength_nm < 1200,  # 1130nm band
+            1300 < wavelength_nm < 1500,  # 1380nm band
+            1800 < wavelength_nm < 2000,  # 1900nm band
+        ])
+        if h2o_active:
             coef.ah2o, coef.nh2o = self.fit_gaseous_absorption(
                 wavelength_nm, 'h2o', aerosol_type
             )
@@ -817,36 +828,162 @@ def generate_smac_coefficients(wavelength_nm: float, fwhm_nm: float = 10.0,
         generator.cleanup()
 
 
+def generate_batch(wavelength_min=350, wavelength_max=2500, step=10,
+                   aerosol_types=None, output_dir=None,
+                   libradtran_path=None, verbose=False):
+    """
+    Generate SMAC coefficient files for a range of wavelengths.
+
+    Args:
+        wavelength_min: Minimum wavelength in nm
+        wavelength_max: Maximum wavelength in nm
+        step: Wavelength step in nm
+        aerosol_types: List of aerosol types (default: all four)
+        output_dir: Output directory for coefficient files
+        libradtran_path: Path to libRadtran installation
+        verbose: Enable verbose output
+
+    Returns:
+        Number of files generated
+    """
+    if aerosol_types is None:
+        aerosol_types = ['continental', 'maritime', 'urban', 'desert']
+
+    if output_dir is None:
+        output_dir = os.path.join(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))), 'COEFS')
+
+    wavelengths = list(range(wavelength_min, wavelength_max + 1, step))
+    total = len(wavelengths) * len(aerosol_types)
+    count = 0
+
+    print(f"Generating {total} coefficient files "
+          f"({len(wavelengths)} wavelengths x {len(aerosol_types)} aerosol types)")
+    print(f"Wavelength range: {wavelength_min}-{wavelength_max} nm, step: {step} nm")
+    print(f"Output directory: {output_dir}")
+
+    for aerosol_type in aerosol_types:
+        atype_upper = aerosol_type.upper()
+        atype_dir = os.path.join(output_dir, atype_upper)
+        os.makedirs(atype_dir, exist_ok=True)
+
+        print(f"\n{'='*60}")
+        print(f"Aerosol model: {atype_upper}")
+        print(f"{'='*60}")
+
+        generator = SMACCoefficientGenerator(libradtran_path, verbose)
+
+        try:
+            for i, wl in enumerate(wavelengths):
+                count += 1
+                progress = 100.0 * count / total
+                print(f"[{progress:5.1f}%] {atype_upper} {wl:4d} nm "
+                      f"({count}/{total})", end='', flush=True)
+
+                try:
+                    coef = generator.generate_coefficients(
+                        wl, fwhm_nm=10.0, aerosol_type=aerosol_type
+                    )
+
+                    output_file = os.path.join(
+                        atype_dir, f"coef_{wl}nm_{atype_upper}.dat")
+                    coef.to_file(output_file)
+                    print(f" -> OK")
+
+                except Exception as e:
+                    print(f" -> FAILED: {e}")
+
+        finally:
+            generator.cleanup()
+
+    print(f"\nBatch generation complete: {count} files generated")
+    return count
+
+
 if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(
         description='Generate SMAC coefficients using libRadtran'
     )
-    parser.add_argument('wavelength', type=float, help='Central wavelength in nm')
-    parser.add_argument('--fwhm', type=float, default=10.0,
-                        help='FWHM in nm (default: 10)')
-    parser.add_argument('--aerosol', type=str, default='continental',
-                        choices=['continental', 'maritime', 'urban', 'desert'],
-                        help='Aerosol model (default: continental)')
-    parser.add_argument('--output', type=str, help='Output coefficient file')
+
+    subparsers = parser.add_subparsers(dest='command')
+
+    # Single wavelength mode
+    single_parser = subparsers.add_parser('single',
+        help='Generate coefficients for a single wavelength')
+    single_parser.add_argument('wavelength', type=float,
+        help='Central wavelength in nm')
+    single_parser.add_argument('--fwhm', type=float, default=10.0,
+        help='FWHM in nm (default: 10)')
+    single_parser.add_argument('--aerosol', type=str, default='continental',
+        choices=['continental', 'maritime', 'urban', 'desert'],
+        help='Aerosol model (default: continental)')
+    single_parser.add_argument('--output', type=str,
+        help='Output coefficient file')
+    single_parser.add_argument('--verbose', action='store_true',
+        help='Verbose output')
+
+    # Batch mode
+    batch_parser = subparsers.add_parser('batch',
+        help='Generate coefficients for a range of wavelengths')
+    batch_parser.add_argument('--min', type=int, default=350,
+        help='Minimum wavelength in nm (default: 350)')
+    batch_parser.add_argument('--max', type=int, default=2500,
+        help='Maximum wavelength in nm (default: 2500)')
+    batch_parser.add_argument('--step', type=int, default=10,
+        help='Wavelength step in nm (default: 10)')
+    batch_parser.add_argument('--aerosol', type=str, nargs='+',
+        default=['continental', 'maritime', 'urban', 'desert'],
+        choices=['continental', 'maritime', 'urban', 'desert'],
+        help='Aerosol model(s) (default: all)')
+    batch_parser.add_argument('--output-dir', type=str,
+        help='Output directory (default: COEFS/)')
+    batch_parser.add_argument('--verbose', action='store_true',
+        help='Verbose output')
+
+    # Common arguments
     parser.add_argument('--libradtran', type=str, help='Path to libRadtran')
-    parser.add_argument('--verbose', action='store_true', help='Verbose output')
 
     args = parser.parse_args()
 
-    # Generate output filename if not provided
-    if not args.output:
-        args.output = f"coef_{args.wavelength:.0f}nm_{args.aerosol.upper()}.dat"
+    # Default to single mode for backwards compatibility
+    if args.command is None:
+        # Check if a positional wavelength was given (old-style usage)
+        if len(sys.argv) > 1 and sys.argv[1].replace('.', '').isdigit():
+            args.command = 'single'
+            args.wavelength = float(sys.argv[1])
+            args.fwhm = 10.0
+            args.aerosol = 'continental'
+            args.output = None
+            args.verbose = '--verbose' in sys.argv
+        else:
+            parser.print_help()
+            sys.exit(1)
 
-    coef = generate_smac_coefficients(
-        wavelength_nm=args.wavelength,
-        fwhm_nm=args.fwhm,
-        aerosol_type=args.aerosol,
-        output_file=args.output,
-        libradtran_path=args.libradtran,
-        verbose=args.verbose
-    )
+    if args.command == 'single':
+        if not hasattr(args, 'output') or not args.output:
+            args.output = f"coef_{args.wavelength:.0f}nm_{args.aerosol.upper()}.dat"
 
-    print(f"\nGenerated SMAC coefficients for {args.wavelength:.1f} nm")
-    print(f"Saved to: {args.output}")
+        coef = generate_smac_coefficients(
+            wavelength_nm=args.wavelength,
+            fwhm_nm=args.fwhm,
+            aerosol_type=args.aerosol,
+            output_file=args.output,
+            libradtran_path=args.libradtran,
+            verbose=args.verbose
+        )
+
+        print(f"\nGenerated SMAC coefficients for {args.wavelength:.1f} nm")
+        print(f"Saved to: {args.output}")
+
+    elif args.command == 'batch':
+        generate_batch(
+            wavelength_min=args.min,
+            wavelength_max=args.max,
+            step=args.step,
+            aerosol_types=args.aerosol,
+            output_dir=args.output_dir,
+            libradtran_path=args.libradtran,
+            verbose=args.verbose
+        )

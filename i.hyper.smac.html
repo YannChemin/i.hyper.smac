@@ -1,179 +1,250 @@
-<h1
-id="i.hyper.smac---smac-atmospheric-correction-for-hyperspectral-data">i.hyper.smac
-- SMAC Atmospheric Correction for Hyperspectral Data</h1>
-<h2 id="description">DESCRIPTION</h2>
-<p>This module implements the Simplified Method for Atmospheric
-Correction (SMAC) for hyperspectral data in GRASS GIS. It provides two
-methods for atmospheric correction:</p>
-<ol type="1">
-<li><strong>Simple SMAC</strong>: A faster, less accurate method
-suitable for quick processing</li>
-<li><strong>Libradtran SMAC</strong>: A more accurate method using the
-libRadtran radiative transfer model</li>
-</ol>
-<p>The module is based on the original SMAC algorithm developed by <a
-href="https://doi.org/10.1016/0034-4257(94)90119-8">Rahman and Dedieu
-(1994)</a> and the implementation by <a
-href="https://github.com/olivierhagolle/SMAC">Olivier Hagolle</a>.</p>
-<h2 id="features">FEATURES</h2>
-<ul>
-<li>Supports multiple hyperspectral sensors (AVIRIS, HYPERION, PRISMA, etc.)</li>
-<li>Two correction methods: simple and libradtran-based</li>
-<li>Automatic estimation of atmospheric parameters:
-  <ul>
-    <li>Aerosol Optical Depth (AOD) using the Dense Dark Vegetation (DDV) method</li>
-    <li>Water Vapor Content (WVC) using atmospheric absorption features</li>
-  </ul>
-</li>
-<li>Uses libRadtran for accurate atmospheric simulations (for libradtran method)</li>
-<li>Handles both per-pixel and scene-average atmospheric correction</li>
-<li>Preserves the original data structure and metadata</li>
-</ul>
-<h2 id="requirements">REQUIREMENTS</h2>
-<ul>
-<li>GRASS GIS 8.0 or later</li>
-<li>Python 3.x</li>
-<li>NumPy</li>
-<li>PyEphem (for solar zenith angle estimation)</li>
-<li>libRadtran (for atmospheric simulations)</li>
-<li>scipy (for interpolation and optimization)</li>
-<li>pandas (for data handling)</li>
-<li>scikit-learn (for regression models in AOD estimation)</li>
-</ul>
-<h2 id="usage">USAGE</h2>
-<div class="sourceCode" id="cb1"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Simple SMAC (default)</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">i.hyper.smac</span> input=name output=name elevation=name <span class="pp">[</span><span class="ss">sensor=string</span><span class="pp">]</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>             <span class="ex">[aod=float]</span> <span class="pp">[</span><span class="ss">water_vapor=float</span><span class="pp">]</span> <span class="pp">[</span><span class="ss">ozone=float</span><span class="pp">]</span> </span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>             <span class="ex">[solar_zenith=float]</span> <span class="pp">[</span><span class="ss">solar_azimuth=float</span><span class="pp">]</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>             <span class="ex">[view_zenith=float]</span> <span class="pp">[</span><span class="ss">view_azimuth=float</span><span class="pp">]</span></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>             <span class="ex">[--overwrite]</span> <span class="pp">[--</span><span class="ss">verbose</span><span class="pp">]</span> <span class="pp">[--</span><span class="ss">quiet</span><span class="pp">]</span> <span class="pp">[--</span><span class="ss">keep</span><span class="pp">-</span><span class="ss">temp</span><span class="pp">]</span></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Libradtran SMAC</span></span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="ex">i.hyper.smac</span> input=name output=name elevation=name method=libradtran</span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>             <span class="va">sensor</span><span class="op">=</span>string <span class="ex">[aod=float]</span> <span class="pp">[</span><span class="ss">water_vapor=float</span><span class="pp">]</span> <span class="pp">[</span><span class="ss">ozone=float</span><span class="pp">]</span></span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>             <span class="ex">[solar_zenith=float]</span> <span class="pp">[</span><span class="ss">solar_azimuth=float</span><span class="pp">]</span></span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>             <span class="ex">[view_zenith=float]</span> <span class="pp">[</span><span class="ss">view_azimuth=float</span><span class="pp">]</span></span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>             <span class="ex">[aot_lut=name]</span> <span class="pp">[</span><span class="ss">visibility=float</span><span class="pp">]</span></span>
-<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>             <span class="ex">[aerosol_type=string]</span> <span class="pp">[--</span><span class="ss">overwrite</span><span class="pp">]</span> <span class="pp">[--</span><span class="ss">verbose</span><span class="pp">]</span> <span class="pp">[--</span><span class="ss">quiet</span><span class="pp">]</span> <span class="pp">[--</span><span class="ss">keep</span><span class="pp">-</span><span class="ss">temp</span><span class="pp">]</span></span></code></pre></div>
-<h2 id="parameters">PARAMETERS</h2>
-<h3 id="inputoutput">Input/Output</h3>
-<ul>
-<li><strong>input</strong> - Name of input 3D raster map</li>
-<li><strong>output</strong> - Name for output 3D raster map</li>
-<li><strong>elevation</strong> - Name of elevation raster map (default:
-DEM from GRASS location)</li>
-</ul>
-<h3 id="method-selection">Method Selection</h3>
-<ul>
-<li><strong>method</strong> - Atmospheric correction method (simple,
-libradtran; default: simple)</li>
-</ul>
-<h3 id="atmospheric-parameters-both-methods">Atmospheric Parameters
-(both methods)</h3>
-<ul>
-<li><strong>sensor</strong> - Sensor type (AVIRIS, HYPERION, PRISMA,
-etc.)</li>
-<li><strong>aod</strong> - Aerosol Optical Depth at 550nm (if not
-provided, will be estimated)</li>
-<li><strong>water_vapor</strong> - Water vapor content in g/cm² (if not
-provided, will be estimated)</li>
-<li><strong>ozone</strong> - Ozone content in cm-atm (default: 0.3)</li>
-<li><strong>solar_zenith</strong> - Solar zenith angle in degrees
-(required)</li>
-<li><strong>solar_azimuth</strong> - Solar azimuth angle in degrees
-(default: 0)</li>
-<li><strong>view_zenith</strong> - View zenith angle in degrees
-(default: 0)</li>
-<li><strong>view_azimuth</strong> - View azimuth angle in degrees
-(default: 0)</li>
-<li><strong>aerosol_type</strong> - Aerosol type (continental, maritime,
-urban, desert; default: continental)</li>
-</ul>
-<h3 id="libradtran-specific-parameters">Libradtran-specific
-Parameters</h3>
-<ul>
-<li><strong>aot_lut</strong> - Look-up table for AOD estimation (if not
-provided, will be generated)</li>
-<li><strong>visibility</strong> - Visibility in km (if not provided,
-will be estimated from AOD)</li>
-</ul>
-<h2 id="examples">EXAMPLES</h2>
-<h3 id="simple-smac-with-automatic-parameter-estimation">Simple SMAC with automatic parameter estimation</h3>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Automatically estimate AOD and water vapor</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">i.hyper.smac</span> input=hyperspectral output=corrected elevation=dem sensor=AVIRIS</span></code></pre></div>
+<h1 id="i.hyper.smac">i.hyper.smac - SMAC Atmospheric Correction for Hyperspectral Data</h1>
 
-<h3 id="simple-smac-with-manual-parameters">Simple SMAC with manual parameter specification</h3>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Manually specify AOD and water vapor</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">i.hyper.smac</span> input=hyperspectral output=corrected elevation=dem sensor=AVIRIS <span class="kw">\</span></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  aod=0.2 water_vapor=2.5</span></code></pre></div>
-<h3 id="simple-smac-with-specific-atmospheric-parameters">Simple SMAC
-with specific atmospheric parameters</h3>
-<div class="sourceCode" id="cb3"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">i.hyper.smac</span> input=hyperspectral output=corrected elevation=dem sensor=HYPERION <span class="dt">\</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  aod=0.2 water_vapor=2.5 solar_zenith=30</span></code></pre></div>
-<h3 id="libradtran-smac-with-custom-parameters">Libradtran SMAC with
-custom parameters</h3>
-<div class="sourceCode" id="cb4"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">i.hyper.smac</span> input=hyperspectral output=corrected elevation=dem method=libradtran <span class="dt">\</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  sensor=AVIRIS aod=0.15 water_vapor=2.0 solar_zenith=25 <span class="dt">\</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  aerosol_type=maritime visibility=50</span></code></pre></div>
-<h3 id="using-an-aot-look-up-table-with-libradtran">Using an AOT look-up
-table with Libradtran</h3>
-<div class="sourceCode" id="cb5"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">i.hyper.smac</span> input=hyperspectral output=corrected elevation=dem method=libradtran <span class="dt">\</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  sensor=PRISMA aot_lut=aot_lookup.txt solar_zenith=30</span></code></pre></div>
-<h2 id="notes">NOTES</h2>
+<h2 id="description">DESCRIPTION</h2>
+<p><b>i.hyper.smac</b> performs atmospheric correction on hyperspectral
+imagery using the Simplified Method for Atmospheric Correction (SMAC).
+It converts top-of-atmosphere (TOA) radiance to surface reflectance by
+removing atmospheric effects. The module is based on the original SMAC
+algorithm developed by
+<a href="https://doi.org/10.1016/0034-4257(94)90119-8">Rahman and Dedieu (1994)</a>
+and the implementation by
+<a href="https://github.com/olivierhagolle/SMAC">Olivier Hagolle</a>.</p>
+
+<p>Two correction methods are available:</p>
+<ol>
+<li><b>simple</b>: Fast analytical correction using wavelength-dependent
+empirical formulas</li>
+<li><b>libradtran</b>: Accurate correction using pre-generated SMAC coefficients
+fitted to <a href="https://www.libradtran.org/">libRadtran</a> radiative
+transfer simulations</li>
+</ol>
+
+<p>The module corrects for:</p>
+<ul>
+<li><b>Rayleigh scattering</b>: Molecular scattering that increases toward shorter wavelengths</li>
+<li><b>Aerosol scattering and absorption</b>: Particle-related atmospheric effects</li>
+<li><b>Gaseous absorption</b>: H<sub>2</sub>O, O<sub>3</sub>, O<sub>2</sub>,
+CO<sub>2</sub>, CH<sub>4</sub>, NO<sub>2</sub>, CO absorption bands</li>
+</ul>
+
+<h3>Algorithm</h3>
+<p>The surface reflectance (&rho;) is computed from TOA reflectance (&rho;*) using:</p>
+<pre>
+&rho; = (&rho;* - &rho;<sub>atm</sub>) / (T<sub>gas</sub> &times; T<sub>scat</sub> &times; (1 + s&middot;&rho;))
+</pre>
+<p>Where:</p>
+<ul>
+<li>&rho;<sub>atm</sub> = atmospheric path reflectance</li>
+<li>T<sub>gas</sub> = total gaseous transmission</li>
+<li>T<sub>scat</sub> = scattering transmission (Rayleigh + aerosol)</li>
+<li>s = spherical albedo of the atmosphere</li>
+</ul>
+
+<p>The SMAC coefficients encode these atmospheric functions as polynomial
+formulas fitted to full radiative transfer simulations:</p>
+<ul>
+<li><b>Gaseous transmission</b>: T = exp(a &middot; (u&middot;m)<sup>n</sup>)</li>
+<li><b>Total transmission</b>: T = a<sub>0T</sub> + a<sub>1T</sub>&middot;&tau;/cos(&theta;)
++ (a<sub>2T</sub>&middot;P + a<sub>3T</sub>)/(1+cos(&theta;))</li>
+<li><b>Spherical albedo</b>: s = a<sub>0s</sub>&middot;P + a<sub>3s</sub>
++ a<sub>1s</sub>&middot;&tau; + a<sub>2s</sub>&middot;&tau;<sup>2</sup></li>
+<li><b>Rayleigh optical thickness</b>: Hansen &amp; Travis (1974) analytical formula</li>
+<li><b>Aerosol scaling</b>: &Aring;ngstr&ouml;m law
+&tau;(&lambda;) = &tau;(550) &middot; (&lambda;/550)<sup>-&alpha;</sup></li>
+</ul>
+
 <h3>Automatic Parameter Estimation</h3>
 <ul>
-  <li><strong>AOD Estimation</strong>: Uses the Dense Dark Vegetation (DDV) method, which identifies dark vegetation pixels and uses their reflectance in the blue region</li>
-  <li><strong>Water Vapor Estimation</strong>: Uses atmospheric absorption features around 940nm and 1130nm</li>
-  <li><strong>Fallback Values</strong>: If estimation fails, default values are used (AOD=0.15, Water Vapor=2.0 g/cm²)</li>
+<li><b>AOD</b>: Dense Dark Vegetation (DDV) method, identifying dark vegetation
+pixels and inferring AOD from blue band reflectance</li>
+<li><b>Water Vapor</b>: Differential absorption technique with bands near 940nm
+and reference bands at 865nm</li>
+<li><b>Ozone</b>: Chappuis band method (500-700nm), converted from DU to cm-atm</li>
 </ul>
+
+<h2 id="parameters">PARAMETERS</h2>
+
+<h3>Input/Output</h3>
+<ul>
+<li><b>input</b> - Input 3D raster map (TOA radiance in W/m<sup>2</sup>/sr/&mu;m)</li>
+<li><b>output</b> - Output 3D raster map (surface reflectance)</li>
+<li><b>dem</b> - Digital Elevation Model in meters for atmospheric pressure correction</li>
+</ul>
+
+<h3>Method Selection</h3>
+<ul>
+<li><b>method</b> - Atmospheric correction method: <em>simple</em> or
+<em>libradtran</em> (default: simple)</li>
+</ul>
+
+<h3>Atmospheric Parameters</h3>
+<ul>
+<li><b>sensor</b> - Sensor type: PRISMA, AVIRIS, AVIRIS_NG, HYPERION, ENMAP,
+OSK_GHOST, PIXXEL, ESPER, IPERLITE, KUVASPACE_23, KUVASPACE_32, WYVERN_23,
+WYVERN_32, HYP4U, TANAGER</li>
+<li><b>solar_zenith</b> - Solar zenith angle in degrees (required)</li>
+<li><b>solar_azimuth</b> - Solar azimuth angle in degrees (default: 0)</li>
+<li><b>view_zenith</b> - View zenith angle in degrees (default: 0)</li>
+<li><b>view_azimuth</b> - View azimuth angle in degrees (default: 0)</li>
+<li><b>aod</b> - Aerosol Optical Depth at 550nm (if not provided, estimated automatically)</li>
+<li><b>water_vapor</b> - Water vapor content in g/cm<sup>2</sup> (if not provided, estimated)</li>
+<li><b>ozone</b> - Ozone content in cm-atm (default: 0.3)</li>
+<li><b>pressure</b> - Atmospheric pressure in hPa (if not provided, estimated from DEM)</li>
+<li><b>aerosol_model</b> - Aerosol type: continental, maritime, urban, desert
+(default: continental)</li>
+<li><b>visibility</b> - Visibility in km (if not provided, estimated from AOD)</li>
+</ul>
+
+<h3>Flags</h3>
+<ul>
+<li><b>-k</b> - Keep temporary bands (for debugging)</li>
+<li><b>-g</b> - Generate SMAC coefficients from libRadtran at runtime instead
+of using pre-generated files. Requires libRadtran and scipy. Only applies to
+<em>method=libradtran</em>. Generated coefficients are cached to the COEFS
+directory for reuse in subsequent runs.</li>
+</ul>
+
+<h2 id="examples">EXAMPLES</h2>
+
+<h3>Basic atmospheric correction with automatic parameter estimation</h3>
+<pre class="code"><code>
+i.hyper.smac input=tanager_toa output=tanager_sr dem=elevation \
+    solar_zenith=29 method=libradtran
+</code></pre>
+
+<h3>Correction with specified atmospheric parameters</h3>
+<pre class="code"><code>
+i.hyper.smac input=prisma_toa output=prisma_sr dem=elevation \
+    solar_zenith=28 solar_azimuth=145 method=libradtran \
+    aod=0.12 water_vapor=1.8 ozone=0.32
+</code></pre>
+
+<h3>Maritime aerosol model for coastal scenes</h3>
+<pre class="code"><code>
+i.hyper.smac input=coastal_toa output=coastal_sr dem=elevation \
+    solar_zenith=40 method=libradtran \
+    aerosol_model=maritime aod=0.08 water_vapor=3.5
+</code></pre>
+
+<h3>Off-nadir viewing geometry</h3>
+<pre class="code"><code>
+i.hyper.smac input=offnadir_toa output=offnadir_sr dem=elevation \
+    solar_zenith=30 solar_azimuth=120 \
+    view_zenith=15 view_azimuth=270 \
+    method=libradtran aod=0.2
+</code></pre>
+
+<h3>Runtime coefficient generation with -g flag</h3>
+<pre class="code"><code>
+# Generate SMAC coefficients from libRadtran on the fly
+i.hyper.smac input=tanager_toa output=tanager_sr dem=elevation \
+    solar_zenith=29 method=libradtran aerosol_model=continental -g
+</code></pre>
+
+<h2 id="notes">NOTES</h2>
+
+<h3>Input Data Requirements</h3>
+<ul>
+<li>Input must be a 3D raster (GRASS RASTER3D) with spectral bands as the third dimension</li>
+<li>Values should be in TOA radiance (W/m<sup>2</sup>/sr/&mu;m)</li>
+<li>Band wavelengths and FWHM should be stored in the raster metadata (as set by
+<em>i.hyper.import</em>)</li>
+</ul>
+
+<h3>SMAC Coefficient Files</h3>
+<p>The <em>libradtran</em> method uses pre-generated SMAC coefficient files from
+the <code>COEFS/</code> directory. Each file contains 49 coefficients (19 lines)
+encoding the atmospheric correction model for one wavelength and aerosol type.</p>
+
+<p><b>Pre-generated coefficients:</b></p>
+<ul>
+<li>Wavelength range: 350-2500nm at 10nm intervals (216 wavelengths)</li>
+<li>Aerosol models: Continental, Maritime, Urban, Desert</li>
+<li>Total: 864 coefficient files</li>
+</ul>
+
+<p>At runtime, the module selects the nearest available coefficient file (max 5nm
+mismatch with the 10nm grid). For exact wavelength matching, use the <b>-g</b> flag.</p>
+
+<p><b>Generating custom coefficients:</b></p>
+<p>The <code>smac_coef_generator.py</code> tool generates coefficients by running
+libRadtran simulations and fitting the SMAC analytical formulas using
+<code>scipy.optimize.curve_fit</code>.</p>
+
+<pre class="code"><code>
+# Single wavelength
+python3 lib/smac_coef_generator.py single 550 --aerosol continental --verbose
+
+# Batch at 10nm resolution (default)
+python3 lib/smac_coef_generator.py batch
+
+# Batch at 1nm resolution for maximum spectral accuracy
+python3 lib/smac_coef_generator.py batch --min 350 --max 2500 --step 1
+
+# Single aerosol type at 1nm (faster, ~2h)
+python3 lib/smac_coef_generator.py batch --min 350 --max 2500 --step 1 \
+    --aerosol continental --verbose
+</code></pre>
+
+<h3>Aerosol Models</h3>
+<table border="1">
+<tr><th>Model</th><th>Description</th><th>Typical Conditions</th></tr>
+<tr><td>Continental</td><td>Rural/background aerosol</td><td>Inland areas, moderate pollution</td></tr>
+<tr><td>Maritime</td><td>Sea salt dominated</td><td>Coastal and oceanic areas</td></tr>
+<tr><td>Urban</td><td>Soot and industrial particles</td><td>Cities, industrial regions</td></tr>
+<tr><td>Desert</td><td>Mineral dust</td><td>Arid regions, dust events</td></tr>
+</table>
+
 <h3>Performance Considerations</h3>
 <ul>
-  <li>The simple method is faster but less accurate than the libradtran method</li>
-  <li>AOD and WVC estimation add computational overhead but improve accuracy</li>
-  <li>The module creates temporary files in the current mapset (use <code>--keep-temp</code> to preserve them)</li>
+<li>The simple method is faster but less accurate than the libradtran method</li>
+<li>The <b>-g</b> flag adds overhead (several seconds per band for libRadtran
+fitting) but generated coefficients are cached for reuse</li>
+<li>AOD and WVC estimation add computational overhead but improve accuracy</li>
+<li>For time-series processing, consider pre-computing atmospheric parameters
+and pre-generating coefficients</li>
 </ul>
-<h3>Requirements</h3>
+
+<h3>Limitations</h3>
 <ul>
-  <li>The libradtran method requires the libRadtran software to be installed and properly configured</li>
-  <li>Additional Python packages (scipy, pandas, scikit-learn) are required for parameter estimation</li>
+<li>Assumes horizontally homogeneous atmosphere</li>
+<li>Best accuracy for AOD &lt; 0.5 and SZA &lt; 70&deg;</li>
+<li>May underperform in presence of clouds, shadows, or extreme aerosol loading</li>
+<li>Water bodies and snow may not be accurately corrected</li>
 </ul>
+
 <h3>Supported Sensors</h3>
 <ul>
-  <li>PRISMA, AVIRIS, AVIRIS_NG, HYPERION, ENMAP, OSK_GHOST, PIXEL, ESPER, IPERLITE, KUVASPACE_23, KUVASPACE_32, WYVERN_23, WYVERN_32, HYP4U, TANAGER</li>
+<li>PRISMA, AVIRIS, AVIRIS_NG, HYPERION, ENMAP, OSK_GHOST, PIXXEL, ESPER,
+IPERLITE, KUVASPACE_23, KUVASPACE_32, WYVERN_23, WYVERN_32, HYP4U, TANAGER</li>
 </ul>
-<h3>Best Practices</h3>
-<ul>
-  <li>For best results, provide as much metadata as possible</li>
-  <li>Verify the estimated parameters using the module's output messages</li>
-  <li>Consider using the <code>--keep-temp</code> flag for debugging if results are unexpected</li>
-</ul>
+
 <h2 id="references">REFERENCES</h2>
 <ul>
-<li>Rahman, H., &amp; Dedieu, G. (1994). SMAC: a simplified method for
-the atmospheric correction of satellite measurements in the solar
-spectrum. <em>International Journal of Remote Sensing</em>, 15(1),
-123-143.</li>
-<li>Original SMAC implementation: <a
-href="https://github.com/olivierhagolle/SMAC">https://github.com/olivierhagolle/SMAC</a></li>
+<li>Rahman, H., &amp; Dedieu, G. (1994). SMAC: a simplified method for the
+atmospheric correction of satellite measurements in the solar spectrum.
+<em>International Journal of Remote Sensing</em>, 15(1), 123-143.
+<a href="https://doi.org/10.1080/01431169408954055">doi:10.1080/01431169408954055</a></li>
+<li>Hagolle, O. SMAC Python implementation:
+<a href="https://github.com/olivierhagolle/SMAC">https://github.com/olivierhagolle/SMAC</a></li>
+<li>libRadtran radiative transfer package:
+<a href="https://www.libradtran.org/">https://www.libradtran.org/</a></li>
+<li>Hansen, J.E. &amp; Travis, L.D. (1974). Light scattering in planetary atmospheres.
+<em>Space Science Reviews</em>, 16, 527-610.</li>
 </ul>
+
 <h2 id="authors">AUTHORS</h2>
 <ul>
-<li>Original SMAC algorithm: H. Rahman and G. Dedieu</li>
-<li>GRASS GIS implementation: Yann</li>
+<li>Original SMAC algorithm: H. Rahman and G. Dedieu (CESBIO)</li>
+<li>GRASS GIS implementation: Yann Chemin</li>
 </ul>
-<h2 id="source-code">SOURCE CODE</h2>
-<p>Available at: <a href="https://github.com/OSGeo/grass-addons">GRASS
-GIS Addons Repository</a></p>
+
 <h2 id="see-also">SEE ALSO</h2>
 <ul>
-<li><a
-href="https://grass.osgeo.org/grass-stable/manuals/r.smap.html">r.smap</a></li>
-<li><a
-href="https://grass.osgeo.org/grass-stable/manuals/i.atcorr.html">i.atcorr</a></li>
-<li><a
-href="https://grass.osgeo.org/grass-stable/manuals/i.vi.html">i.vi</a></li>
+<li><a href="https://grass.osgeo.org/grass-stable/manuals/i.atcorr.html">i.atcorr</a>
+- Atmospheric correction using 6S model</li>
+<li><a href="https://grass.osgeo.org/grass-stable/manuals/i.vi.html">i.vi</a>
+- Vegetation indices</li>
+<li><a href="https://grass.osgeo.org/grass-stable/manuals/r3.info.html">r3.info</a>
+- 3D raster information</li>
 </ul>

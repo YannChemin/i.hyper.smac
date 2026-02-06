@@ -41,11 +41,11 @@ i.hyper.smac/
 │   └── utils.py             # Shared utilities
 ├── scripts/
 │   └── generate_hyperspectral_coefs.py  # Batch coefficient generation
-├── COEFS/                   # Pre-generated coefficient files
-│   ├── CONTINENTAL/         # Continental aerosol (43 files)
-│   ├── MARITIME/            # Maritime aerosol (43 files)
-│   ├── URBAN/               # Urban aerosol (43 files)
-│   └── DESERT/              # Desert aerosol (43 files)
+├── COEFS/                   # Pre-generated coefficient files (10nm, 350-2500nm)
+│   ├── CONTINENTAL/         # Continental aerosol (216 files)
+│   ├── MARITIME/            # Maritime aerosol (216 files)
+│   ├── URBAN/               # Urban aerosol (216 files)
+│   └── DESERT/              # Desert aerosol (216 files)
 ├── tests/                   # Unit tests
 │   ├── test_smac.py         # SMAC algorithm tests
 │   └── test_utils.py        # Utility function tests
@@ -124,27 +124,130 @@ i.hyper.smac input=toa_radiance output=surface_reflectance \
 - Tanager (Planet)
 - Generic VNIR/Full-range configurations
 
-## Coefficient Generation
+## SMAC Coefficient Generation
 
-### Using Pre-generated Coefficients
-The `COEFS/` directory contains coefficients for 400-2500nm at 50nm intervals for all four aerosol types (172 files total).
+SMAC uses 49 coefficients per spectral band to parameterize atmospheric
+transmission, scattering, and absorption. These coefficients are generated
+by fitting the SMAC analytical formulas to libRadtran radiative transfer
+simulations across a range of atmospheric conditions (varying AOD, SZA,
+surface albedo, gas amounts).
 
-### Generate New Coefficients
+The fitted parameters include:
+- **Gaseous absorption** (H2O, O3): `T = exp(a * (u*m)^n)`
+- **Transmission**: `T = a0T + a1T*tau/cos(theta) + (a2T*P + a3T)/(1+cos(theta))`
+- **Spherical albedo**: `s = a0s*P + a3s + a1s*tau + a2s*tau^2`
+- **Rayleigh optical thickness** (analytical, Hansen & Travis 1974)
+- **Aerosol scaling** (Angstrom law): `tau(lambda) = tau(550) * (lambda/550)^(-alpha)`
 
-#### With libRadtran (recommended)
-```bash
-cd scripts
-python generate_hyperspectral_coefs.py --sensor PRISMA --aerosol continental
+### Pre-generated Coefficients
+
+The `COEFS/` directory ships with coefficients at 10nm intervals from 350-2500nm
+for all four aerosol models (864 files total):
+
+```
+COEFS/
+├── CONTINENTAL/   coef_350nm_CONTINENTAL.dat ... coef_2500nm_CONTINENTAL.dat
+├── MARITIME/      coef_350nm_MARITIME.dat    ... coef_2500nm_MARITIME.dat
+├── URBAN/         coef_350nm_URBAN.dat       ... coef_2500nm_URBAN.dat
+└── DESERT/        coef_350nm_DESERT.dat      ... coef_2500nm_DESERT.dat
 ```
 
-#### Analytical Mode (no libRadtran required)
+At runtime, `find_coef_file()` selects the nearest available wavelength file
+(max 5nm mismatch with the 10nm grid).
+
+### Generating Coefficients with `smac_coef_generator.py`
+
+The generator runs libRadtran simulations and uses `scipy.optimize.curve_fit`
+to fit the SMAC formulas. It requires **libRadtran** and **scipy**.
+
+#### Single wavelength
+
 ```bash
-python generate_hyperspectral_coefs.py --sensor AVIRIS --analytical
+# Generate coefficients for 550nm, continental aerosol
+python3 lib/smac_coef_generator.py single 550 --aerosol continental --verbose
+
+# Specify output file and FWHM
+python3 lib/smac_coef_generator.py single 940 --fwhm 5 --output coef_940nm.dat --verbose
 ```
 
-#### Custom Wavelength Range
+#### Batch generation (10nm resolution)
+
 ```bash
-python generate_hyperspectral_coefs.py --start 400 --end 1000 --step 5 --fwhm 5
+# Default: 350-2500nm at 10nm steps, all four aerosol types
+python3 lib/smac_coef_generator.py batch
+
+# Custom range and step
+python3 lib/smac_coef_generator.py batch --min 400 --max 1000 --step 10
+
+# Single aerosol type
+python3 lib/smac_coef_generator.py batch --aerosol continental --verbose
+
+# Custom output directory
+python3 lib/smac_coef_generator.py batch --output-dir /path/to/coefs
+```
+
+#### Batch generation at 1nm resolution
+
+For maximum spectral accuracy (e.g., narrow-band sensors or resolving
+sharp gas absorption features), generate at 1nm intervals. This produces
+2151 files per aerosol type (8604 total) and takes several hours:
+
+```bash
+# All aerosol types, 1nm steps (350-2500nm)
+python3 lib/smac_coef_generator.py batch --min 350 --max 2500 --step 1
+
+# Single aerosol type for faster generation (~2h instead of ~8h)
+python3 lib/smac_coef_generator.py batch --min 350 --max 2500 --step 1 \
+    --aerosol continental --verbose
+
+# Only the VNIR range at 1nm
+python3 lib/smac_coef_generator.py batch --min 400 --max 1000 --step 1
+
+# Run in background with progress logging
+nohup python3 lib/smac_coef_generator.py batch --min 350 --max 2500 --step 1 \
+    > coef_generation.log 2>&1 &
+tail -f coef_generation.log
+```
+
+### Runtime Generation with the `-g` Flag
+
+Instead of using pre-generated files, coefficients can be generated on the
+fly from libRadtran during atmospheric correction. Generated coefficients
+are cached to the `COEFS/` directory for reuse:
+
+```bash
+i.hyper.smac input=toa_radiance output=surface_reflectance \
+    dem=elevation method=libradtran solar_zenith=30 \
+    aerosol_model=continental -g
+```
+
+This is useful when:
+- Working at wavelengths not covered by pre-generated files
+- Needing exact-wavelength coefficients without spectral interpolation
+- Testing different aerosol models without pre-generating all files
+
+### Python API
+
+```python
+from lib.smac_coef_generator import generate_smac_coefficients, generate_batch
+
+# Generate a single coefficient set
+coef = generate_smac_coefficients(
+    wavelength_nm=550.0,
+    fwhm_nm=10.0,
+    aerosol_type='continental',
+    output_file='coef_550nm.dat',
+    verbose=True
+)
+
+# Batch generation
+generate_batch(
+    wavelength_min=400,
+    wavelength_max=2500,
+    step=10,
+    aerosol_types=['continental', 'maritime'],
+    output_dir='COEFS/'
+)
 ```
 
 ## Library API

@@ -148,6 +148,12 @@
 # % guisection: Optional
 # %end
 
+# %flag
+# % key: g
+# % description: Generate SMAC coefficients from libRadtran (requires libRadtran and scipy)
+# % guisection: Advanced
+# %end
+
 import sys
 import os
 import numpy as np
@@ -522,12 +528,13 @@ def apply_smac_correction_simple(input_raster, output_raster, bands,
                         gs.run_command('g.remove', flags='f', type='raster', 
                                      name=band_name, quiet=True)
 
-def apply_smac_correction_libradtran(input_raster, output_raster, bands, 
+def apply_smac_correction_libradtran(input_raster, output_raster, bands,
                                    aod, water_vapor, ozone, pressure,
                                    solar_zenith, solar_azimuth,
                                    view_zenith, view_azimuth,
                                    sensor_type, visibility=None,
-                                   aerosol_model='continental', keep_temp=False):
+                                   aerosol_model='continental', keep_temp=False,
+                                   generate_coefs=False):
     """Apply libradtran-based SMAC atmospheric correction.
     
     Args:
@@ -640,8 +647,8 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
             # Formula: refl_toa = (π * L_toa * d²) / (E0 * cos(θs))
             refl_toa_band = (np.pi * rad_toa_band * d2) / (E0_band * np.cos(theta_s_rad))
             
-            # Clip to valid reflectance range [0, 1]
-            refl_toa_band = np.clip(refl_toa_band, 0.0, 1.0)
+            # Keep negative values as-is for debugging (indicates calibration issues)
+            # refl_toa_band = np.clip(refl_toa_band, 0.0, 1.0)
             
             try:
                 # Get SMAC coefficients from libRadtran
@@ -655,6 +662,7 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
                     ozone=ozone,
                     pressure=pressure,
                     aerosol_model=aerosol_model,
+                    generate=generate_coefs,
                     verbose=gs.verbosity() > 0
                 )
                 
@@ -672,8 +680,8 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
                     coef=coefs
                 )
                 
-                # Clip to valid reflectance range
-                refl_boa_band = np.clip(refl_boa_band, 0.0, 1.0)
+                # Keep unclipped for debugging (values > 1 indicate correction issues)
+                # refl_boa_band = np.clip(refl_boa_band, 0.0, 1.0)
                 
                 # Write corrected band back to a raster
                 output_band = f"tmp_corr_{os.getpid()}_{band_num}"
@@ -791,6 +799,7 @@ def main():
     output_raster = options['output']
     dem = options['dem']
     keep_temp = flags['k']
+    generate_coefs = flags['g']
     method = options.get('method', 'simple')
     
     # Get viewing geometry
@@ -903,15 +912,22 @@ def main():
     gs.message(f"  Ozone: {ozone:.2f} cm-atm")
     gs.message(f"  Pressure: {pressure:.1f} hPa")
     
+    if generate_coefs and method != 'libradtran':
+        gs.warning("The -g flag (generate coefficients from libRadtran) is only used "
+                   "with method=libradtran. Ignoring -g flag.")
+        generate_coefs = False
+
     if method == 'libradtran':
         sensor_type = options.get('sensor', '').upper()
         visibility = float(options['visibility']) if options.get('visibility') else None
         aerosol_model = options.get('aerosol_model', 'continental') # continental is default
-        
+
         gs.message(f"  Sensor: {sensor_type}")
         gs.message(f"  Aerosol model: {aerosol_model}")
         if visibility:
             gs.message(f"  Visibility: {visibility} km")
+        if generate_coefs:
+            gs.message(f"  Coefficient generation: ENABLED (libRadtran + scipy fitting)")
     
     gs.message("=" * 60)
     
@@ -931,7 +947,8 @@ def main():
             solar_zenith, solar_azimuth,
             view_zenith, view_azimuth,
             sensor_type, visibility,
-            aerosol_model, keep_temp
+            aerosol_model, keep_temp,
+            generate_coefs
         )
     else:
         gs.fatal(f"Unknown method: {method}. Choose 'simple' or 'libradtran'.")
