@@ -845,6 +845,11 @@ def main():
             input_raster=input_raster,
             dem=dem,
             method='auto',
+            solar_zenith=solar_zenith,
+            view_zenith=view_zenith,
+            solar_azimuth=solar_azimuth,
+            view_azimuth=view_azimuth,
+            pressure=pressure,
             verbose=gs.verbosity() > 1
         )
         gs.message(f"Estimated AOD @ 550nm: {aod:.3f}")
