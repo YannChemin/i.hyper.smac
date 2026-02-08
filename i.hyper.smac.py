@@ -892,6 +892,8 @@ def main():
                 input_raster=input_raster,
                 dem=dem,
                 method='average',
+                solar_zenith=solar_zenith,
+                view_zenith=view_zenith,
                 verbose=gs.verbosity() > 0
             )
             gs.message(f"Estimated water vapor content: {water_vapor:.2f} g/cm²")

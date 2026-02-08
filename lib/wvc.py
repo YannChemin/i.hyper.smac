@@ -17,18 +17,25 @@ except ImportError:
     from utils import get_band_info, find_nearest_band, convert_wavelength_to_nm, get_raster3d_info
 
 # Water vapor absorption features (in nm)
+# Window edges placed outside absorption wings for clean continuum shoulders
 WATER_VAPOR_BANDS = {
     '940': {
         'center': 940,
-        'window': (900, 980),  # Window for continuum removal
-        'absorption': (930, 950)  # Absorption feature range
+        'window': (860, 1010),       # Shoulders in clean windows
+        'absorption': (925, 955)     # Core absorption region
     },
     '1130': {
         'center': 1130,
-        'window': (1080, 1180),
-        'absorption': (1120, 1140)
+        'window': (1060, 1200),      # Shoulders in clean windows
+        'absorption': (1110, 1150)   # Core absorption region
     }
 }
+
+# Empirical coefficients for band-depth to WVC conversion
+# Based on k_abs values: 940nm ~0.036 cm²/g → scale ~28, 1130nm ~0.024 cm²/g → scale ~42
+# After airmass normalization: WVC ≈ band_depth / k_abs
+COEFS_940 = {'scale': 28.0, 'offset': 0.0}
+COEFS_1130 = {'scale': 42.0, 'offset': 0.0}
 
 # Default parameters for WVC estimation
 DEFAULT_WVC_MIN = 0.1  # g/cm²
@@ -38,15 +45,20 @@ DEFAULT_WVC_MAX = 8.0  # g/cm²
 class WVCEstimator:
     """Class for estimating Water Vapor Content from hyperspectral data."""
     
-    def __init__(self, input_raster, dem, sensor_config=None, verbose=False):
+    def __init__(self, input_raster, dem, sensor_config=None,
+                 solar_zenith=30.0, view_zenith=0.0, verbose=False):
         """Initialize the WVC estimator.
-        
+
         Args:
             input_raster (str): Name of the input 3D hyperspectral raster
             dem (str): Name of the digital elevation model (DEM) raster
             sensor_config (dict, optional): Sensor configuration dictionary
+            solar_zenith (float): Solar zenith angle in degrees
+            view_zenith (float): View zenith angle in degrees
             verbose (bool, optional): Enable verbose output
         """
+        import math
+
         self.input_raster = input_raster
         self.dem = dem
         self.sensor_config = sensor_config or {}
@@ -54,7 +66,11 @@ class WVCEstimator:
         self.band_info = []
         self.wvc_map = None
         self.temp_maps = []  # Track temporary maps for cleanup
-        
+
+        # Two-way air mass factor for path length correction
+        self.airmass = (1.0 / math.cos(math.radians(solar_zenith)) +
+                        1.0 / math.cos(math.radians(view_zenith)))
+
         # Get band information
         self._get_band_info()
     
@@ -120,6 +136,46 @@ class WVCEstimator:
             dict: Band information for the closest band
         """
         return min(self.band_info, key=lambda x: abs(x['wavelength'] - target_wl))
+
+    def _select_nearest_bands(self, bands, target_wl, n=3):
+        """Select the n bands closest to a target wavelength.
+
+        Args:
+            bands (list): List of band dictionaries to select from
+            target_wl (float): Target wavelength in nm
+            n (int): Number of bands to select
+
+        Returns:
+            list: Up to n bands sorted by distance to target_wl
+        """
+        sorted_bands = sorted(bands, key=lambda b: abs(b['wavelength'] - target_wl))
+        return sorted_bands[:min(n, len(sorted_bands))]
+
+    def _extract_and_average_bands(self, bands_list, label):
+        """Extract multiple bands from the 3D raster and average them.
+
+        Args:
+            bands_list (list): List of band dictionaries to extract and average
+            label (str): Label for the temporary raster name
+
+        Returns:
+            str: Name of the averaged 2D raster
+        """
+        if len(bands_list) == 1:
+            return self._extract_band_to_2d(bands_list[0]['band'])
+
+        extracted = []
+        for b in bands_list:
+            map_name = self._extract_band_to_2d(b['band'])
+            extracted.append(map_name)
+
+        avg_map = f"tmp_wvc_avg_{label}_{os.getpid()}"
+        sum_expr = " + ".join(extracted)
+        expr = f"{avg_map} = ({sum_expr}) / {len(extracted)}.0"
+        gs.run_command('r.mapcalc', expression=expr, overwrite=True,
+                       quiet=not self.verbose)
+        self.temp_maps.append(avg_map)
+        return avg_map
 
     def parse_wavelength_from_metadata(self, band_num):
         """Parse wavelength from band metadata by extracting to temporary 2D raster."""
@@ -251,10 +307,13 @@ class WVCEstimator:
     
     def _estimate_wvc_absorption_feature(self, feature_name):
         """Estimate WVC using a specific water vapor absorption feature.
-        
+
+        Uses multi-band averaging for improved SNR and air mass normalization
+        for path length correction.
+
         Args:
             feature_name (str): Name of the absorption feature ('940' or '1130')
-            
+
         Returns:
             tuple: (wvc_map, mean_wvc) where wvc_map is the WVC raster and mean_wvc is the mean value
         """
@@ -262,102 +321,101 @@ class WVCEstimator:
         center_wl = feature['center']
         min_wl, max_wl = feature['window']
         abs_min, abs_max = feature['absorption']
-        
+
         # Find bands in the window
         window_bands = self._find_bands_in_range(min_wl, max_wl)
         if len(window_bands) < 3:
             raise ValueError(f"Not enough bands in the {center_wl}nm window "
                            f"(found {len(window_bands)}, need at least 3)")
-        
-        # Find absorption band (closest to center wavelength)
-        abs_band = min(window_bands, key=lambda x: abs(x['wavelength'] - center_wl))
-        
-        # Find continuum bands (outside absorption feature)
+
+        # Separate into continuum shoulder bands and absorption bands
         left_bands = [b for b in window_bands if b['wavelength'] < abs_min]
         right_bands = [b for b in window_bands if b['wavelength'] > abs_max]
-        
-        if not left_bands or not right_bands:
-            raise ValueError(f"Could not find continuum bands for {center_wl}nm feature. "
-                           f"Left: {len(left_bands)}, Right: {len(right_bands)}")
-        
-        # Use the closest bands to the absorption feature for continuum
-        left_band = max(left_bands, key=lambda x: x['wavelength'])
-        right_band = min(right_bands, key=lambda x: x['wavelength'])
-        
+        abs_bands = [b for b in window_bands
+                     if abs_min <= b['wavelength'] <= abs_max]
+
+        if not left_bands or not right_bands or not abs_bands:
+            raise ValueError(f"Could not find all required bands for {center_wl}nm feature. "
+                           f"Left: {len(left_bands)}, Abs: {len(abs_bands)}, "
+                           f"Right: {len(right_bands)}")
+
+        # Select up to 3 bands nearest each reference point for averaging (Fix 4)
+        # Left shoulder: bands closest to the boundary between window and absorption
+        left_selected = self._select_nearest_bands(left_bands, abs_min, n=3)
+        # Absorption center: bands closest to feature center wavelength
+        abs_selected = self._select_nearest_bands(abs_bands, center_wl, n=3)
+        # Right shoulder: bands closest to the boundary between absorption and window
+        right_selected = self._select_nearest_bands(right_bands, abs_max, n=3)
+
         if self.verbose:
             gs.message(f"Using bands for {center_wl}nm WVC estimation:")
-            gs.message(f"  Left continuum: {left_band['wavelength']:.1f}nm (band {left_band['band']})")
-            gs.message(f"  Absorption: {abs_band['wavelength']:.1f}nm (band {abs_band['band']})")
-            gs.message(f"  Right continuum: {right_band['wavelength']:.1f}nm (band {right_band['band']})")
-        
-        # Extract bands from 3D raster
-        gs.message(f"Extracting bands for {center_wl}nm WVC estimation:")
-        left_map = self._extract_band_to_2d(left_band['band'])
-        gs.message(f"Left band: {left_map}")
-        abs_map = self._extract_band_to_2d(abs_band['band'])
-        gs.message(f"Absorption band: {abs_map}")
-        right_map = self._extract_band_to_2d(right_band['band'])
-        gs.message(f"Right band: {right_map}")
-        self.temp_maps.extend([left_map, abs_map, right_map])
-        
-        # Create a mask for valid pixels (e.g., clear land, not clouds or water)
+            for label, sel in [("Left shoulder", left_selected),
+                               ("Absorption", abs_selected),
+                               ("Right shoulder", right_selected)]:
+                wls = ", ".join(f"{b['wavelength']:.1f}" for b in sel)
+                gs.message(f"  {label}: {wls} nm ({len(sel)} bands averaged)")
+
+        # Extract and average bands at each reference point
+        gs.message(f"Extracting bands for {center_wl}nm WVC estimation...")
+        left_map = self._extract_and_average_bands(left_selected,
+                                                    f"left_{feature_name}")
+        abs_map = self._extract_and_average_bands(abs_selected,
+                                                   f"abs_{feature_name}")
+        right_map = self._extract_and_average_bands(right_selected,
+                                                     f"right_{feature_name}")
+
+        # Create a mask for valid pixels
         ndvi_map = self._calculate_ndvi()
         valid_mask = f"tmp_wvc_valid_mask_{os.getpid()}"
-        # Use pixels with moderate NDVI (land, not water or clouds)
         expr = f"{valid_mask} = if({ndvi_map} > 0.1 && {ndvi_map} < 0.9, 1, null())"
-        gs.run_command('r.mapcalc', expression=expr, overwrite=True, quiet=not self.verbose)
+        gs.run_command('r.mapcalc', expression=expr, overwrite=True,
+                       quiet=not self.verbose)
         self.temp_maps.append(valid_mask)
-        
-        # Calculate continuum-removed reflectance (band depth)
-        # Continuum is a linear interpolation between left and right shoulders
-        wl_left = left_band['wavelength']
-        wl_abs = abs_band['wavelength']
-        wl_right = right_band['wavelength']
-        
-        # Weight for linear interpolation
+
+        # Calculate continuum-removed band depth
+        # Use mean wavelengths of the averaged bands for interpolation weights
+        wl_left = sum(b['wavelength'] for b in left_selected) / len(left_selected)
+        wl_abs = sum(b['wavelength'] for b in abs_selected) / len(abs_selected)
+        wl_right = sum(b['wavelength'] for b in right_selected) / len(right_selected)
+
         weight = (wl_abs - wl_left) / (wl_right - wl_left)
-        
-        # Calculate continuum and band depth
+
         band_depth = f"tmp_wvc_depth_{feature_name}_{os.getpid()}"
         expr = (f"{band_depth} = if({valid_mask}, "
                 f"1.0 - ({abs_map} / "
                 f"({left_map} + ({right_map} - {left_map}) * {weight} + 0.0001)), "
                 f"null())")
-        gs.run_command('r.mapcalc', expression=expr, overwrite=True, quiet=not self.verbose)
+        gs.run_command('r.mapcalc', expression=expr, overwrite=True,
+                       quiet=not self.verbose)
         self.temp_maps.append(band_depth)
-        
-        # Convert band depth to WVC (g/cm²)
-        # This uses an empirical relationship between band depth and water vapor
-        # The relationship depends on the specific absorption feature
-        if feature_name == '940':
-            # 940nm feature: stronger absorption, more sensitive
-            scale_factor = 3.5
-            offset = 0.2
-        else:  # 1130nm
-            # 1130nm feature: weaker absorption, less sensitive
-            scale_factor = 5.0
-            offset = 0.5
-        
+
+        # Normalize band depth by air mass to get vertical column equivalent (Fix 1)
+        # and convert to WVC using calibrated coefficients (Fix 2)
+        coefs = COEFS_940 if feature_name == '940' else COEFS_1130
+        scale_factor = coefs['scale']
+        offset = coefs['offset']
+
         wvc_map = f"tmp_wvc_{feature_name}_{os.getpid()}"
-        expr = f"{wvc_map} = if({valid_mask}, {band_depth} * {scale_factor} + {offset}, null())"
-        gs.run_command('r.mapcalc', expression=expr, overwrite=True, quiet=not self.verbose)
+        expr = (f"{wvc_map} = if({valid_mask}, "
+                f"({band_depth} / {self.airmass}) * {scale_factor} + {offset}, "
+                f"null())")
+        gs.run_command('r.mapcalc', expression=expr, overwrite=True,
+                       quiet=not self.verbose)
         self.temp_maps.append(wvc_map)
-        
+
         # Get statistics
         try:
             stats = gs.parse_command('r.univar', map=wvc_map, flags='g')
             mean_wvc = float(stats['mean'])
-            
-            # Apply min/max constraints
             mean_wvc = max(DEFAULT_WVC_MIN, min(mean_wvc, DEFAULT_WVC_MAX))
-            
+
             if self.verbose:
-                gs.message(f"Estimated WVC from {center_wl}nm feature: {mean_wvc:.3f} g/cm²")
-            
+                gs.message(f"Estimated WVC from {center_wl}nm feature: "
+                          f"{mean_wvc:.3f} g/cm² (airmass={self.airmass:.2f})")
         except Exception as e:
             gs.warning(f"Failed to calculate WVC statistics: {e}")
-            mean_wvc = 2.0  # Default value
-        
+            mean_wvc = 2.0
+
         return wvc_map, mean_wvc
     
     def estimate_wvc(self, method='average'):
@@ -403,21 +461,31 @@ class WVCEstimator:
                 if method == '1130nm':
                     raise
         
-        # Average method
+        # Weighted combination method (Fix 5)
         if method == 'average':
             if wvc_940_map and wvc_1130_map:
-                # Average the two estimates
-                wvc_map = f"tmp_wvc_avg_{os.getpid()}"
-                expr = f"{wvc_map} = ({wvc_940_map} + {wvc_1130_map}) / 2.0"
-                gs.run_command('r.mapcalc', expression=expr, overwrite=True, quiet=not self.verbose)
+                # 940nm saturates at high WVC (band_depth > ~0.7)
+                # Use 940nm as primary (more sensitive), 1130nm for high-WVC
+                if wvc_940_val < 3.5:
+                    weight_940 = 0.7
+                else:
+                    weight_940 = 0.3
+                weight_1130 = 1.0 - weight_940
+
+                wvc_map = f"tmp_wvc_weighted_{os.getpid()}"
+                expr = (f"{wvc_map} = {weight_940} * {wvc_940_map} + "
+                        f"{weight_1130} * {wvc_1130_map}")
+                gs.run_command('r.mapcalc', expression=expr, overwrite=True,
+                               quiet=not self.verbose)
                 self.temp_maps.append(wvc_map)
-                
-                mean_wvc = (wvc_940_val + wvc_1130_val) / 2.0
+
+                mean_wvc = weight_940 * wvc_940_val + weight_1130 * wvc_1130_val
                 self.wvc_map = wvc_map
-                
+
                 if self.verbose:
-                    gs.message(f"Average WVC from both features: {mean_wvc:.3f} g/cm²")
-                
+                    gs.message(f"Weighted WVC (w940={weight_940:.1f}, "
+                              f"w1130={weight_1130:.1f}): {mean_wvc:.3f} g/cm²")
+
                 return wvc_map, mean_wvc
             elif wvc_940_map:
                 self.wvc_map = wvc_940_map
@@ -441,20 +509,26 @@ class WVCEstimator:
                              name=map_name, quiet=True)
 
 
-def estimate_wvc(input_raster, dem, method='average', sensor_config=None, verbose=False):
+def estimate_wvc(input_raster, dem, method='average', sensor_config=None,
+                 solar_zenith=30.0, view_zenith=0.0, verbose=False):
     """Convenience function to estimate WVC from hyperspectral data.
-    
+
     Args:
         input_raster (str): Name of the input 3D hyperspectral raster
         dem (str): Name of the digital elevation model (DEM) raster
         method (str, optional): WVC estimation method. Defaults to 'average'.
         sensor_config (dict, optional): Sensor configuration dictionary
+        solar_zenith (float): Solar zenith angle in degrees
+        view_zenith (float): View zenith angle in degrees
         verbose (bool, optional): Enable verbose output
-        
+
     Returns:
         tuple: (wvc_map, mean_wvc) where wvc_map is the WVC raster and mean_wvc is the mean value
     """
-    estimator = WVCEstimator(input_raster, dem, sensor_config, verbose)
+    estimator = WVCEstimator(input_raster, dem, sensor_config,
+                             solar_zenith=solar_zenith,
+                             view_zenith=view_zenith,
+                             verbose=verbose)
     try:
         wvc_map, mean_wvc = estimator.estimate_wvc(method)
         

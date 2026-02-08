@@ -54,12 +54,48 @@ formulas fitted to full radiative transfer simulations:</p>
 </ul>
 
 <h3>Automatic Parameter Estimation</h3>
+
+<p>When atmospheric parameters are not provided, the module estimates them
+from the hyperspectral data itself.</p>
+
+<h4>AOD (Aerosol Optical Depth)</h4>
+<p>Implements the MODIS Dark Target algorithm (Kaufman 1997, Levy 2007) adapted
+for hyperspectral data:</p>
 <ul>
-<li><b>AOD</b>: Dense Dark Vegetation (DDV) method, identifying dark vegetation
-pixels and inferring AOD from blue band reflectance</li>
-<li><b>Water Vapor</b>: Differential absorption technique with bands near 940nm
-and reference bands at 865nm</li>
-<li><b>Ozone</b>: Chappuis band method (500-700nm), converted from DU to cm-atm</li>
+<li>Extracts four key bands (blue 470nm, red 660nm, NIR 860nm, SWIR 2130nm)
+and converts radiance to TOA reflectance using E<sub>0</sub> from libRadtran
+(with analytical Planck-function fallback)</li>
+<li>Selects Dark Target pixels using NDVI and SWIR reflectance thresholds,
+filtered to the 20th&ndash;50th percentile of SWIR reflectance</li>
+<li>Predicts surface VIS reflectance from SWIR using empirical ratios
+(Kaufman 1997): &rho;<sub>blue</sub> = 0.25 &times; &rho;<sub>SWIR</sub>,
+&rho;<sub>red</sub> = 0.50 &times; &rho;<sub>SWIR</sub></li>
+<li>Inverts atmospheric path radiance to AOD using single-scattering
+approximation with Henyey&ndash;Greenstein phase function</li>
+<li>Derives the &Aring;ngstr&ouml;m exponent from blue/red AOD ratio and scales
+to 550nm</li>
+<li>Fallback chain: Dark Target &rarr; Dark Pixel &rarr; Constant (0.15)</li>
+</ul>
+
+<h4>Water Vapor Content (WVC)</h4>
+<p>Uses continuum-removal band depth at the 940nm and 1130nm water vapor
+absorption features:</p>
+<ul>
+<li>Widened absorption windows with shoulder bands placed in clean spectral
+regions (940nm: 860&ndash;1010nm, 1130nm: 1060&ndash;1200nm)</li>
+<li>Multi-band averaging: 3 bands averaged at each reference point (left
+shoulder, absorption center, right shoulder) for improved SNR</li>
+<li>Air mass normalization: band depth divided by two-way air mass factor
+(1/cos(SZA) + 1/cos(VZA)) to obtain vertical column equivalent</li>
+<li>Physically-calibrated coefficients based on H<sub>2</sub>O absorption
+cross-sections (scale &asymp;28 for 940nm, &asymp;42 for 1130nm)</li>
+<li>Weighted combination: 940nm weighted 0.7 in normal conditions; 1130nm
+weighted 0.7 when WVC &gt; 3.5 g/cm&sup2; (940nm feature saturates at high WVC)</li>
+</ul>
+
+<h4>Ozone</h4>
+<ul>
+<li>Chappuis band method (500&ndash;700nm), converted from DU to cm-atm</li>
 </ul>
 
 <h2 id="parameters">PARAMETERS</h2>
@@ -86,8 +122,10 @@ WYVERN_32, HYP4U, TANAGER</li>
 <li><b>solar_azimuth</b> - Solar azimuth angle in degrees (default: 0)</li>
 <li><b>view_zenith</b> - View zenith angle in degrees (default: 0)</li>
 <li><b>view_azimuth</b> - View azimuth angle in degrees (default: 0)</li>
-<li><b>aod</b> - Aerosol Optical Depth at 550nm (if not provided, estimated automatically)</li>
-<li><b>water_vapor</b> - Water vapor content in g/cm<sup>2</sup> (if not provided, estimated)</li>
+<li><b>aod</b> - Aerosol Optical Depth at 550nm (if not provided, estimated using
+Dark Target algorithm)</li>
+<li><b>water_vapor</b> - Water vapor content in g/cm<sup>2</sup> (if not provided,
+estimated from 940nm/1130nm absorption features with air mass correction)</li>
 <li><b>ozone</b> - Ozone content in cm-atm (default: 0.3)</li>
 <li><b>pressure</b> - Atmospheric pressure in hPa (if not provided, estimated from DEM)</li>
 <li><b>aerosol_model</b> - Aerosol type: continental, maritime, urban, desert
@@ -231,6 +269,15 @@ atmospheric correction of satellite measurements in the solar spectrum.
 <a href="https://www.libradtran.org/">https://www.libradtran.org/</a></li>
 <li>Hansen, J.E. &amp; Travis, L.D. (1974). Light scattering in planetary atmospheres.
 <em>Space Science Reviews</em>, 16, 527-610.</li>
+<li>Kaufman, Y.J., et al. (1997). Operational remote sensing of tropospheric aerosol
+over land from EOS moderate resolution imaging spectroradiometer.
+<em>Journal of Geophysical Research</em>, 102(D14), 17051-17067.</li>
+<li>Levy, R.C., et al. (2007). Second-generation operational algorithm: Retrieval of
+aerosol properties over land from inversion of MODIS spectral reflectance.
+<em>Journal of Geophysical Research</em>, 112, D13211.</li>
+<li>Gao, B.-C. &amp; Goetz, A.F.H. (1990). Column atmospheric water vapor and vegetation
+liquid water retrievals from airborne imaging spectrometer data.
+<em>Journal of Geophysical Research</em>, 95(D4), 3549-3564.</li>
 </ul>
 
 <h2 id="authors">AUTHORS</h2>

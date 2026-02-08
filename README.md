@@ -16,8 +16,8 @@ Based on the SMAC algorithm by Rahman & Dedieu (1994) and the implementation by 
 - **Hyperspectral Support**: Handles hundreds of spectral bands (400-2500nm)
 - **Multiple Sensors**: Pre-configured for PRISMA, AVIRIS, AVIRIS-NG, HYPERION, EnMAP, EMIT, Tanager, and more
 - **Automatic Parameter Estimation**:
-  - Aerosol Optical Depth (AOD) using Dense Dark Vegetation (DDV) method
-  - Water Vapor Content (WVC) using 940nm/1130nm absorption features
+  - Aerosol Optical Depth (AOD) using the MODIS Dark Target algorithm (Kaufman 1997, Levy 2007) with Dark Pixel and constant fallbacks
+  - Water Vapor Content (WVC) using continuum-removal band-depth at 940nm/1130nm with air mass correction, multi-band averaging, and weighted combination
   - Ozone from climatological data or TOMS/OMI
 - **Coefficient Generation**: Generate SMAC coefficients using libRadtran or analytical formulas
 - **Four Aerosol Models**: Continental, Maritime, Urban, Desert
@@ -263,9 +263,21 @@ coef = smac.coeff('COEFS/CONTINENTAL/coef_550nm_CONTINENTAL.dat')
 surface_refl = smac.smac_inv(toa_refl, theta_s, phi_s, theta_v, phi_v,
                               pressure, taup550, uo3, uh2o, coef)
 
-# Estimate atmospheric parameters
-aod = estimate_aod(red_band, nir_band, blue_band)
-wvc = estimate_wvc(band_940nm, band_865nm)
+# Estimate AOD (Dark Target with fallback chain)
+aod_map, aod = estimate_aod(
+    input_raster, dem, method='auto',
+    solar_zenith=30.0, view_zenith=0.0,
+    solar_azimuth=180.0, view_azimuth=0.0,
+    pressure=1013.25
+)
+
+# Estimate WVC (air mass-corrected, multi-band, weighted)
+wvc_map, wvc = estimate_wvc(
+    input_raster, dem, method='average',
+    solar_zenith=30.0, view_zenith=0.0
+)
+
+# Estimate ozone
 o3 = estimate_ozone(latitude, day_of_year)
 
 # Generate coefficients
@@ -324,6 +336,44 @@ T_gas = exp(a × (u × m)^n)
 ```
 Where λ is wavelength in micrometers.
 
+### AOD Estimation (Dark Target Algorithm)
+
+The AOD estimation implements the MODIS Dark Target algorithm (Kaufman 1997,
+Levy 2007) adapted for hyperspectral data:
+
+1. **Band selection**: Blue (470nm), Red (660nm), NIR (860nm), SWIR (2130nm)
+2. **Radiance-to-reflectance conversion**: Uses exo-atmospheric irradiance (E0)
+   from libRadtran with analytical Planck-function fallback
+3. **Dark Target pixel selection**: NDVI > 0.1, SWIR reflectance in 0.01-0.25
+   range, filtered to 20th-50th percentile
+4. **Surface reflectance prediction** (Kaufman 1997):
+   - ρ_surf(blue) = 0.25 × ρ_SWIR
+   - ρ_surf(red) = 0.50 × ρ_SWIR
+5. **Single-scattering AOD inversion**: τ = ρ_path × 4μs μv / (ω₀ × P(Θ))
+   using Henyey-Greenstein phase function
+6. **Angstrom exponent**: Derived from blue/red AOD ratio, used to scale to 550nm
+
+Fallback chain: Dark Target → Dark Pixel → Constant (0.15)
+
+### WVC Estimation (Continuum-Removal Band Depth)
+
+The WVC estimation uses continuum-removal band depth at the 940nm and 1130nm
+water vapor absorption features:
+
+1. **Widened absorption windows**: Shoulder bands placed outside absorption wings
+   (940nm: 860-1010nm, 1130nm: 1060-1200nm)
+2. **Multi-band averaging**: 3 bands averaged at each reference point (left
+   shoulder, absorption center, right shoulder) for improved SNR
+3. **Continuum removal**: Linear interpolation between shoulder bands; band depth
+   = 1 - (absorption / continuum)
+4. **Air mass normalization**: Band depth divided by two-way air mass factor
+   (1/cos(SZA) + 1/cos(VZA)) to obtain vertical column equivalent
+5. **Physically-calibrated coefficients**: WVC = band_depth_vertical × scale,
+   where scale ≈ 28 g/cm² (940nm) and ≈ 42 g/cm² (1130nm), derived from
+   H2O absorption cross-sections
+6. **Weighted combination**: 940nm weighted 0.7 in normal conditions (more
+   sensitive); 1130nm weighted 0.7 when WVC > 3.5 g/cm² (940nm saturates)
+
 ## References
 
 1. Rahman, H., & Dedieu, G. (1994). SMAC: a simplified method for the atmospheric correction of satellite measurements in the solar spectrum. *International Journal of Remote Sensing*, 15(1), 123-143.
@@ -331,6 +381,12 @@ Where λ is wavelength in micrometers.
 2. Hagolle, O. SMAC Python implementation. https://github.com/olivierhagolle/SMAC
 
 3. libRadtran radiative transfer package. https://www.libradtran.org/
+
+4. Kaufman, Y.J., et al. (1997). Operational remote sensing of tropospheric aerosol over land from EOS moderate resolution imaging spectroradiometer. *Journal of Geophysical Research*, 102(D14), 17051-17067.
+
+5. Levy, R.C., et al. (2007). Second-generation operational algorithm: Retrieval of aerosol properties over land from inversion of Moderate Resolution Imaging Spectroradiometer spectral reflectance. *Journal of Geophysical Research*, 112, D13211.
+
+6. Gao, B.-C. & Goetz, A.F.H. (1990). Column atmospheric water vapor and vegetation liquid water retrievals from airborne imaging spectrometer data. *Journal of Geophysical Research*, 95(D4), 3549-3564.
 
 ## Authors
 

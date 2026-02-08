@@ -56,11 +56,44 @@ formulas fitted to full radiative transfer simulations:
 
 ### Automatic Parameter Estimation
 
-When atmospheric parameters are not provided, the module can estimate them:
+When atmospheric parameters are not provided, the module estimates them
+from the hyperspectral data itself:
 
-- **AOD (Aerosol Optical Depth)**: Uses the Dense Dark Vegetation (DDV) method, identifying dark vegetation pixels and inferring AOD from blue band reflectance
-- **Water Vapor**: Uses the differential absorption technique with bands near 940nm and reference bands at 865nm
-- **Ozone**: Uses the Chappuis band method (500-700nm), converted from DU to cm-atm
+#### AOD (Aerosol Optical Depth)
+
+Implements the MODIS Dark Target algorithm (Kaufman 1997, Levy 2007) adapted
+for hyperspectral data:
+
+- Extracts four key bands (blue 470nm, red 660nm, NIR 860nm, SWIR 2130nm)
+  and converts radiance to TOA reflectance
+- Selects Dark Target pixels using NDVI and SWIR reflectance thresholds,
+  filtered to the 20th-50th percentile of SWIR reflectance
+- Predicts surface VIS reflectance from SWIR using empirical ratios
+  (Kaufman 1997): rho_blue = 0.25 x rho_SWIR, rho_red = 0.50 x rho_SWIR
+- Inverts atmospheric path radiance to AOD using single-scattering
+  approximation with Henyey-Greenstein phase function
+- Derives the Angstrom exponent from blue/red AOD ratio and scales to 550nm
+- Fallback chain: Dark Target -> Dark Pixel -> Constant (0.15)
+
+#### Water Vapor Content (WVC)
+
+Uses continuum-removal band depth at the 940nm and 1130nm water vapor
+absorption features:
+
+- Widened absorption windows with shoulder bands placed in clean spectral
+  regions (940nm: 860-1010nm, 1130nm: 1060-1200nm)
+- Multi-band averaging: 3 bands averaged at each reference point (left
+  shoulder, absorption center, right shoulder) for improved SNR
+- Air mass normalization: band depth divided by two-way air mass factor
+  (1/cos(SZA) + 1/cos(VZA)) to obtain vertical column equivalent
+- Physically-calibrated coefficients based on H2O absorption cross-sections
+  (scale ~28 for 940nm, ~42 for 1130nm)
+- Weighted combination: 940nm weighted 0.7 in normal conditions; 1130nm
+  weighted 0.7 when WVC > 3.5 g/cm² (940nm feature saturates at high WVC)
+
+#### Ozone
+
+Uses the Chappuis band method (500-700nm), converted from DU to cm-atm
 
 ## PARAMETERS
 
@@ -96,10 +129,10 @@ When atmospheric parameters are not provided, the module can estimate them:
 :   View azimuth angle in degrees (0-360). Default: 0
 
 **aod**=*float*
-:   Aerosol optical depth at 550nm. If not specified, estimated automatically using DDV method
+:   Aerosol optical depth at 550nm. If not specified, estimated automatically using the Dark Target algorithm
 
 **water_vapor**=*float*
-:   Water vapor column content in g/cm^2. If not specified, estimated from absorption bands
+:   Water vapor column content in g/cm^2. If not specified, estimated from 940nm/1130nm absorption features with air mass correction
 
 **ozone**=*float*
 :   Ozone column content in cm-atm. Default: 0.3
@@ -241,6 +274,12 @@ Hagolle, O. SMAC Python implementation. GitHub repository. https://github.com/ol
 libRadtran radiative transfer package. https://www.libradtran.org/
 
 Hansen, J.E. & Travis, L.D. (1974). Light scattering in planetary atmospheres. *Space Science Reviews*, 16, 527-610.
+
+Kaufman, Y.J., et al. (1997). Operational remote sensing of tropospheric aerosol over land from EOS moderate resolution imaging spectroradiometer. *Journal of Geophysical Research*, 102(D14), 17051-17067.
+
+Levy, R.C., et al. (2007). Second-generation operational algorithm: Retrieval of aerosol properties over land from inversion of MODIS spectral reflectance. *Journal of Geophysical Research*, 112, D13211.
+
+Gao, B.-C. & Goetz, A.F.H. (1990). Column atmospheric water vapor and vegetation liquid water retrievals from airborne imaging spectrometer data. *Journal of Geophysical Research*, 95(D4), 3549-3564.
 
 ## SEE ALSO
 
