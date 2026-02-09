@@ -54,10 +54,10 @@ def compute_band_transmission(coefs, sza, vza, pressure, aod550, wvc, o3):
 
 
 def compute_blue_aod_taper(wavelength, aod):
-    if wavelength >= 500.0:
+    if wavelength >= 650.0:
         return aod
-    fraction = np.maximum(0.7, 0.7 + 0.3 * (wavelength - 400.0) / 100.0)
-    return aod * fraction
+    alpha = np.minimum(2.0, 2.0 * (650.0 - wavelength) / 250.0)
+    return aod / (1.0 + alpha * aod)
 
 
 AOD_MAX = 1.5
@@ -144,36 +144,47 @@ class TestComputeBandTransmission(unittest.TestCase):
 
 
 class TestComputeBlueAodTaper(unittest.TestCase):
-    """Tests for compute_blue_aod_taper()."""
+    """Tests for compute_blue_aod_taper() saturation model."""
 
-    def test_no_taper_above_500(self):
-        """No taper at 500 nm or above."""
+    def test_no_taper_above_650(self):
+        """No taper at 650 nm or above."""
         aod = 0.5
-        self.assertEqual(compute_blue_aod_taper(500.0, aod), aod)
-        self.assertEqual(compute_blue_aod_taper(600.0, aod), aod)
+        self.assertEqual(compute_blue_aod_taper(650.0, aod), aod)
+        self.assertEqual(compute_blue_aod_taper(700.0, aod), aod)
         self.assertEqual(compute_blue_aod_taper(1000.0, aod), aod)
 
-    def test_taper_at_450(self):
-        """At 450 nm, AOD should be reduced to 85%."""
-        aod = 1.0
-        result = compute_blue_aod_taper(450.0, aod)
-        self.assertAlmostEqual(result, 0.85, places=5)
-
-    def test_taper_at_400(self):
-        """At 400 nm, AOD should be reduced to 70%."""
-        aod = 1.0
+    def test_low_aod_minimal_change(self):
+        """At low AOD (0.1), correction should be small (<20% reduction)."""
+        aod = 0.1
         result = compute_blue_aod_taper(400.0, aod)
-        self.assertAlmostEqual(result, 0.70, places=5)
+        # alpha=2.0 at 400nm → 0.1/(1+0.2) = 0.0833
+        self.assertAlmostEqual(result, 0.0833, places=3)
+        self.assertGreater(result, aod * 0.8)  # less than 20% reduction
 
-    def test_taper_capped_below_400(self):
-        """Below 400 nm, AOD fraction should stay at 70%."""
-        aod = 1.0
-        result = compute_blue_aod_taper(350.0, aod)
-        self.assertAlmostEqual(result, 0.70, places=5)
+    def test_high_aod_strong_reduction(self):
+        """At high AOD (0.664), correction should exceed 50% at 400nm."""
+        aod = 0.664
+        result = compute_blue_aod_taper(400.0, aod)
+        # alpha=2.0 → 0.664/(1+1.328) = 0.285
+        self.assertAlmostEqual(result, 0.285, places=2)
+        self.assertLess(result, aod * 0.5)  # more than 50% reduction
+
+    def test_saturation_at_500nm(self):
+        """At 500nm with AOD=1.0, alpha=1.2 → 1/(1+1.2) = 0.4545."""
+        result = compute_blue_aod_taper(500.0, 1.0)
+        self.assertAlmostEqual(result, 1.0 / 2.2, places=4)
 
     def test_zero_aod(self):
         """Zero AOD should stay zero regardless of wavelength."""
         self.assertEqual(compute_blue_aod_taper(420.0, 0.0), 0.0)
+
+    def test_monotonic_in_wavelength(self):
+        """For fixed AOD, effective AOD should increase with wavelength."""
+        aod = 0.5
+        wavelengths = [400, 450, 500, 550, 600, 650]
+        results = [compute_blue_aod_taper(wl, aod) for wl in wavelengths]
+        for i in range(len(results) - 1):
+            self.assertLessEqual(results[i], results[i + 1])
 
 
 class TestAodClamping(unittest.TestCase):
@@ -265,6 +276,40 @@ class TestTransmissionMaskingWithSMAC(unittest.TestCase):
         self.assertTrue(np.all(refl_boa <= 1.5))
 
 
+class TestSmacInvArray(unittest.TestCase):
+    """Tests for smac_inv() with 2D array atmospheric parameters."""
+
+    def test_array_pressure_and_aod(self):
+        """smac_inv should handle 2D pressure and AOD arrays."""
+        coefs = _CoefBase()
+        r_toa = np.full((3, 4), 0.2)
+        pressure = np.full((3, 4), 1013.25)
+        aod = np.full((3, 4), 0.15)
+        wvc = np.full((3, 4), 2.0)
+        r_surf = smac_inv(r_toa, 30, 180, 0, 0, pressure, aod, 0.3, wvc, coefs)
+        self.assertEqual(r_surf.shape, (3, 4))
+        self.assertTrue(np.all(np.isfinite(r_surf)))
+
+    def test_uniform_array_matches_scalar(self):
+        """Uniform-array inputs should produce the same result as scalars."""
+        coefs = _CoefBase()
+        r_toa = np.array([0.15, 0.20, 0.25])
+        sza, vza = 30.0, 0.0
+        pres, aod_val, o3_val, wvc_val = 1013.25, 0.1, 0.3, 2.0
+
+        r_scalar = smac_inv(r_toa, sza, 180, vza, 0,
+                            pres, aod_val, o3_val, wvc_val, coefs)
+
+        shape = (3,)
+        r_array = smac_inv(r_toa, sza, 180, vza, 0,
+                           np.full(shape, pres),
+                           np.full(shape, aod_val),
+                           o3_val,
+                           np.full(shape, wvc_val),
+                           coefs)
+        np.testing.assert_allclose(r_array, r_scalar, rtol=1e-12)
+
+
 class TestComputeBandTransmissionArray(unittest.TestCase):
     """Tests for compute_band_transmission() with 2D array inputs."""
 
@@ -316,16 +361,10 @@ class TestComputeBlueAodTaperArray(unittest.TestCase):
         result = compute_blue_aod_taper(450.0, aod)
         self.assertEqual(result.shape, (3,))
 
-    def test_array_taper_at_450(self):
-        """At 450 nm each element should be scaled to 85%."""
-        aod = np.array([0.2, 0.4, 1.0])
-        result = compute_blue_aod_taper(450.0, aod)
-        np.testing.assert_allclose(result, aod * 0.85, rtol=1e-12)
-
-    def test_no_taper_above_500_array(self):
-        """Above 500 nm, array AOD should pass through unchanged."""
+    def test_no_taper_above_650_array(self):
+        """Above 650 nm, array AOD should pass through unchanged."""
         aod = np.array([0.1, 0.5, 1.0])
-        result = compute_blue_aod_taper(600.0, aod)
+        result = compute_blue_aod_taper(700.0, aod)
         np.testing.assert_array_equal(result, aod)
 
     def test_scalar_and_uniform_array_match(self):

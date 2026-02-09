@@ -370,21 +370,27 @@ def compute_band_transmission(coefs, sza, vza, pressure, aod550, wvc, o3):
 
 
 def compute_blue_aod_taper(wavelength, aod):
-    """Taper AOD for blue bands (<500 nm) to compensate for SMAC
-    single-scattering approximation overestimating path radiance.
+    """Reduce effective AOD for SMAC to compensate for single-scattering
+    overestimation of path radiance at short wavelengths and high AOD.
+
+    Uses a saturation model: aod_eff = aod / (1 + alpha * aod)
+    where alpha increases at shorter wavelengths due to stronger
+    Rayleigh-aerosol coupling.  At low AOD the correction is minimal;
+    at high AOD the effective AOD saturates, matching the behaviour of
+    true multiple-scattering atmospheres.
 
     Args:
-        wavelength: Band centre wavelength in nm
-        aod: Scene AOD at 550 nm
+        wavelength: Band centre wavelength in nm (scalar).
+        aod: Scene AOD at 550 nm (scalar or array).
 
     Returns:
-        Adjusted AOD for this band.
+        Effective AOD for this band (same shape as aod).
     """
-    if wavelength >= 500.0:
+    if wavelength >= 650.0:
         return aod
-    # Linear taper: 100% at 500nm, 70% at 400nm, capped at 70% below 400nm
-    fraction = np.maximum(0.7, 0.7 + 0.3 * (wavelength - 400.0) / 100.0)
-    return aod * fraction
+    # alpha: 0 at 650nm, 2.0 at ≤400nm (linear in wavelength)
+    alpha = np.minimum(2.0, 2.0 * (650.0 - wavelength) / 250.0)
+    return aod / (1.0 + alpha * aod)
 
 
 AOD_MAX = 1.5  # Upper bound for AOD validation

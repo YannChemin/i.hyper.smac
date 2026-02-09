@@ -13,7 +13,7 @@
 # Written by O.Hagolle CNES, from the original SMAC C routine
 #=============================================================================================
  
-from math import exp, cos, pi, sqrt, acos
+from math import cos, pi, sqrt
 import numpy as np
  
 #=============================================================================================
@@ -194,29 +194,29 @@ def smac_inv( r_toa, tetas, phis, tetav, phiv,pressure,taup550, uo3, uh2o, coef)
     uco =  (Peq ** (pco))
  
     #/*------:  4) if uh2o <= 0 and uo3 <=0 no gaseous absorption is computed  :--------*/
-    to3   = exp ( (ao3)  * ( (uo3 *m)  ** (no3)  ) )
-    th2o  = exp ( (ah2o) * ( (uh2o*m)  ** (nh2o) ) )
-    to2   = exp ( (ao2)  * ( (uo2 *m)  ** (no2)  ) )
-    tco2  = exp ( (aco2) * ( (uco2*m)  ** (nco2) ) )
-    tch4  = exp ( (ach4) * ( (uch4*m)  ** (nch4) ) )
-    tno2  = exp ( (ano2) * ( (uno2*m)  ** (nno2) ) )
-    tco   = exp ( (aco)  * ( (uco *m)  ** (nco) ) )
+    to3   = np.exp ( (ao3)  * ( (uo3 *m)  ** (no3)  ) )
+    th2o  = np.exp ( (ah2o) * ( (uh2o*m)  ** (nh2o) ) )
+    to2   = np.exp ( (ao2)  * ( (uo2 *m)  ** (no2)  ) )
+    tco2  = np.exp ( (aco2) * ( (uco2*m)  ** (nco2) ) )
+    tch4  = np.exp ( (ach4) * ( (uch4*m)  ** (nch4) ) )
+    tno2  = np.exp ( (ano2) * ( (uno2*m)  ** (nno2) ) )
+    tco   = np.exp ( (aco)  * ( (uco *m)  ** (nco) ) )
     tg      = th2o * to3 * to2 * tco2 * tch4 * tco * tno2
- 
+
     #/*------:  5) Total scattering transmission                      :--------*/
     ttetas = (a0T) + (a1T)*taup550/us + ((a2T)*Peq + (a3T))/(1.+us)  #/* downward */
     ttetav = (a0T) + (a1T)*taup550/uv + ((a2T)*Peq + (a3T))/(1.+uv)  #/* upward   */
- 
+
     #/*------:  6) spherical albedo of the atmosphere                 :--------*/
-    s = (a0s) * Peq +  (a3s) + (a1s)*taup550 + (a2s) * (taup550 ** 2) 
- 
+    s = (a0s) * Peq +  (a3s) + (a1s)*taup550 + (a2s) * (taup550 ** 2)
+
     #/*------:  7) scattering angle cosine                            :--------*/
-    cksi = - ( (us*uv) + (sqrt(1. - us*us) * sqrt (1. - uv*uv)*cos((phis-phiv) * cdr) ) )
-    if (cksi < -1 ) :
-	      cksi=-1.0 
- 
+    cksi = - ( (us*uv) + (np.sqrt(1. - us*us) * np.sqrt (1. - uv*uv)*np.cos((phis-phiv) * cdr) ) )
+    if np.any(cksi < -1) :
+	      cksi = np.maximum(cksi, -1.0)
+
     #/*------:  8) scattering angle in degree 			 :--------*/
-    ksiD = crd * acos(cksi) 
+    ksiD = crd * np.arccos(cksi)
  
     #/*------:  9) rayleigh atmospheric reflectance 			 :--------*/
     ray_phase = 0.7190443 * (1. + (cksi*cksi))  + 0.0412742
@@ -362,29 +362,29 @@ def smac_dir ( r_surf, tetas, phis, tetav, phiv,pressure,taup550, uo3, uh2o, coe
     uco =  (Peq ** (pco))
  
     #/*------:  4) if uh2o <= 0 and uo3<= 0 no gaseous absorption is computed  :--------*/
-    to3   = exp ( (ao3)  * ( (uo3 *m)  ** (no3)  ) )
-    th2o  = exp ( (ah2o) * ( (uh2o*m)  ** (nh2o) ) )
-    to2   = exp ( (ao2)  * ( (uo2 *m)  ** (no2)  ) )
-    tco2  = exp ( (aco2) * ( (uco2*m)  ** (nco2) ) )
-    tch4  = exp ( (ach4) * ( (uch4*m)  ** (nch4) ) )
-    tno2  = exp ( (ano2) * ( (uno2*m)  ** (nno2) ) )
-    tco   = exp ( (aco)  * ( (uco *m)  ** (nco) ) )
+    to3   = np.exp ( (ao3)  * ( (uo3 *m)  ** (no3)  ) )
+    th2o  = np.exp ( (ah2o) * ( (uh2o*m)  ** (nh2o) ) )
+    to2   = np.exp ( (ao2)  * ( (uo2 *m)  ** (no2)  ) )
+    tco2  = np.exp ( (aco2) * ( (uco2*m)  ** (nco2) ) )
+    tch4  = np.exp ( (ach4) * ( (uch4*m)  ** (nch4) ) )
+    tno2  = np.exp ( (ano2) * ( (uno2*m)  ** (nno2) ) )
+    tco   = np.exp ( (aco)  * ( (uco *m)  ** (nco) ) )
     tg      = th2o * to3 * to2 * tco2 * tch4 * tco * tno2
- 
+
     #/*------:  5) Total scattering transmission                      :--------*/
     ttetas = (a0T) + (a1T)*taup550/us + ((a2T)*Peq + (a3T))/(1.+us)  #/* downward */
     ttetav = (a0T) + (a1T)*taup550/uv + ((a2T)*Peq + (a3T))/(1.+uv)  #/* upward   */
- 
+
     #/*------:  6) spherical albedo of the atmosphere                 :--------*/
-    s = (a0s) * Peq +  (a3s) + (a1s)*taup550 + (a2s) * (taup550 ** 2) 
- 
+    s = (a0s) * Peq +  (a3s) + (a1s)*taup550 + (a2s) * (taup550 ** 2)
+
     #/*------:  7) scattering angle cosine                            :--------*/
-    cksi = - ( (us*uv) + (sqrt(1. - us*us) * sqrt (1. - uv*uv)*cos((phis-phiv-360) * cdr) ) )
-    if (cksi < -1 ) :
-       cksi=-1.0 
- 
+    cksi = - ( (us*uv) + (np.sqrt(1. - us*us) * np.sqrt (1. - uv*uv)*np.cos((phis-phiv-360) * cdr) ) )
+    if np.any(cksi < -1) :
+       cksi = np.maximum(cksi, -1.0)
+
     #/*------:  8) scattering angle in degree            :--------*/
-    ksiD = crd*acos(cksi) 
+    ksiD = crd*np.arccos(cksi)
  
     #/*------:  9) rayleigh atmospheric reflectance              :--------*/
     ray_phase = 0.7190443 * (1. + (cksi*cksi))  + 0.0412742
