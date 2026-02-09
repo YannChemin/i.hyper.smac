@@ -50,13 +50,13 @@ def compute_band_transmission(coefs, sza, vza, pressure, aod550, wvc, o3):
     ttetav = (coefs.a0T + coefs.a1T * aod550 / uv
               + (coefs.a2T * Peq + coefs.a3T) / (1.0 + uv))
 
-    return float(tg * ttetas * ttetav)
+    return tg * ttetas * ttetav
 
 
 def compute_blue_aod_taper(wavelength, aod):
     if wavelength >= 500.0:
         return aod
-    fraction = max(0.7, 0.7 + 0.3 * (wavelength - 400.0) / 100.0)
+    fraction = np.maximum(0.7, 0.7 + 0.3 * (wavelength - 400.0) / 100.0)
     return aod * fraction
 
 
@@ -135,12 +135,12 @@ class TestComputeBandTransmission(unittest.TestCase):
         self.assertGreater(T_low, T_high)
 
     def test_returns_scalar(self):
-        """Result should be a Python float, not an array."""
+        """Result should be a scalar (0-d) when all inputs are scalar."""
         coefs = _CoefBase()
         T = compute_band_transmission(coefs, sza=30, vza=0,
                                       pressure=1013.25, aod550=0.1,
                                       wvc=2.0, o3=0.3)
-        self.assertIsInstance(T, float)
+        self.assertEqual(np.ndim(T), 0)
 
 
 class TestComputeBlueAodTaper(unittest.TestCase):
@@ -263,6 +263,81 @@ class TestTransmissionMaskingWithSMAC(unittest.TestCase):
         self.assertFalse(np.any(np.isnan(refl_boa)))
         self.assertTrue(np.all(refl_boa >= -0.01))
         self.assertTrue(np.all(refl_boa <= 1.5))
+
+
+class TestComputeBandTransmissionArray(unittest.TestCase):
+    """Tests for compute_band_transmission() with 2D array inputs."""
+
+    def test_array_pressure_returns_2d(self):
+        """Passing a 2D pressure array should return a 2D result."""
+        coefs = _CoefBase()
+        pressure = np.array([[1013.25, 900.0], [850.0, 1013.25]])
+        T = compute_band_transmission(coefs, sza=30, vza=0,
+                                      pressure=pressure, aod550=0.1,
+                                      wvc=2.0, o3=0.3)
+        self.assertEqual(T.shape, (2, 2))
+
+    def test_array_aod_returns_2d(self):
+        """Passing a 2D AOD array should return a 2D result."""
+        coefs = _CoefBase()
+        aod = np.array([[0.05, 0.1], [0.3, 0.5]])
+        T = compute_band_transmission(coefs, sza=30, vza=0,
+                                      pressure=1013.25, aod550=aod,
+                                      wvc=2.0, o3=0.3)
+        self.assertEqual(T.shape, (2, 2))
+
+    def test_uniform_array_matches_scalar(self):
+        """A uniform 2D array should give the same result as the scalar."""
+        coefs = _CoefBase()
+        sza, vza = 30.0, 10.0
+        pres, aod_val, wvc_val, o3_val = 1013.25, 0.15, 2.5, 0.3
+
+        T_scalar = compute_band_transmission(coefs, sza, vza,
+                                             pres, aod_val, wvc_val, o3_val)
+
+        shape = (3, 4)
+        T_array = compute_band_transmission(
+            coefs, sza, vza,
+            np.full(shape, pres),
+            np.full(shape, aod_val),
+            np.full(shape, wvc_val),
+            np.full(shape, o3_val),
+        )
+        self.assertEqual(T_array.shape, shape)
+        np.testing.assert_allclose(T_array, float(T_scalar), rtol=1e-12)
+
+
+class TestComputeBlueAodTaperArray(unittest.TestCase):
+    """Tests for compute_blue_aod_taper() with array AOD."""
+
+    def test_array_aod_returns_array(self):
+        """Passing an array AOD should return an array of same shape."""
+        aod = np.array([0.1, 0.3, 0.5])
+        result = compute_blue_aod_taper(450.0, aod)
+        self.assertEqual(result.shape, (3,))
+
+    def test_array_taper_at_450(self):
+        """At 450 nm each element should be scaled to 85%."""
+        aod = np.array([0.2, 0.4, 1.0])
+        result = compute_blue_aod_taper(450.0, aod)
+        np.testing.assert_allclose(result, aod * 0.85, rtol=1e-12)
+
+    def test_no_taper_above_500_array(self):
+        """Above 500 nm, array AOD should pass through unchanged."""
+        aod = np.array([0.1, 0.5, 1.0])
+        result = compute_blue_aod_taper(600.0, aod)
+        np.testing.assert_array_equal(result, aod)
+
+    def test_scalar_and_uniform_array_match(self):
+        """Scalar and uniform-array AOD should give identical results."""
+        aod_scalar = 0.3
+        aod_array = np.full((2, 3), aod_scalar)
+        wl = 420.0
+
+        r_scalar = compute_blue_aod_taper(wl, aod_scalar)
+        r_array = compute_blue_aod_taper(wl, aod_array)
+
+        np.testing.assert_allclose(r_array, float(r_scalar), rtol=1e-12)
 
 
 if __name__ == '__main__':

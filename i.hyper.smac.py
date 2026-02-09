@@ -308,6 +308,12 @@ def estimate_pressure_from_dem(dem):
     gs.message(f"Estimated pressure from DEM: {pressure:.2f} hPa (elevation: {elevation:.1f} m)")
     return pressure
 
+def read_raster_as_array(raster_name):
+    """Read a GRASS raster map into a 2D numpy array."""
+    with RasterRow(raster_name) as r:
+        r.open('r')
+        return np.array(r)
+
 def compute_band_transmission(coefs, sza, vza, pressure, aod550, wvc, o3):
     """Estimate total two-way transmission for a band using SMAC coefficients.
 
@@ -360,7 +366,7 @@ def compute_band_transmission(coefs, sza, vza, pressure, aod550, wvc, o3):
     ttetav = (coefs.a0T + coefs.a1T * aod550 / uv
               + (coefs.a2T * Peq + coefs.a3T) / (1.0 + uv))
 
-    return float(tg * ttetas * ttetav)
+    return tg * ttetas * ttetav
 
 
 def compute_blue_aod_taper(wavelength, aod):
@@ -377,7 +383,7 @@ def compute_blue_aod_taper(wavelength, aod):
     if wavelength >= 500.0:
         return aod
     # Linear taper: 100% at 500nm, 70% at 400nm, capped at 70% below 400nm
-    fraction = max(0.7, 0.7 + 0.3 * (wavelength - 400.0) / 100.0)
+    fraction = np.maximum(0.7, 0.7 + 0.3 * (wavelength - 400.0) / 100.0)
     return aod * fraction
 
 
@@ -611,17 +617,19 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
                                    view_zenith, view_azimuth,
                                    sensor_type, visibility=None,
                                    aerosol_model='continental', keep_temp=False,
-                                   generate_coefs=False):
+                                   generate_coefs=False,
+                                   aod_map=None, wvc_map=None,
+                                   ozone_map=None, dem=None):
     """Apply libradtran-based SMAC atmospheric correction.
-    
+
     Args:
         input_raster (str): Input 3D raster name
         output_raster (str): Output 3D raster name
         bands (list): List of band information dictionaries
-        aod (float): Aerosol Optical Depth at 550nm
-        water_vapor (float): Water vapor content (g/cm²)
-        ozone (float): Ozone content (cm-atm)
-        pressure (float): Atmospheric pressure (hPa)
+        aod (float): Aerosol Optical Depth at 550nm (scene-mean fallback)
+        water_vapor (float): Water vapor content (g/cm²) (scene-mean fallback)
+        ozone (float): Ozone content (cm-atm) (scene-mean fallback)
+        pressure (float): Atmospheric pressure (hPa) (scene-mean fallback)
         solar_zenith (float): Solar zenith angle (degrees)
         solar_azimuth (float): Solar azimuth angle (degrees)
         view_zenith (float): View zenith angle (degrees)
@@ -630,6 +638,11 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
         visibility (float, optional): Visibility in km
         aerosol_model (str): Type of aerosol model
         keep_temp (bool): Whether to keep temporary files
+        generate_coefs (bool): Generate SMAC coefficients from libRadtran
+        aod_map (str, optional): GRASS raster name for per-pixel AOD at 550nm
+        wvc_map (str, optional): GRASS raster name for per-pixel water vapor (g/cm²)
+        ozone_map (str, optional): GRASS raster name for per-pixel ozone (DU)
+        dem (str, optional): GRASS raster name for DEM (m) → per-pixel pressure
     """
     
     gs.message("Applying libradtran-based SMAC atmospheric correction...")
@@ -662,10 +675,37 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
     input_info = gs.read_command('r3.info', flags='h', map=input_raster)
     wavelength_info = [line.strip() for line in input_info.split('\n') if 'Band' in line and 'nm' in line]
     
+    # Load per-pixel atmospheric maps (if provided)
+    if aod_map:
+        aod_array = np.clip(read_raster_as_array(aod_map), 0.001, AOD_MAX)
+        gs.message(f"Loaded per-pixel AOD map: {aod_map}")
+    else:
+        aod_array = None
+
+    if wvc_map:
+        wvc_array = np.clip(read_raster_as_array(wvc_map), 0.1, 8.0)
+        gs.message(f"Loaded per-pixel WVC map: {wvc_map}")
+    else:
+        wvc_array = None
+
+    if ozone_map:
+        # Ozone maps are in DU, SMAC needs cm-atm
+        ozone_array = np.clip(read_raster_as_array(ozone_map) * 0.001, 0.1, 0.6)
+        gs.message(f"Loaded per-pixel ozone map: {ozone_map}")
+    else:
+        ozone_array = None
+
+    if dem:
+        elev = read_raster_as_array(dem)
+        pressure_array = 1013.25 * (1 - 0.0065 * elev / 288.15) ** 5.255
+        gs.message(f"Loaded DEM for per-pixel pressure: {dem}")
+    else:
+        pressure_array = None
+
     # Store temporary band names for cleanup
     temp_bands = []
     corrected_bands = []
-    
+
     try:
         # Process each band
         for i, band in enumerate(bands):
@@ -678,7 +718,7 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
                 gs.warning(f"Skipping band {band_num} with wavelength {wavelength} nm (outside 300-4000 nm range)")
                 continue
             
-            gs.message(f"Processing band {band_num}: {wavelength:.2f} nm")
+            gs.message(f"Processing band {band_num}: {wavelength:.2f} nm, FWHM: {fwhm:.2f} nm")
             
             # Extract band from 3D raster
             input_band = f"tmp_input_{os.getpid()}_{band_num}"
@@ -743,43 +783,66 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
                     verbose=gs.verbosity() > 0
                 )
 
-                # Fix 1: Check two-way transmission — mask opaque bands
+                # Select per-pixel or scalar atmospheric parameters
+                p_pres = pressure_array if pressure_array is not None else pressure
+                p_aod = aod_array if aod_array is not None else aod
+                p_wvc = wvc_array if wvc_array is not None else water_vapor
+                p_o3 = ozone_array if ozone_array is not None else ozone
+
+                # Check two-way transmission — mask opaque bands
                 band_T = compute_band_transmission(
                     coefs, solar_zenith, view_zenith,
-                    pressure, aod, water_vapor, ozone
+                    p_pres, p_aod, p_wvc, p_o3
                 )
 
-                if band_T < TRANSMISSION_THRESHOLD:
-                    gs.verbose(
-                        f"Band {band_num} ({wavelength:.1f} nm): "
-                        f"transmission {band_T:.3f} < {TRANSMISSION_THRESHOLD}, masking as NaN"
-                    )
-                    refl_boa_band = np.full_like(refl_toa_band, np.nan)
-                else:
-                    # Fix 4: Blue-band AOD taper
-                    aod_band = compute_blue_aod_taper(wavelength, aod)
-                    if aod_band != aod:
+                if np.ndim(band_T) == 0:
+                    # Scalar path (no maps)
+                    if band_T < TRANSMISSION_THRESHOLD:
                         gs.verbose(
                             f"Band {band_num} ({wavelength:.1f} nm): "
-                            f"AOD tapered {aod:.3f} -> {aod_band:.3f}"
+                            f"transmission {band_T:.3f} < {TRANSMISSION_THRESHOLD}, masking as NaN"
                         )
-
-                    # Apply SMAC correction
-                    refl_boa_band = smac.smac_inv(
-                        r_toa=refl_toa_band,
-                        tetas=solar_zenith,
-                        phis=solar_azimuth,
-                        tetav=view_zenith,
-                        phiv=view_azimuth,
-                        pressure=pressure,
-                        taup550=aod_band,
-                        uo3=ozone,
-                        uh2o=water_vapor,
-                        coef=coefs
-                    )
-
-                    # Fix 2: Clamp reflectance to physically plausible range
-                    refl_boa_band = np.clip(refl_boa_band, -0.01, 1.5)
+                        refl_boa_band = np.full_like(refl_toa_band, np.nan)
+                    else:
+                        aod_band = compute_blue_aod_taper(wavelength, p_aod)
+                        refl_boa_band = smac.smac_inv(
+                            r_toa=refl_toa_band,
+                            tetas=solar_zenith,
+                            phis=solar_azimuth,
+                            tetav=view_zenith,
+                            phiv=view_azimuth,
+                            pressure=p_pres,
+                            taup550=aod_band,
+                            uo3=p_o3,
+                            uh2o=p_wvc,
+                            coef=coefs
+                        )
+                        refl_boa_band = np.clip(refl_boa_band, -0.01, 1.5)
+                else:
+                    # Per-pixel path
+                    opaque_mask = band_T < TRANSMISSION_THRESHOLD
+                    if np.all(opaque_mask):
+                        gs.verbose(
+                            f"Band {band_num} ({wavelength:.1f} nm): "
+                            f"all pixels opaque, masking as NaN"
+                        )
+                        refl_boa_band = np.full_like(refl_toa_band, np.nan)
+                    else:
+                        aod_band = compute_blue_aod_taper(wavelength, p_aod)
+                        refl_boa_band = smac.smac_inv(
+                            r_toa=refl_toa_band,
+                            tetas=solar_zenith,
+                            phis=solar_azimuth,
+                            tetav=view_zenith,
+                            phiv=view_azimuth,
+                            pressure=p_pres,
+                            taup550=aod_band,
+                            uo3=p_o3,
+                            uh2o=p_wvc,
+                            coef=coefs
+                        )
+                        refl_boa_band = np.clip(refl_boa_band, -0.01, 1.5)
+                        refl_boa_band[opaque_mask] = np.nan
 
                 # Write corrected band back to a raster
                 output_band = f"tmp_corr_{os.getpid()}_{band_num}"
@@ -827,7 +890,7 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
             # Build metadata description
             desc = ["Atmospheric Correction Metadata (libRadtran):"]
             desc.append(f"Original raster: {input_raster}")
-            desc.append(f"Method: libRadtran SMAC")
+            desc.append("Method: libRadtran SMAC")
             desc.append(f"Solar Z: {solar_zenith}°, View Z: {view_zenith}°")
             desc.append(f"AOD: {aod}, Water Vapor: {water_vapor} g/cm²")
             desc.append(f"Ozone: {ozone} cm-atm, Pressure: {pressure} hPa")
@@ -984,6 +1047,7 @@ def main():
     # Initialize default water vapor content.
     gs.message("WVC: Estimating water vapor content...")
     water_vapor = 2.0  # g/cm² - typical mid-latitude value
+    wvc_map = None  # Initialize wvc_map to None
 
     if options['water_vapor']:
         water_vapor = float(options['water_vapor'])
@@ -1037,7 +1101,7 @@ def main():
         if visibility:
             gs.message(f"  Visibility: {visibility} km")
         if generate_coefs:
-            gs.message(f"  Coefficient generation: ENABLED (libRadtran + scipy fitting)")
+            gs.message("  Coefficient generation: ENABLED (libRadtran + scipy fitting)")
     
     gs.message("=" * 60)
     
@@ -1058,7 +1122,11 @@ def main():
             view_zenith, view_azimuth,
             sensor_type, visibility,
             aerosol_model, keep_temp,
-            generate_coefs
+            generate_coefs,
+            aod_map=aod_map,
+            wvc_map=wvc_map,
+            ozone_map=ozone_map,
+            dem=dem,
         )
     else:
         gs.fatal(f"Unknown method: {method}. Choose 'simple' or 'libradtran'.")

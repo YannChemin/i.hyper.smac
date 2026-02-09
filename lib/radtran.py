@@ -280,12 +280,11 @@ def E0(wl_center, fwhm,
     Returns:
         float: Band-integrated exo-atmospheric irradiance, or None on error
     """
-    if verbose:
-        gs.message(f"\n{'='*80}")
-        gs.message(f"Processing band: {wl_center:.2f} nm, FWHM: {fwhm:.2f} nm")
-        gs.message(f"Using solar file: {solar_file}")
-        gs.message(f"Using atmosphere file: {atmosphere_file}")
-        gs.message(f"{'='*80}")
+    gs.verbose(f"\n{'='*80}")
+    gs.verbose(f"Processing band: {wl_center:.2f} nm, FWHM: {fwhm:.2f} nm")
+    gs.verbose(f"Using solar file: {solar_file}")
+    gs.verbose(f"Using atmosphere file: {atmosphere_file}")
+    gs.verbose(f"{'='*80}")
 
     # Calculate wavelength range (nm), clamp to integer boundaries
     # for compatibility with solar flux file grid
@@ -314,14 +313,13 @@ quiet
         with open(inp_path, 'w') as f:
             f.write(uvspec_inp)
 
-        if verbose:
-            gs.message(f"\nUVSPEC Input ({inp_path}):")
-            gs.message("-" * 40)
-            for line in uvspec_inp.split('\n'):
-                if line.strip():
-                    gs.message(line)
-            gs.message("-" * 40)
-            gs.message(f"Running uvspec for {wl_center:.2f} nm...")
+        gs.verbose(f"\nUVSPEC Input ({inp_path}):")
+        gs.verbose("-" * 40)
+        for line in uvspec_inp.split('\n'):
+            if line.strip():
+                gs.verbose(line)
+        gs.verbose("-" * 40)
+        gs.verbose(f"Running uvspec for {wl_center:.2f} nm...")
 
         # Run uvspec with proper shell command (uvspec reads from stdin)
         cmd = f"{uvspec_bin} < {inp_path}"
@@ -381,12 +379,11 @@ quiet
             lam_uv = data[:, 0]    # nm
             edir = data[:, 1]      # direct solar irradiance at TOA
 
-            if verbose:
-                gs.message(f"\nSuccessfully processed {wl_center:.2f} nm")
-                gs.message(f"Output shape: {data.shape}")
-                gs.message("First few data points:")
-                for row in data[:3]:
-                    gs.message(f"  {row[0]:.2f} nm: {row[1]:.3e}")
+            gs.verbose(f"\nSuccessfully processed {wl_center:.2f} nm")
+            gs.verbose(f"Output shape: {data.shape}")
+            gs.verbose("First few data points:")
+            for row in data[:3]:
+                gs.verbose(f"  {row[0]:.2f} nm: {row[1]:.3e}")
 
         except Exception as e:
             gs.error(f"Error processing uvspec output: {e}")
@@ -524,13 +521,12 @@ def get_smac_parameters(wavelength, fwhm=10.0, sza=30.0, vza=0.0,
             f"Or use the -g flag to generate coefficients from libRadtran."
         )
 
-    if verbose:
-        wl_diff = abs(wavelength - nearest_wl)
-        if wl_diff > 0:
-            gs.message(f"Loading SMAC coefficients for {wavelength:.1f} nm "
-                      f"(using nearest: {nearest_wl} nm, diff: {wl_diff:.1f} nm)")
-        else:
-            gs.message(f"Loading SMAC coefficients for {wavelength:.1f} nm")
+    wl_diff = abs(wavelength - nearest_wl)
+    if wl_diff > 0:
+        gs.verbose(f"Loading SMAC coefficients for {wavelength:.1f} nm "
+                  f"(using nearest: {nearest_wl} nm, diff: {wl_diff:.1f} nm)")
+    else:
+        gs.verbose(f"Loading SMAC coefficients for {wavelength:.1f} nm")
 
     # Load and return the coefficients
     coefs = smac.coeff(coef_path)
@@ -588,13 +584,11 @@ def _generate_and_cache_coefficients(wavelength, fwhm, aerosol_model,
     cache_file = os.path.join(cache_dir, f"coef_{wl_int}nm_{aerosol_upper}.dat")
 
     if os.path.isfile(cache_file):
-        if verbose:
-            gs.message(f"Using cached generated coefficients: {cache_file}")
+        gs.verbose(f"Using cached generated coefficients: {cache_file}")
         return smac.coeff(cache_file)
 
     # Generate coefficients
-    if verbose:
-        gs.message(f"Generating SMAC coefficients for {wavelength:.1f} nm "
+    gs.verbose(f"Generating SMAC coefficients for {wavelength:.1f} nm "
                   f"({aerosol_model}) from libRadtran...")
 
     coef_obj = generate_smac_coefficients(
@@ -607,8 +601,7 @@ def _generate_and_cache_coefficients(wavelength, fwhm, aerosol_model,
     # Save to cache
     os.makedirs(cache_dir, exist_ok=True)
     coef_obj.to_file(cache_file)
-    if verbose:
-        gs.message(f"Cached coefficients to: {cache_file}")
+    gs.verbose(f"Cached coefficients to: {cache_file}")
 
     # Load through smac.coeff for consistent return type
     return smac.coeff(cache_file)
@@ -663,13 +656,11 @@ def generate_smac_coefficients_from_libradtran(wavelength, fwhm=10.0,
     # Try to use pre-generated coefficients first
     coef_path, nearest_wl = find_coef_file(wavelength, aerosol_model)
     if coef_path is not None:
-        if verbose:
-            gs.message(f"Using pre-generated coefficients for {nearest_wl} nm")
+        gs.verbose(f"Using pre-generated coefficients for {nearest_wl} nm")
         return smac.coeff(coef_path)
 
     # Fall back to analytical approximation (for wavelengths outside 400-2500nm range)
-    if verbose:
-        gs.message(f"Generating analytical SMAC coefficients for {wavelength} nm...")
+    gs.verbose(f"Generating analytical SMAC coefficients for {wavelength} nm...")
 
     # Create temporary file for coefficients
     temp_dir = tempfile.mkdtemp(prefix='smac_coef_')
@@ -764,7 +755,7 @@ def generate_smac_coefficients_from_libradtran(wavelength, fwhm=10.0,
 
 if __name__ == "__main__":
     # Example usage - can run standalone for testing
-    gs.message("Testing within GRASS environment" if 'grass' in sys.modules else
+    gs.verbose("Testing within GRASS environment" if 'grass' in sys.modules else
                "Testing in standalone mode")
 
     print("=" * 60)
