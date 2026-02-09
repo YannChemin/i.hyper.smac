@@ -308,7 +308,84 @@ def estimate_pressure_from_dem(dem):
     gs.message(f"Estimated pressure from DEM: {pressure:.2f} hPa (elevation: {elevation:.1f} m)")
     return pressure
 
-def apply_smac_correction_simple(input_raster, output_raster, bands, 
+def compute_band_transmission(coefs, sza, vza, pressure, aod550, wvc, o3):
+    """Estimate total two-way transmission for a band using SMAC coefficients.
+
+    Replicates the gaseous and scattering transmission from smac_inv
+    (lines 197-208 of smac.py) without running the full inversion.
+
+    Args:
+        coefs: SMAC coefficient object (with ah2o, nh2o, ao3, ... attributes)
+        sza: Solar zenith angle in degrees
+        vza: View zenith angle in degrees
+        pressure: Atmospheric pressure in hPa
+        aod550: Aerosol optical depth at 550 nm
+        wvc: Water vapor content in g/cm²
+        o3: Ozone column in cm-atm
+
+    Returns:
+        Total two-way transmission (tg * T_down * T_up).  Values near zero
+        indicate opaque absorption bands.
+    """
+    us = np.cos(np.radians(sza))
+    uv = np.cos(np.radians(vza))
+    Peq = pressure / 1013.25
+    m = 1.0 / us + 1.0 / uv
+
+    # Gas transmissions (same formulas as smac.py lines 197-204)
+    th2o = np.exp(coefs.ah2o * ((wvc * m) ** coefs.nh2o))
+    to3 = np.exp(coefs.ao3 * ((o3 * m) ** coefs.no3))
+
+    # O2 and other gases (pressure-dependent)
+    uo2 = Peq ** coefs.po2
+    to2 = np.exp(coefs.ao2 * ((uo2 * m) ** coefs.no2))
+
+    uco2 = Peq ** coefs.pco2
+    tco2 = np.exp(coefs.aco2 * ((uco2 * m) ** coefs.nco2))
+
+    uch4 = Peq ** coefs.pch4
+    tch4 = np.exp(coefs.ach4 * ((uch4 * m) ** coefs.nch4))
+
+    uno2 = Peq ** coefs.pno2
+    tno2 = np.exp(coefs.ano2 * ((uno2 * m) ** coefs.nno2))
+
+    uco = Peq ** coefs.pco
+    tco = np.exp(coefs.aco * ((uco * m) ** coefs.nco))
+
+    tg = th2o * to3 * to2 * tco2 * tch4 * tco * tno2
+
+    # Scattering transmission (smac.py lines 207-208)
+    ttetas = (coefs.a0T + coefs.a1T * aod550 / us
+              + (coefs.a2T * Peq + coefs.a3T) / (1.0 + us))
+    ttetav = (coefs.a0T + coefs.a1T * aod550 / uv
+              + (coefs.a2T * Peq + coefs.a3T) / (1.0 + uv))
+
+    return float(tg * ttetas * ttetav)
+
+
+def compute_blue_aod_taper(wavelength, aod):
+    """Taper AOD for blue bands (<500 nm) to compensate for SMAC
+    single-scattering approximation overestimating path radiance.
+
+    Args:
+        wavelength: Band centre wavelength in nm
+        aod: Scene AOD at 550 nm
+
+    Returns:
+        Adjusted AOD for this band.
+    """
+    if wavelength >= 500.0:
+        return aod
+    # Linear taper: 100% at 500nm, 70% at 400nm, capped at 70% below 400nm
+    fraction = max(0.7, 0.7 + 0.3 * (wavelength - 400.0) / 100.0)
+    return aod * fraction
+
+
+AOD_MAX = 1.5  # Upper bound for AOD validation
+TRANSMISSION_THRESHOLD = 0.10  # Minimum two-way transmission
+
+
+def apply_smac_correction_simple(input_raster, output_raster, bands,
                                   aod, water_vapor, ozone, pressure,
                                   solar_zenith, solar_azimuth,
                                   view_zenith, view_azimuth,
@@ -665,24 +742,45 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
                     generate=generate_coefs,
                     verbose=gs.verbosity() > 0
                 )
-                
-                # Apply SMAC correction
-                refl_boa_band = smac.smac_inv(
-                    r_toa=refl_toa_band,
-                    tetas=solar_zenith,
-                    phis=solar_azimuth,
-                    tetav=view_zenith,
-                    phiv=view_azimuth,
-                    pressure=pressure,
-                    taup550=aod,
-                    uo3=ozone,
-                    uh2o=water_vapor,
-                    coef=coefs
+
+                # Fix 1: Check two-way transmission — mask opaque bands
+                band_T = compute_band_transmission(
+                    coefs, solar_zenith, view_zenith,
+                    pressure, aod, water_vapor, ozone
                 )
-                
-                # Keep unclipped for debugging (values > 1 indicate correction issues)
-                # refl_boa_band = np.clip(refl_boa_band, 0.0, 1.0)
-                
+
+                if band_T < TRANSMISSION_THRESHOLD:
+                    gs.verbose(
+                        f"Band {band_num} ({wavelength:.1f} nm): "
+                        f"transmission {band_T:.3f} < {TRANSMISSION_THRESHOLD}, masking as NaN"
+                    )
+                    refl_boa_band = np.full_like(refl_toa_band, np.nan)
+                else:
+                    # Fix 4: Blue-band AOD taper
+                    aod_band = compute_blue_aod_taper(wavelength, aod)
+                    if aod_band != aod:
+                        gs.verbose(
+                            f"Band {band_num} ({wavelength:.1f} nm): "
+                            f"AOD tapered {aod:.3f} -> {aod_band:.3f}"
+                        )
+
+                    # Apply SMAC correction
+                    refl_boa_band = smac.smac_inv(
+                        r_toa=refl_toa_band,
+                        tetas=solar_zenith,
+                        phis=solar_azimuth,
+                        tetav=view_zenith,
+                        phiv=view_azimuth,
+                        pressure=pressure,
+                        taup550=aod_band,
+                        uo3=ozone,
+                        uh2o=water_vapor,
+                        coef=coefs
+                    )
+
+                    # Fix 2: Clamp reflectance to physically plausible range
+                    refl_boa_band = np.clip(refl_boa_band, -0.01, 1.5)
+
                 # Write corrected band back to a raster
                 output_band = f"tmp_corr_{os.getpid()}_{band_num}"
                 corrected_bands.append(output_band)
@@ -853,7 +951,12 @@ def main():
             verbose=gs.verbosity() > 1
         )
         gs.message(f"Estimated AOD @ 550nm: {aod:.3f}")
-    
+
+    # Fix 3: Clamp AOD to upper bound
+    if aod > AOD_MAX:
+        gs.warning(f"AOD value {aod:.3f} exceeds maximum {AOD_MAX}. Clamping to {AOD_MAX}.")
+        aod = AOD_MAX
+
     # Estimate ozone if not provided
     ozone = 0.4  # Typical value
     ozone_map = None  # Initialize ozone_map to None

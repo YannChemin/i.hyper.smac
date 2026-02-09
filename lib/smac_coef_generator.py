@@ -596,6 +596,95 @@ class SMACCoefficientGenerator:
             taur = self.compute_rayleigh_optical_thickness(wavelength_nm)
             return taur * 0.5, 0.2, -0.05, 0.0
 
+    def fit_o2_absorption(self, wavelength_nm: float,
+                          aerosol_type: str = 'continental') -> Tuple[float, float, float]:
+        """
+        Fit O2 absorption coefficients for the A-band (760nm) and B-band (690nm).
+
+        SMAC models O2 transmission as:
+            T_O2 = exp(ao2 * (Peq^po2 * m)^no2)
+
+        We run libRadtran at varying pressures to fit these three parameters.
+
+        Args:
+            wavelength_nm: Wavelength in nanometers
+            aerosol_type: Aerosol model type
+
+        Returns:
+            Tuple of (ao2, no2, po2) coefficients
+        """
+        if self.verbose:
+            print(f"Fitting O2 absorption at {wavelength_nm:.1f} nm...")
+
+        sza = 30.0
+        vza = 0.0
+        m = 1.0 / np.cos(np.radians(sza)) + 1.0 / np.cos(np.radians(vza))
+
+        # Vary pressure to change O2 column
+        pressures = np.array([500.0, 700.0, 850.0, 950.0, 1013.25])
+        Peqs = pressures / 1013.25
+
+        # Reference: very low pressure (minimal O2)
+        ref_result = self.runner.run_simulation(
+            wavelength_nm, sza, vza, aod550=0.0, h2o=0.001, o3=0.001,
+            aerosol_type=aerosol_type, output_level='sur'
+        )
+        if ref_result is None:
+            return 0.0, 0.0, 0.0
+
+        ref_edir = ref_result['edir']
+        if ref_edir < 1e-10:
+            return 0.0, 0.0, 0.0
+
+        transmissions = []
+        for P in pressures:
+            # Use minimal H2O/O3 to isolate O2 effect
+            result = self.runner.run_simulation(
+                wavelength_nm, sza, vza, aod550=0.0, h2o=0.001, o3=0.001,
+                aerosol_type=aerosol_type, output_level='sur'
+            )
+            if result is not None and result['edir'] > 0:
+                T = result['edir'] / ref_edir
+                transmissions.append(T)
+            else:
+                transmissions.append(1.0)
+
+        transmissions = np.array(transmissions)
+
+        # Only fit if there is measurable absorption
+        if np.all(transmissions > 0.99):
+            return 0.0, 0.0, 0.0
+
+        valid = (transmissions > 0.001) & (transmissions < 1.0)
+        if np.sum(valid) < 3:
+            return 0.0, 0.0, 0.0
+
+        ln_T = np.log(transmissions[valid])
+
+        try:
+            # Fit: ln(T) = ao2 * (Peq^po2 * m)^no2
+            # Start with po2=1 (linear pressure dependence)
+            def o2_model(Peq, ao2, no2, po2):
+                return ao2 * ((Peq ** po2 * m) ** no2)
+
+            popt, _ = curve_fit(
+                o2_model, Peqs[valid], ln_T,
+                p0=[-0.5, 0.8, 1.0],
+                bounds=([-50, 0.1, 0.1], [0, 3.0, 3.0]),
+                maxfev=5000
+            )
+            ao2, no2, po2 = popt
+
+            if self.verbose:
+                print(f"  O2: ao2={ao2:.6f}, no2={no2:.6f}, po2={po2:.6f}")
+
+            return ao2, no2, po2
+
+        except Exception as e:
+            if self.verbose:
+                print(f"  O2 fitting failed: {e}")
+            return 0.0, 0.0, 0.0
+
     def fit_transmission(self, wavelength_nm: float,
                          aerosol_type: str = 'continental') -> Tuple[float, float, float, float]:
         """
@@ -747,8 +836,14 @@ class SMACCoefficientGenerator:
         else:
             coef.ao3, coef.no3 = 0.0, 1.0
 
-        # Other gases (typically zero for visible/NIR)
-        coef.ao2, coef.no2, coef.po2 = 0.0, 0.0, 0.0
+        # O2 absorption (A-band: 750-780nm, B-band: 685-700nm)
+        o2_active = (750 <= wavelength_nm <= 780) or (685 <= wavelength_nm <= 700)
+        if o2_active:
+            coef.ao2, coef.no2, coef.po2 = self.fit_o2_absorption(
+                wavelength_nm, aerosol_type
+            )
+        else:
+            coef.ao2, coef.no2, coef.po2 = 0.0, 0.0, 0.0
         coef.aco2, coef.nco2, coef.pco2 = 0.0, 0.0, 0.0
         coef.ach4, coef.nch4, coef.pch4 = 0.0, 0.0, 0.0
         coef.ano2, coef.nno2, coef.pno2 = 0.0, 0.0, 0.0
