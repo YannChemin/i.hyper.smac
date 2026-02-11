@@ -119,9 +119,9 @@
 # % key: method
 # % type: string
 # % required: no
-# % options: simple,libradtran
+# % options: simple,libradtran,lut
 # % answer: simple
-# % description: Atmospheric correction method to use (simple or libradtran)
+# % description: Atmospheric correction method to use (simple, libradtran, or lut)
 # % guisection: Method
 # %end
 
@@ -367,6 +367,45 @@ def compute_band_transmission(coefs, sza, vza, pressure, aod550, wvc, o3):
               + (coefs.a2T * Peq + coefs.a3T) / (1.0 + uv))
 
     return tg * ttetas * ttetav
+
+
+def compute_gas_transmission(coefs, sza, vza, pressure, wvc, o3):
+    """Compute gas-only transmission from SMAC coefficients.
+
+    Same gas absorption formulas as compute_band_transmission() but returns
+    only the gaseous transmission tg (no scattering terms).
+
+    Args:
+        coefs: SMAC coefficient object
+        sza: Solar zenith angle in degrees
+        vza: View zenith angle in degrees
+        pressure: Atmospheric pressure in hPa (scalar or array)
+        wvc: Water vapor content in g/cm² (scalar or array)
+        o3: Ozone column in cm-atm (scalar or array)
+
+    Returns:
+        Gas-only transmission tg (same shape as broadcastable inputs).
+    """
+    us = np.cos(np.radians(sza))
+    uv = np.cos(np.radians(vza))
+    Peq = pressure / 1013.25
+    m = 1.0 / us + 1.0 / uv
+
+    th2o = np.exp(coefs.ah2o * ((wvc * m) ** coefs.nh2o))
+    to3 = np.exp(coefs.ao3 * ((o3 * m) ** coefs.no3))
+
+    uo2 = Peq ** coefs.po2
+    to2 = np.exp(coefs.ao2 * ((uo2 * m) ** coefs.no2))
+    uco2 = Peq ** coefs.pco2
+    tco2 = np.exp(coefs.aco2 * ((uco2 * m) ** coefs.nco2))
+    uch4 = Peq ** coefs.pch4
+    tch4 = np.exp(coefs.ach4 * ((uch4 * m) ** coefs.nch4))
+    uno2 = Peq ** coefs.pno2
+    tno2 = np.exp(coefs.ano2 * ((uno2 * m) ** coefs.nno2))
+    uco = Peq ** coefs.pco
+    tco = np.exp(coefs.aco * ((uco * m) ** coefs.nco))
+
+    return th2o * to3 * to2 * tco2 * tch4 * tco * tno2
 
 
 def compute_blue_aod_taper(wavelength, aod):
@@ -958,8 +997,319 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
                     gs.run_command('g.remove', flags='f', type='raster',
                                   name=corr_band, quiet=True)
     
+def apply_lut_correction(input_raster, output_raster, bands,
+                         aod, water_vapor, ozone, pressure,
+                         solar_zenith, solar_azimuth,
+                         view_zenith, view_azimuth,
+                         aerosol_model='continental', keep_temp=False,
+                         aod_map=None, wvc_map=None,
+                         ozone_map=None, dem=None):
+    """Apply atmospheric correction using libRadtran LUT.
+
+    Uses full multiple-scattering from libRadtran DISORT via a precomputed
+    look-up table for R_atm, T_scat, and s.  Gas absorption is handled
+    separately via SMAC coefficients (supports per-pixel WVC).
+
+    Args:
+        input_raster (str): Input 3D raster name
+        output_raster (str): Output 3D raster name
+        bands (list): List of band information dictionaries
+        aod (float): Aerosol Optical Depth at 550nm (scene-mean fallback)
+        water_vapor (float): Water vapor content (g/cm²) (scene-mean fallback)
+        ozone (float): Ozone content (cm-atm) (scene-mean fallback)
+        pressure (float): Atmospheric pressure (hPa) (scene-mean fallback)
+        solar_zenith (float): Solar zenith angle (degrees)
+        solar_azimuth (float): Solar azimuth angle (degrees)
+        view_zenith (float): View zenith angle (degrees)
+        view_azimuth (float): View azimuth angle (degrees)
+        aerosol_model (str): Type of aerosol model
+        keep_temp (bool): Whether to keep temporary files
+        aod_map (str, optional): GRASS raster name for per-pixel AOD at 550nm
+        wvc_map (str, optional): GRASS raster name for per-pixel water vapor (g/cm²)
+        ozone_map (str, optional): GRASS raster name for per-pixel ozone (DU)
+        dem (str, optional): GRASS raster name for DEM (m) -> per-pixel pressure
+    """
+    import lut as lut_module
+
+    gs.message("Applying libRadtran LUT atmospheric correction...")
+
+    # Get acquisition date from metadata
+    try:
+        timestamp = gs.read_command('r3.timestamp', map=input_raster).strip()
+        if timestamp:
+            from datetime import datetime
+            dt = datetime.strptime(timestamp.split()[0], "%d/%m/%Y")
+            year, month, day = dt.year, dt.month, dt.day
+        else:
+            raise ValueError("No timestamp")
+    except Exception:
+        from datetime import datetime
+        dt = datetime.now()
+        year, month, day = dt.year, dt.month, dt.day
+        gs.warning(f"Could not get acquisition date, using current date: "
+                   f"{year}-{month:02d}-{day:02d}")
+
+    # Calculate Earth-Sun distance
+    d2 = radtran.earth_sun_distance(year, month, day) ** 2
+
+    # Relative azimuth
+    phi = abs(solar_azimuth - view_azimuth)
+
+    # Determine wavelength range from bands
+    wl_min = max(350, int(bands[0]['wavelength']) - 20)
+    wl_max = min(2500, int(bands[-1]['wavelength']) + 20)
+
+    # Generate or load cached LUT
+    gs.message("Generating/loading atmospheric LUT...")
+    atm_lut = lut_module.AtmosphericLUT.get_or_generate(
+        sza=solar_zenith, vza=view_zenith, phi=phi,
+        pressure=pressure, aerosol_model=aerosol_model,
+        wl_min=wl_min, wl_max=wl_max, wl_step=10,
+    )
+
+    # Get wavelength information from input raster
+    input_info = gs.read_command('r3.info', flags='h', map=input_raster)
+    wavelength_info = [line.strip() for line in input_info.split('\n')
+                       if 'Band' in line and 'nm' in line]
+
+    # Load per-pixel atmospheric maps (if provided)
+    if aod_map:
+        aod_array = np.clip(read_raster_as_array(aod_map), 0.001, AOD_MAX)
+        gs.message(f"Loaded per-pixel AOD map: {aod_map}")
+    else:
+        aod_array = None
+
+    if wvc_map:
+        wvc_array = np.clip(read_raster_as_array(wvc_map), 0.1, 8.0)
+        gs.message(f"Loaded per-pixel WVC map: {wvc_map}")
+    else:
+        wvc_array = None
+
+    if ozone_map:
+        ozone_array = np.clip(read_raster_as_array(ozone_map) * 0.001, 0.1, 0.6)
+        gs.message(f"Loaded per-pixel ozone map: {ozone_map}")
+    else:
+        ozone_array = None
+
+    if dem:
+        elev = read_raster_as_array(dem)
+        pressure_array = 1013.25 * (1 - 0.0065 * elev / 288.15) ** 5.255
+        gs.message(f"Loaded DEM for per-pixel pressure: {dem}")
+    else:
+        pressure_array = None
+
+    # Store temporary band names for cleanup
+    temp_bands = []
+    corrected_bands = []
+
+    theta_s_rad = np.radians(solar_zenith)
+
+    try:
+        for i, band in enumerate(bands):
+            band_num = band['band_num']
+            wavelength = band['wavelength']
+            fwhm = band.get('fwhm', 10.0)
+
+            if wavelength < 300 or wavelength > 4000:
+                gs.warning(f"Skipping band {band_num} at {wavelength} nm "
+                           f"(outside 300-4000 nm range)")
+                continue
+
+            gs.message(f"Processing band {band_num}: {wavelength:.2f} nm, "
+                       f"FWHM: {fwhm:.2f} nm")
+
+            # Extract band from 3D raster
+            input_band = f"tmp_input_{os.getpid()}_{band_num}"
+            temp_bands.append(input_band)
+
+            gs.run_command('g.region', t=band_num + 0.1, b=band_num, quiet=True)
+            gs.run_command('r3.to.rast', input=input_raster,
+                          output=input_band, overwrite=True, quiet=True)
+            gs.run_command('g.rename',
+                          raster=f"{input_band}_00001,{input_band}",
+                          overwrite=True, quiet=True)
+
+            # Read raster data
+            with RasterRow(input_band) as r:
+                r.open('r')
+                rad_toa_band = np.array(r)
+
+            # Get exo-atmospheric irradiance
+            try:
+                E0_band = radtran.E0(wavelength, fwhm)
+                if E0_band is None:
+                    raise ValueError("E0 returned None")
+            except Exception as e:
+                gs.warning(f"Could not get E0 for band {band_num}: {e}")
+                gs.warning("Using approximate E0 from blackbody model")
+                wl_m = wavelength * 1e-9
+                hc_kT = 6.626e-34 * 2.998e8 / (wl_m * 1.381e-23 * 5778.0)
+                B = 2 * 6.626e-34 * (2.998e8)**2 / (wl_m**5 * (np.exp(hc_kT) - 1.0))
+                E0_band = 6.794e-5 * B * 1e-6
+
+            # Convert radiance to TOA reflectance
+            refl_toa = (np.pi * rad_toa_band * d2) / (E0_band * np.cos(theta_s_rad))
+
+            # Select per-pixel or scalar atmospheric parameters
+            p_pres = pressure_array if pressure_array is not None else pressure
+            p_aod = aod_array if aod_array is not None else aod
+            p_wvc = wvc_array if wvc_array is not None else water_vapor
+            p_o3 = ozone_array if ozone_array is not None else ozone
+
+            try:
+                # Get SMAC coefficients for gas transmission only
+                coefs = get_smac_parameters(
+                    wavelength=wavelength, fwhm=fwhm,
+                    sza=solar_zenith, vza=view_zenith,
+                    aod_550=aod, water_vapor=water_vapor,
+                    ozone=ozone, pressure=pressure,
+                    aerosol_model=aerosol_model,
+                    verbose=gs.verbosity() > 0
+                )
+
+                # Compute gas-only transmission
+                tg = compute_gas_transmission(
+                    coefs, solar_zenith, view_zenith, p_pres, p_wvc, p_o3
+                )
+
+                # Mask opaque bands
+                if np.ndim(tg) == 0:
+                    if tg < TRANSMISSION_THRESHOLD:
+                        gs.verbose(
+                            f"Band {band_num} ({wavelength:.1f} nm): "
+                            f"gas transmission {tg:.3f} < {TRANSMISSION_THRESHOLD}, "
+                            f"masking as NaN"
+                        )
+                        refl_boa_band = np.full_like(refl_toa, np.nan)
+                    else:
+                        # Get scattering params from LUT
+                        R_atm, T_scat, s = atm_lut.interpolate(wavelength, p_aod)
+
+                        # Inversion formula
+                        numerator = refl_toa - R_atm * tg
+                        denominator = tg * T_scat + numerator * s
+                        with np.errstate(divide='ignore', invalid='ignore'):
+                            refl_boa_band = numerator / denominator
+                        refl_boa_band = np.clip(
+                            np.nan_to_num(refl_boa_band, nan=0.0), -0.01, 1.5
+                        )
+                else:
+                    # Per-pixel path
+                    opaque_mask = tg < TRANSMISSION_THRESHOLD
+                    if np.all(opaque_mask):
+                        gs.verbose(
+                            f"Band {band_num} ({wavelength:.1f} nm): "
+                            f"all pixels opaque, masking as NaN"
+                        )
+                        refl_boa_band = np.full_like(refl_toa, np.nan)
+                    else:
+                        R_atm, T_scat, s = atm_lut.interpolate(wavelength, p_aod)
+
+                        numerator = refl_toa - R_atm * tg
+                        denominator = tg * T_scat + numerator * s
+                        with np.errstate(divide='ignore', invalid='ignore'):
+                            refl_boa_band = numerator / denominator
+                        refl_boa_band = np.clip(
+                            np.nan_to_num(refl_boa_band, nan=0.0), -0.01, 1.5
+                        )
+                        refl_boa_band[opaque_mask] = np.nan
+
+                # Write corrected band
+                output_band = f"tmp_corr_{os.getpid()}_{band_num}"
+                corrected_bands.append(output_band)
+
+                ncols = refl_boa_band.shape[1] if refl_boa_band.ndim > 1 else refl_boa_band.shape[0]
+                with RasterRow(output_band, mode='w', mtype='DCELL', overwrite=True) as r:
+                    for row_idx, row_data in enumerate(refl_boa_band):
+                        buf = Buffer((ncols,), mtype='DCELL')
+                        buf[:] = row_data
+                        r.put_row(buf)
+
+                band_comment = f"Band {band_num}: {wavelength:.2f} nm"
+                if fwhm:
+                    band_comment += f", FWHM: {fwhm:.2f} nm"
+                gs.run_command('r.support', map=output_band,
+                              title=band_comment, units="reflectance",
+                              quiet=True)
+
+                gs.percent(i, len(bands), 1)
+
+            except Exception as e:
+                gs.fatal(f"Error processing band {band_num}: {str(e)}")
+
+        if not corrected_bands:
+            gs.fatal("No bands were successfully processed")
+
+        # Restore 3D region and combine bands
+        gs.run_command('g.region', raster_3d=input_raster, quiet=True)
+
+        gs.message("Combining corrected bands into 3D raster...")
+        gs.run_command('r.to.rast3', input=','.join(corrected_bands),
+                      output=output_raster, overwrite=True)
+
+        # Transfer metadata
+        try:
+            desc = ["Atmospheric Correction Metadata (libRadtran LUT):"]
+            desc.append(f"Original raster: {input_raster}")
+            desc.append("Method: libRadtran LUT (DISORT multiple-scattering)")
+            desc.append(f"Solar Z: {solar_zenith}, View Z: {view_zenith}")
+            desc.append(f"AOD: {aod}, Water Vapor: {water_vapor} g/cm2")
+            desc.append(f"Ozone: {ozone} cm-atm, Pressure: {pressure} hPa")
+            desc.append(f"Aerosol model: {aerosol_model}")
+            desc.append("Measurement: Reflectance (Bottom of Atmosphere)")
+
+            if wavelength_info:
+                desc.append(f"Valid Bands: {len(corrected_bands)}")
+                for j, band in enumerate(bands):
+                    if j < len(corrected_bands):
+                        wl_line = next(
+                            (w for w in wavelength_info
+                             if f"Band {band['band_num']}:" in w), None
+                        )
+                        if wl_line:
+                            desc.append(wl_line)
+
+            gs.run_command('r3.support', map=output_raster,
+                          title=f"LUT corrected {input_raster}",
+                          description="\n".join(desc),
+                          source1="GRASS GIS i.hyper.smac module (libRadtran LUT)",
+                          quiet=True)
+
+            try:
+                timestamp = gs.read_command('r3.timestamp',
+                                            map=input_raster).strip()
+                if timestamp:
+                    gs.run_command('r3.timestamp', map=output_raster,
+                                  date=timestamp)
+            except Exception:
+                pass
+
+        except Exception as e:
+            gs.warning(f"Could not transfer metadata: {str(e)}")
+
+        gs.percent(1, 1, 1)
+        gs.message(f"LUT atmospheric correction complete: {output_raster}")
+
+    except Exception as e:
+        gs.fatal(f"Error in LUT processing: {str(e)}")
+
+    finally:
+        gs.run_command('g.region', raster_3d=input_raster, quiet=True)
+
+        if not keep_temp:
+            gs.message("Cleaning up temporary files...")
+            for temp_band in temp_bands:
+                if gs.find_file(temp_band, element='cell')['file']:
+                    gs.run_command('g.remove', flags='f', type='raster',
+                                  name=temp_band, quiet=True)
+            for corr_band in corrected_bands:
+                if gs.find_file(corr_band, element='cell')['file']:
+                    gs.run_command('g.remove', flags='f', type='raster',
+                                  name=corr_band, quiet=True)
+
+
 def main():
-    """Main function."""    
+    """Main function."""
     options, flags = gs.parser()
     
     input_raster = options['input']
@@ -1092,15 +1442,16 @@ def main():
     gs.message(f"  Ozone: {ozone:.2f} cm-atm")
     gs.message(f"  Pressure: {pressure:.1f} hPa")
     
-    if generate_coefs and method != 'libradtran':
+    if generate_coefs and method not in ('libradtran', 'lut'):
         gs.warning("The -g flag (generate coefficients from libRadtran) is only used "
                    "with method=libradtran. Ignoring -g flag.")
         generate_coefs = False
 
+    aerosol_model = options.get('aerosol_model', 'continental')
+
     if method == 'libradtran':
         sensor_type = options.get('sensor', '').upper()
         visibility = float(options['visibility']) if options.get('visibility') else None
-        aerosol_model = options.get('aerosol_model', 'continental') # continental is default
 
         gs.message(f"  Sensor: {sensor_type}")
         gs.message(f"  Aerosol model: {aerosol_model}")
@@ -1108,7 +1459,10 @@ def main():
             gs.message(f"  Visibility: {visibility} km")
         if generate_coefs:
             gs.message("  Coefficient generation: ENABLED (libRadtran + scipy fitting)")
-    
+
+    if method == 'lut':
+        gs.message(f"  Aerosol model: {aerosol_model}")
+
     gs.message("=" * 60)
     
     # Apply the selected correction method
@@ -1134,8 +1488,20 @@ def main():
             ozone_map=ozone_map,
             dem=dem,
         )
+    elif method == 'lut':
+        apply_lut_correction(
+            input_raster, output_raster, bands,
+            aod, water_vapor, ozone, pressure,
+            solar_zenith, solar_azimuth,
+            view_zenith, view_azimuth,
+            aerosol_model, keep_temp,
+            aod_map=aod_map,
+            wvc_map=wvc_map,
+            ozone_map=ozone_map,
+            dem=dem,
+        )
     else:
-        gs.fatal(f"Unknown method: {method}. Choose 'simple' or 'libradtran'.")
+        gs.fatal(f"Unknown method: {method}. Choose 'simple', 'libradtran', or 'lut'.")
     
     return 0
 
