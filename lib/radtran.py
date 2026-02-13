@@ -401,15 +401,20 @@ quiet
 
     return E0_band
 
-def find_coef_file(wavelength, aerosol_model='continental', coef_dir=None):
+def find_coef_file(wavelength, aerosol_model='continental', coef_dir=None,
+                   fwhm=None):
     """
     Find the nearest pre-generated SMAC coefficient file for a given wavelength.
+
+    Prefers FWHM-specific files (pattern: coef_{wl}nm_fwhm{fwhm}nm_{TYPE}.dat)
+    when *fwhm* is provided, and falls back to the generic file otherwise.
 
     Args:
         wavelength (float): Central wavelength in nm
         aerosol_model (str): Aerosol model type (continental, maritime, urban, desert)
         coef_dir (str): Optional path to coefficient directory. If None, uses
                         the COEFS directory relative to this module.
+        fwhm (float): FWHM in nm. When set, look for band-integrated files first.
 
     Returns:
         tuple: (coef_file_path, actual_wavelength) or (None, None) if not found
@@ -446,7 +451,27 @@ def find_coef_file(wavelength, aerosol_model='continental', coef_dir=None):
     if not os.path.isdir(aerosol_dir):
         return None, None
 
-    # Scan directory for available coefficient files
+    # --- Prefer FWHM-specific files ---
+    if fwhm is not None:
+        fwhm_int = int(round(fwhm))
+        fwhm_pattern = re.compile(
+            r'coef_(\d+)nm_fwhm(\d+)nm_' + aerosol_dir_name + r'\.dat'
+        )
+        fwhm_wavelengths = []
+        for f in os.listdir(aerosol_dir):
+            m = fwhm_pattern.match(f)
+            if m and int(m.group(2)) == fwhm_int:
+                fwhm_wavelengths.append(int(m.group(1)))
+
+        if fwhm_wavelengths:
+            nearest_wl = min(fwhm_wavelengths, key=lambda x: abs(x - wavelength))
+            coef_filename = (f"coef_{nearest_wl}nm_fwhm{fwhm_int}nm_"
+                             f"{aerosol_dir_name}.dat")
+            coef_path = os.path.join(aerosol_dir, coef_filename)
+            if os.path.isfile(coef_path):
+                return coef_path, nearest_wl
+
+    # --- Fall back to generic (center-wavelength) files ---
     pattern = re.compile(r'coef_(\d+)nm_' + aerosol_dir_name + r'\.dat')
     available_wavelengths = []
     for f in os.listdir(aerosol_dir):
@@ -510,8 +535,9 @@ def get_smac_parameters(wavelength, fwhm=10.0, sza=30.0, vza=0.0,
             wavelength, fwhm, aerosol_model, coef_dir, verbose
         )
 
-    # Find the nearest coefficient file
-    coef_path, nearest_wl = find_coef_file(wavelength, aerosol_model, coef_dir)
+    # Find the nearest coefficient file (prefer FWHM-specific)
+    coef_path, nearest_wl = find_coef_file(wavelength, aerosol_model, coef_dir,
+                                            fwhm=fwhm)
 
     if coef_path is None:
         raise FileNotFoundError(

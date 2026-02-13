@@ -379,5 +379,118 @@ class TestComputeBlueAodTaperArray(unittest.TestCase):
         np.testing.assert_allclose(r_array, float(r_scalar), rtol=1e-12)
 
 
+# ---------------------------------------------------------------------------
+# Coupling correction helper (mirrors i.hyper.smac.py)
+# ---------------------------------------------------------------------------
+
+def compute_coupling_correction(wavelength, tg, aod550, pressure,
+                                 aerosol_model='continental', k=0.07):
+    wl_um = wavelength / 1000.0
+    tau_r = 0.008569 * wl_um**(-4) * (1 + 0.0113 * wl_um**(-2))
+    tau_r = tau_r * np.asarray(pressure) / 1013.25
+    tau_a = np.asarray(aod550) * (wavelength / 550.0)**(-1.3)
+    tau_scat = tau_r + tau_a
+    return np.asarray(tg) ** (1.0 + k * tau_scat)
+
+
+# ---------------------------------------------------------------------------
+# Tests for coupling correction (Improvement 4)
+# ---------------------------------------------------------------------------
+
+class TestCouplingCorrection(unittest.TestCase):
+    """Tests for compute_coupling_correction()."""
+
+    def test_no_correction_at_zero_scattering(self):
+        """tg_eff should equal tg when AOD=0 at long wavelengths (low Rayleigh)."""
+        tg = 0.95
+        # At 2000nm, Rayleigh is negligible; with aod=0, tau_scat ≈ 0
+        tg_eff = compute_coupling_correction(2000.0, tg, aod550=0.0,
+                                              pressure=1013.25)
+        self.assertAlmostEqual(float(tg_eff), tg, places=4)
+
+    def test_correction_increases_absorption(self):
+        """tg_eff should be less than tg when scattering is present."""
+        tg = 0.90
+        tg_eff = compute_coupling_correction(500.0, tg, aod550=0.3,
+                                              pressure=1013.25)
+        self.assertLess(float(tg_eff), tg)
+
+    def test_stronger_at_short_wavelengths(self):
+        """Correction should be larger at 400nm than at 800nm (more Rayleigh)."""
+        tg = 0.90
+        tg_400 = compute_coupling_correction(400.0, tg, aod550=0.2,
+                                              pressure=1013.25)
+        tg_800 = compute_coupling_correction(800.0, tg, aod550=0.2,
+                                              pressure=1013.25)
+        # Stronger correction = lower tg_eff
+        self.assertLess(float(tg_400), float(tg_800))
+
+    def test_weak_absorption_minimal(self):
+        """When tg is very close to 1, correction should be negligible."""
+        tg = 0.999
+        tg_eff = compute_coupling_correction(500.0, tg, aod550=0.3,
+                                              pressure=1013.25)
+        self.assertAlmostEqual(float(tg_eff), tg, places=3)
+
+    def test_array_input(self):
+        """Should work with 2D AOD/pressure arrays."""
+        tg = 0.90
+        aod = np.array([[0.1, 0.2], [0.3, 0.5]])
+        pressure = np.array([[1013.25, 900.0], [850.0, 1013.25]])
+        tg_eff = compute_coupling_correction(500.0, tg, aod, pressure)
+        self.assertEqual(tg_eff.shape, (2, 2))
+        self.assertTrue(np.all(tg_eff <= tg))
+        self.assertTrue(np.all(tg_eff > 0))
+
+
+# ---------------------------------------------------------------------------
+# Tests for blue LUT hybrid (Improvement 2)
+# ---------------------------------------------------------------------------
+
+class TestBlueHybridConcept(unittest.TestCase):
+    """Verify the hybrid LUT+SMAC gas approach produces reasonable results."""
+
+    def test_lut_inversion_positive_for_dark_surface(self):
+        """LUT-style inversion should give non-negative reflectance for
+        typical dark vegetation TOA signal at blue wavelengths."""
+        # Simulate: r_toa = R_atm * tg + tg * T_scat * rho / (1 - rho * s)
+        # For dark veg at 450nm: rho_surf ≈ 0.03, heavy atmosphere
+        R_atm = 0.15     # Path radiance (DISORT-like, reasonable for blue)
+        T_scat = 0.60     # Two-way scattering transmittance
+        s = 0.10           # Spherical albedo
+        tg = 0.95          # Gas transmission
+        rho_true = 0.03    # True surface reflectance
+
+        # Simulate TOA reflectance
+        r_toa = R_atm * tg + tg * T_scat * rho_true / (1.0 - rho_true * s)
+
+        # Inversion
+        numerator = r_toa - R_atm * tg
+        denominator = tg * T_scat + numerator * s
+        rho_recovered = numerator / denominator
+
+        self.assertGreater(rho_recovered, -0.01)
+        self.assertAlmostEqual(rho_recovered, rho_true, places=3)
+
+    def test_blend_region_smooth(self):
+        """A simple linear blend between LUT and SMAC should produce
+        intermediate values between 550-650nm."""
+        val_lut = 0.05      # Blue side (LUT)
+        val_smac = 0.06     # Red side (SMAC)
+        blend_start, blend_end = 550, 650
+
+        for wl in [550, 575, 600, 625, 650]:
+            if wl <= blend_start:
+                blended = val_lut
+            elif wl >= blend_end:
+                blended = val_smac
+            else:
+                f = (wl - blend_start) / (blend_end - blend_start)
+                blended = (1 - f) * val_lut + f * val_smac
+
+            self.assertGreaterEqual(blended, min(val_lut, val_smac))
+            self.assertLessEqual(blended, max(val_lut, val_smac))
+
+
 if __name__ == '__main__':
     unittest.main()

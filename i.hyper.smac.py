@@ -120,7 +120,7 @@
 # % type: string
 # % required: no
 # % options: simple,libradtran,lut
-# % answer: simple
+# % answer: lut
 # % description: Atmospheric correction method to use (simple, libradtran, or lut)
 # % guisection: Method
 # %end
@@ -151,6 +151,21 @@
 # %flag
 # % key: g
 # % description: Generate SMAC coefficients from libRadtran (requires libRadtran and scipy)
+# % guisection: Advanced
+# %end
+
+# %flag
+# % key: p
+# % description: Apply spectral polishing to remove outlier bands
+# % guisection: Optional
+# %end
+
+# %option
+# % key: adjacency_psf
+# % type: double
+# % required: no
+# % answer: 0
+# % description: Adjacency effect PSF radius in km (0 = disabled, typical 1.0)
 # % guisection: Advanced
 # %end
 
@@ -430,6 +445,34 @@ def compute_blue_aod_taper(wavelength, aod):
     # alpha: 0 at 650nm, 2.0 at ≤400nm (linear in wavelength)
     alpha = np.minimum(2.0, 2.0 * (650.0 - wavelength) / 250.0)
     return aod / (1.0 + alpha * aod)
+
+
+def compute_coupling_correction(wavelength, tg, aod550, pressure,
+                                 aerosol_model='continental', k=0.07):
+    """Correct gas transmission for scattering-absorption coupling.
+
+    Multiply-scattered photons travel longer paths through absorbing gas
+    than assumed by the separable model r_toa = R_atm * tg + ...
+    The correction amplifies absorption proportionally to the scattering
+    optical depth: tg_eff = tg^(1 + k * tau_scat).
+
+    Args:
+        wavelength: Band centre wavelength in nm (scalar).
+        tg: Gas-only transmission (scalar or array).
+        aod550: AOD at 550 nm (scalar or array).
+        pressure: Atmospheric pressure in hPa (scalar or array).
+        aerosol_model: Aerosol model name (unused, reserved).
+        k: Coupling strength parameter (default 0.07).
+
+    Returns:
+        Effective gas transmission tg_eff (same shape as inputs).
+    """
+    wl_um = wavelength / 1000.0
+    tau_r = 0.008569 * wl_um**(-4) * (1 + 0.0113 * wl_um**(-2))
+    tau_r = tau_r * np.asarray(pressure) / 1013.25
+    tau_a = np.asarray(aod550) * (wavelength / 550.0)**(-1.3)
+    tau_scat = tau_r + tau_a
+    return np.asarray(tg) ** (1.0 + k * tau_scat)
 
 
 AOD_MAX = 1.5  # Upper bound for AOD validation
@@ -751,45 +794,61 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
     temp_bands = []
     corrected_bands = []
 
+    # Generate a blue-only LUT for bands < 650nm (uses DISORT 16-stream
+    # multiple scattering instead of SMAC's Eddington two-stream which
+    # overestimates path radiance at short wavelengths)
+    blue_lut = None
+    has_blue_bands = any(b['wavelength'] < 650 for b in bands
+                         if 300 <= b['wavelength'] <= 4000)
+    if has_blue_bands:
+        import lut as lut_module
+        phi = abs(solar_azimuth - view_azimuth)
+        gs.message("Generating blue-band LUT (350-700nm) for hybrid correction...")
+        blue_lut = lut_module.AtmosphericLUT.get_or_generate(
+            sza=solar_zenith, vza=view_zenith, phi=phi,
+            pressure=pressure, aerosol_model=aerosol_model,
+            wl_min=350, wl_max=700, wl_step=5,
+        )
+
     try:
         # Process each band
         for i, band in enumerate(bands):
             band_num = band['band_num']
             wavelength = band['wavelength']
             fwhm = band.get('fwhm', 10.0)
-            
+
             # Skip bands outside the valid range for libradtran
             if wavelength < 300 or wavelength > 4000:
                 gs.warning(f"Skipping band {band_num} with wavelength {wavelength} nm (outside 300-4000 nm range)")
                 continue
-            
+
             gs.message(f"Processing band {band_num}: {wavelength:.2f} nm, FWHM: {fwhm:.2f} nm")
-            
+
             # Extract band from 3D raster
             input_band = f"tmp_input_{os.getpid()}_{band_num}"
             temp_bands.append(input_band)
-            
+
             # Set the 3D region to the specific band
             gs.run_command('g.region', t=band_num + 0.1, b=band_num, quiet=True)
-            
+
             # Extract the band
             gs.run_command('r3.to.rast',
                           input=input_raster,
                           output=input_band,
                           overwrite=True,
                           quiet=True)
-            
+
             # The output will be named input_band_00001, rename it
             gs.run_command('g.rename',
                           raster=f"{input_band}_00001,{input_band}",
                           overwrite=True,
                           quiet=True)
-            
+
             # Read raster data into numpy array
             with RasterRow(input_band) as r:
                 r.open('r')
                 rad_toa_band = np.array(r)
-            
+
             # Get exo-atmospheric irradiance for this band
             try:
                 E0_band = radtran.E0(wavelength, fwhm)
@@ -798,22 +857,16 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
             except Exception as e:
                 gs.warning(f"Could not get E0 for band {band_num} at {wavelength} nm: {e}")
                 gs.warning("Using approximate E0 from blackbody model")
-                # Approximate E0 using 5778K blackbody scaled to solar constant
-                # F(λ) = Ω_sun × B(λ, T_sun), result in mW/(m² nm)
-                wl_m = wavelength * 1e-9  # nm to meters
+                wl_m = wavelength * 1e-9
                 hc_kT = 6.626e-34 * 2.998e8 / (wl_m * 1.381e-23 * 5778.0)
                 B = 2 * 6.626e-34 * (2.998e8)**2 / (wl_m**5 * (np.exp(hc_kT) - 1.0))
-                E0_band = 6.794e-5 * B * 1e-6  # W/m³ → mW/(m² nm)
-            
+                E0_band = 6.794e-5 * B * 1e-6
+
             # Convert radiance to TOA reflectance
-            # Formula: refl_toa = (π * L_toa * d²) / (E0 * cos(θs))
             refl_toa_band = (np.pi * rad_toa_band * d2) / (E0_band * np.cos(theta_s_rad))
-            
-            # Keep negative values as-is for debugging (indicates calibration issues)
-            # refl_toa_band = np.clip(refl_toa_band, 0.0, 1.0)
-            
+
             try:
-                # Get SMAC coefficients from libRadtran
+                # Get SMAC coefficients (used for gas transmission in all paths)
                 coefs = get_smac_parameters(
                     wavelength=wavelength,
                     fwhm=fwhm,
@@ -834,60 +887,99 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
                 p_wvc = wvc_array if wvc_array is not None else water_vapor
                 p_o3 = ozone_array if ozone_array is not None else ozone
 
-                # Check two-way transmission — mask opaque bands
-                band_T = compute_band_transmission(
-                    coefs, solar_zenith, view_zenith,
-                    p_pres, p_aod, p_wvc, p_o3
+                # Compute gas-only transmission for masking
+                tg = compute_gas_transmission(
+                    coefs, solar_zenith, view_zenith, p_pres, p_wvc, p_o3
                 )
 
-                if np.ndim(band_T) == 0:
-                    # Scalar path (no maps)
-                    if band_T < TRANSMISSION_THRESHOLD:
-                        gs.verbose(
-                            f"Band {band_num} ({wavelength:.1f} nm): "
-                            f"transmission {band_T:.3f} < {TRANSMISSION_THRESHOLD}, masking as NaN"
-                        )
-                        refl_boa_band = np.full_like(refl_toa_band, np.nan)
+                # Use blue hybrid path (LUT scattering + SMAC gas) for λ < 650nm
+                use_blue_hybrid = wavelength < 650 and blue_lut is not None
+
+                if use_blue_hybrid:
+                    # LUT scattering + SMAC gas path
+                    if np.ndim(tg) == 0:
+                        if tg < TRANSMISSION_THRESHOLD:
+                            gs.verbose(
+                                f"Band {band_num} ({wavelength:.1f} nm): "
+                                f"gas transmission {tg:.3f} < {TRANSMISSION_THRESHOLD}, masking as NaN"
+                            )
+                            refl_boa_band = np.full_like(refl_toa_band, np.nan)
+                        else:
+                            R_atm, T_scat, s = blue_lut.interpolate(wavelength, p_aod)
+                            tg_eff = compute_coupling_correction(
+                                wavelength, tg, p_aod, p_pres, aerosol_model
+                            )
+                            numerator = refl_toa_band - R_atm * tg_eff
+                            denominator = tg_eff * T_scat + numerator * s
+                            with np.errstate(divide='ignore', invalid='ignore'):
+                                refl_boa_band = numerator / denominator
+                            refl_boa_band = np.clip(
+                                np.nan_to_num(refl_boa_band, nan=0.0), -0.01, 1.5
+                            )
                     else:
-                        aod_band = compute_blue_aod_taper(wavelength, p_aod)
-                        refl_boa_band = smac.smac_inv(
-                            r_toa=refl_toa_band,
-                            tetas=solar_zenith,
-                            phis=solar_azimuth,
-                            tetav=view_zenith,
-                            phiv=view_azimuth,
-                            pressure=p_pres,
-                            taup550=aod_band,
-                            uo3=p_o3,
-                            uh2o=p_wvc,
-                            coef=coefs
-                        )
-                        refl_boa_band = np.clip(refl_boa_band, -0.01, 1.5)
+                        opaque_mask = tg < TRANSMISSION_THRESHOLD
+                        if np.all(opaque_mask):
+                            refl_boa_band = np.full_like(refl_toa_band, np.nan)
+                        else:
+                            R_atm, T_scat, s = blue_lut.interpolate(wavelength, p_aod)
+                            tg_eff = compute_coupling_correction(
+                                wavelength, tg, p_aod, p_pres, aerosol_model
+                            )
+                            numerator = refl_toa_band - R_atm * tg_eff
+                            denominator = tg_eff * T_scat + numerator * s
+                            with np.errstate(divide='ignore', invalid='ignore'):
+                                refl_boa_band = numerator / denominator
+                            refl_boa_band = np.clip(
+                                np.nan_to_num(refl_boa_band, nan=0.0), -0.01, 1.5
+                            )
+                            refl_boa_band[opaque_mask] = np.nan
                 else:
-                    # Per-pixel path
-                    opaque_mask = band_T < TRANSMISSION_THRESHOLD
-                    if np.all(opaque_mask):
-                        gs.verbose(
-                            f"Band {band_num} ({wavelength:.1f} nm): "
-                            f"all pixels opaque, masking as NaN"
-                        )
-                        refl_boa_band = np.full_like(refl_toa_band, np.nan)
+                    # Original SMAC path for λ >= 650nm
+                    band_T = compute_band_transmission(
+                        coefs, solar_zenith, view_zenith,
+                        p_pres, p_aod, p_wvc, p_o3
+                    )
+
+                    if np.ndim(band_T) == 0:
+                        if band_T < TRANSMISSION_THRESHOLD:
+                            gs.verbose(
+                                f"Band {band_num} ({wavelength:.1f} nm): "
+                                f"transmission {band_T:.3f} < {TRANSMISSION_THRESHOLD}, masking as NaN"
+                            )
+                            refl_boa_band = np.full_like(refl_toa_band, np.nan)
+                        else:
+                            refl_boa_band = smac.smac_inv(
+                                r_toa=refl_toa_band,
+                                tetas=solar_zenith,
+                                phis=solar_azimuth,
+                                tetav=view_zenith,
+                                phiv=view_azimuth,
+                                pressure=p_pres,
+                                taup550=p_aod,
+                                uo3=p_o3,
+                                uh2o=p_wvc,
+                                coef=coefs
+                            )
+                            refl_boa_band = np.clip(refl_boa_band, -0.01, 1.5)
                     else:
-                        aod_band = compute_blue_aod_taper(wavelength, p_aod)
-                        refl_boa_band = smac.smac_inv(
-                            r_toa=refl_toa_band,
-                            tetas=solar_zenith,
-                            phis=solar_azimuth,
-                            tetav=view_zenith,
-                            phiv=view_azimuth,
-                            pressure=p_pres,
-                            taup550=aod_band,
-                            uo3=p_o3,
-                            uh2o=p_wvc,
-                            coef=coefs
-                        )
-                        refl_boa_band = np.clip(refl_boa_band, -0.01, 1.5)
-                        refl_boa_band[opaque_mask] = np.nan
+                        opaque_mask = band_T < TRANSMISSION_THRESHOLD
+                        if np.all(opaque_mask):
+                            refl_boa_band = np.full_like(refl_toa_band, np.nan)
+                        else:
+                            refl_boa_band = smac.smac_inv(
+                                r_toa=refl_toa_band,
+                                tetas=solar_zenith,
+                                phis=solar_azimuth,
+                                tetav=view_zenith,
+                                phiv=view_azimuth,
+                                pressure=p_pres,
+                                taup550=p_aod,
+                                uo3=p_o3,
+                                uh2o=p_wvc,
+                                coef=coefs
+                            )
+                            refl_boa_band = np.clip(refl_boa_band, -0.01, 1.5)
+                            refl_boa_band[opaque_mask] = np.nan
 
                 # Write corrected band back to a raster
                 output_band = f"tmp_corr_{os.getpid()}_{band_num}"
@@ -1172,6 +1264,11 @@ def apply_lut_correction(input_raster, output_raster, bands,
                     coefs, solar_zenith, view_zenith, p_pres, p_wvc, p_o3
                 )
 
+                # Apply scattering-absorption coupling correction
+                tg = compute_coupling_correction(
+                    wavelength, tg, p_aod, p_pres, aerosol_model
+                )
+
                 # Mask opaque bands
                 if np.ndim(tg) == 0:
                     if tg < TRANSMISSION_THRESHOLD:
@@ -1306,6 +1403,177 @@ def apply_lut_correction(input_raster, output_raster, bands,
                 if gs.find_file(corr_band, element='cell')['file']:
                     gs.run_command('g.remove', flags='f', type='raster',
                                   name=corr_band, quiet=True)
+
+
+def _apply_spectral_polishing(output_raster, bands, solar_zenith, view_zenith,
+                               pressure, water_vapor, ozone, aod, aerosol_model):
+    """Apply spectral polishing to the corrected 3D raster in-place.
+
+    Reads all corrected bands, runs moving-median outlier detection along
+    the spectral axis, and overwrites flagged bands with interpolated values.
+    """
+    import spectral_polish
+
+    gs.message("Applying spectral polishing...")
+
+    wavelengths = np.array([b['wavelength'] for b in bands])
+    n_bands = len(bands)
+
+    # Compute per-band gas transmission for quality weighting
+    tg_per_band = np.ones(n_bands)
+    for idx, band in enumerate(bands):
+        try:
+            coefs = get_smac_parameters(
+                wavelength=band['wavelength'],
+                fwhm=band.get('fwhm', 10.0),
+                aerosol_model=aerosol_model,
+            )
+            tg = compute_gas_transmission(
+                coefs, solar_zenith, view_zenith,
+                pressure, water_vapor, ozone,
+            )
+            tg_per_band[idx] = float(tg)
+        except Exception:
+            tg_per_band[idx] = 1.0
+
+    quality_weights = spectral_polish.compute_quality_weights(
+        wavelengths, tg_per_band
+    )
+
+    # Read all bands into memory [n_bands, rows, cols]
+    all_data = []
+    for band in bands:
+        band_num = band['band_num']
+        temp_name = f"tmp_polish_{os.getpid()}_{band_num}"
+        gs.run_command('g.region', t=band_num + 0.1, b=band_num, quiet=True)
+        gs.run_command('r3.to.rast', input=output_raster,
+                       output=temp_name, overwrite=True, quiet=True)
+        gs.run_command('g.rename',
+                       raster=f"{temp_name}_00001,{temp_name}",
+                       overwrite=True, quiet=True)
+        with RasterRow(temp_name) as r:
+            r.open('r')
+            all_data.append(np.array(r))
+        gs.run_command('g.remove', flags='f', type='raster',
+                       name=temp_name, quiet=True)
+
+    all_data = np.array(all_data)  # [n_bands, rows, cols]
+    rows, cols = all_data.shape[1], all_data.shape[2]
+
+    # Reshape to [n_pixels, n_bands] for spectral_polish
+    pixels = all_data.reshape(n_bands, -1).T  # [n_pixels, n_bands]
+
+    polished, flags = spectral_polish.spectral_polish(
+        pixels, wavelengths, quality_weights=quality_weights,
+        window=7, mad_threshold=3.0, replace=True,
+    )
+
+    n_flagged = np.sum(flags)
+    gs.message(f"Spectral polishing: {n_flagged} band-pixel values flagged "
+               f"and interpolated")
+
+    # Reshape back and write corrected bands
+    polished_3d = polished.T.reshape(n_bands, rows, cols)
+
+    corrected_band_names = []
+    for idx, band in enumerate(bands):
+        band_num = band['band_num']
+        out_name = f"tmp_polished_{os.getpid()}_{band_num}"
+        corrected_band_names.append(out_name)
+        ncols = cols
+        with RasterRow(out_name, mode='w', mtype='DCELL', overwrite=True) as r:
+            for row_data in polished_3d[idx]:
+                buf = Buffer((ncols,), mtype='DCELL')
+                buf[:] = row_data
+                r.put_row(buf)
+
+    # Re-pack into 3D raster
+    gs.run_command('g.region', raster_3d=output_raster, quiet=True)
+    band_list = ','.join(corrected_band_names)
+    gs.run_command('r.to.rast3', input=band_list,
+                   output=output_raster, overwrite=True, quiet=True)
+
+    for name in corrected_band_names:
+        gs.run_command('g.remove', flags='f', type='raster',
+                       name=name, quiet=True)
+
+
+def _apply_adjacency_correction(output_raster, bands, solar_zenith, view_zenith,
+                                 aod, pressure, aerosol_model, psf_radius_km):
+    """Apply adjacency effect correction to the corrected 3D raster in-place.
+
+    For each band, reads the BOA reflectance, computes the environmental
+    reflectance via spatial averaging, and applies the Vermote et al. (1997)
+    correction.
+    """
+    import adjacency
+    import lut as lut_module
+
+    gs.message("Applying adjacency effect correction...")
+
+    # Get pixel size from GRASS region
+    region = gs.region()
+    pixel_size = (region['ewres'] + region['nsres']) / 2.0
+
+    # Generate a LUT for scattering parameters
+    phi = 0.0
+    atm_lut = lut_module.AtmosphericLUT.get_or_generate(
+        sza=solar_zenith, vza=view_zenith, phi=phi,
+        pressure=pressure, aerosol_model=aerosol_model,
+    )
+
+    corrected_band_names = []
+    for band in bands:
+        band_num = band['band_num']
+        wavelength = band['wavelength']
+
+        if wavelength < 300 or wavelength > 4000:
+            continue
+
+        temp_name = f"tmp_adj_{os.getpid()}_{band_num}"
+        gs.run_command('g.region', t=band_num + 0.1, b=band_num, quiet=True)
+        gs.run_command('r3.to.rast', input=output_raster,
+                       output=temp_name, overwrite=True, quiet=True)
+        gs.run_command('g.rename',
+                       raster=f"{temp_name}_00001,{temp_name}",
+                       overwrite=True, quiet=True)
+
+        with RasterRow(temp_name) as r:
+            r.open('r')
+            r_boa = np.array(r)
+
+        # Get scattering parameters from LUT
+        R_atm, T_scat, s = atm_lut.interpolate(wavelength, aod)
+
+        r_adj = adjacency.adjacency_correction(
+            r_boa, T_scat, s, wavelength, aod, pressure,
+            solar_zenith, view_zenith, pixel_size, psf_radius_km,
+        )
+        r_adj = np.clip(np.nan_to_num(r_adj, nan=np.nan), -0.01, 1.5)
+
+        out_name = f"tmp_adj_out_{os.getpid()}_{band_num}"
+        corrected_band_names.append(out_name)
+        ncols = r_adj.shape[1] if r_adj.ndim > 1 else r_adj.shape[0]
+        with RasterRow(out_name, mode='w', mtype='DCELL', overwrite=True) as r:
+            for row_data in r_adj:
+                buf = Buffer((ncols,), mtype='DCELL')
+                buf[:] = row_data
+                r.put_row(buf)
+
+        gs.run_command('g.remove', flags='f', type='raster',
+                       name=temp_name, quiet=True)
+
+    # Re-pack into 3D raster
+    gs.run_command('g.region', raster_3d=output_raster, quiet=True)
+    band_list = ','.join(corrected_band_names)
+    gs.run_command('r.to.rast3', input=band_list,
+                   output=output_raster, overwrite=True, quiet=True)
+
+    for name in corrected_band_names:
+        gs.run_command('g.remove', flags='f', type='raster',
+                       name=name, quiet=True)
+
+    gs.message("Adjacency correction complete.")
 
 
 def main():
@@ -1448,6 +1716,8 @@ def main():
         generate_coefs = False
 
     aerosol_model = options.get('aerosol_model', 'continental')
+    apply_polish = flags['p']
+    adjacency_psf = float(options.get('adjacency_psf', 0))
 
     if method == 'libradtran':
         sensor_type = options.get('sensor', '').upper()
@@ -1463,8 +1733,13 @@ def main():
     if method == 'lut':
         gs.message(f"  Aerosol model: {aerosol_model}")
 
+    if apply_polish:
+        gs.message("  Spectral polishing: ENABLED")
+    if adjacency_psf > 0:
+        gs.message(f"  Adjacency correction: PSF radius = {adjacency_psf:.1f} km")
+
     gs.message("=" * 60)
-    
+
     # Apply the selected correction method
     if method == 'simple':
         apply_smac_correction_simple(
@@ -1502,7 +1777,21 @@ def main():
         )
     else:
         gs.fatal(f"Unknown method: {method}. Choose 'simple', 'libradtran', or 'lut'.")
-    
+
+    # --- Post-processing: spectral polishing ---
+    if apply_polish:
+        _apply_spectral_polishing(output_raster, bands,
+                                   solar_zenith, view_zenith,
+                                   pressure, water_vapor, ozone,
+                                   aod, aerosol_model)
+
+    # --- Post-processing: adjacency correction ---
+    if adjacency_psf > 0:
+        _apply_adjacency_correction(output_raster, bands,
+                                     solar_zenith, view_zenith,
+                                     aod, pressure, aerosol_model,
+                                     adjacency_psf)
+
     return 0
 
 if __name__ == "__main__":

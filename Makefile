@@ -7,7 +7,7 @@ include $(MODULE_TOPDIR)/include/Make/Html.make
 include $(MODULE_TOPDIR)/include/Make/Other.make
 include $(MODULE_TOPDIR)/include/Make/Python.make
 
-MODULES = smac aod wvc radtran o3 utils smac_coef_generator lut
+MODULES = smac aod wvc radtran o3 utils smac_coef_generator lut spectral_polish adjacency
 ETCDIR = $(ETC)/i_hyper_lib
 COEFDIR = $(ETCDIR)/COEFS
 PYFILES := $(patsubst %,$(ETCDIR)/%.py,$(MODULES))

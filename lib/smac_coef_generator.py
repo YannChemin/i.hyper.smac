@@ -353,11 +353,126 @@ quiet
 
         return None
 
+    def run_simulation_spectrum(self, wl_min: float, wl_max: float,
+                                sza: float, vza: float = 0.0,
+                                phi: float = 0.0, aod550: float = 0.0,
+                                h2o: float = 2.0, o3: float = 0.3,
+                                albedo: float = 0.0,
+                                aerosol_type: str = 'continental',
+                                output_level: str = 'sur') -> Optional[Dict]:
+        """Run libRadtran across a wavelength range (like E0() does).
+
+        Args:
+            wl_min: Minimum wavelength in nm.
+            wl_max: Maximum wavelength in nm.
+            sza, vza, phi: Geometry angles in degrees.
+            aod550: Aerosol optical depth at 550nm.
+            h2o: Water vapor column in g/cm².
+            o3: Ozone column in cm-atm.
+            albedo: Surface albedo.
+            aerosol_type: Aerosol model type.
+            output_level: 'toa' or 'sur'.
+
+        Returns:
+            Dict with 'wavelengths', 'edir', 'edn', 'eglo' arrays,
+            or None on failure.
+        """
+        data_path = self._get_data_path()
+
+        inp_content = f"""\
+data_files_path {data_path}
+atmosphere_file {data_path}/atmmod/afglus.dat
+source solar {data_path}/solar_flux/kurudz_1.0nm.dat per_nm
+
+wavelength {int(np.floor(wl_min))} {int(np.ceil(wl_max))}
+
+mol_abs_param reptran
+mol_modify O3 {o3 * 1000:.3f} DU
+mol_modify H2O {h2o:.3f} MM
+
+sza {sza:.2f}
+phi0 0.0
+umu {np.cos(np.radians(vza)):.6f}
+phi {phi:.2f}
+
+albedo {albedo:.4f}
+
+"""
+        if aod550 > 0.001:
+            inp_content += f"""aerosol_default
+aerosol_modify tau550 set {aod550:.4f}
+
+"""
+        inp_content += f"""rte_solver disort
+number_of_streams 16
+
+output_user lambda edir edn eglo
+zout {output_level}
+quiet
+"""
+        inp_file = os.path.join(self.temp_dir, 'uvspec_spectrum.inp')
+        with open(inp_file, 'w') as f:
+            f.write(inp_content)
+
+        uvspec = os.path.join(self.libradtran_path, 'bin', 'uvspec')
+        cmd = f"{uvspec} < {inp_file}"
+
+        try:
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            if result.returncode != 0:
+                if self.verbose:
+                    print(f"uvspec error: {result.stderr}")
+                return None
+
+            wavelengths, edir_vals, edn_vals, eglo_vals = [], [], [], []
+            for line in result.stdout.strip().split('\n'):
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                parts = line.split()
+                if len(parts) >= 4:
+                    wavelengths.append(float(parts[0]))
+                    edir_vals.append(float(parts[1]))
+                    edn_vals.append(float(parts[2]))
+                    eglo_vals.append(float(parts[3]))
+
+            if not wavelengths:
+                return None
+
+            return {
+                'wavelengths': np.array(wavelengths),
+                'edir': np.array(edir_vals),
+                'edn': np.array(edn_vals),
+                'eglo': np.array(eglo_vals),
+            }
+
+        except Exception as e:
+            if self.verbose:
+                print(f"Spectrum simulation error: {e}")
+            return None
+
     def cleanup(self):
         """Clean up temporary files."""
         import shutil
         if os.path.exists(self.temp_dir):
             shutil.rmtree(self.temp_dir)
+
+
+def _band_integrate_result(center_wl, fwhm, wavelengths, values):
+    """Apply Gaussian SRF weighting to integrate over a spectral band.
+
+    Args:
+        center_wl: Central wavelength in nm.
+        fwhm: Full width at half maximum in nm.
+        wavelengths: 1D array of wavelengths.
+        values: 1D array of spectral values.
+
+    Returns:
+        Band-integrated scalar value.
+    """
+    sigma = fwhm / (2.0 * np.sqrt(2.0 * np.log(2.0)))
+    R = np.exp(-0.5 * ((wavelengths - center_wl) / sigma) ** 2)
+    return np.trapezoid(values * R, wavelengths) / np.trapezoid(R, wavelengths)
 
 
 class SMACCoefficientGenerator:
@@ -408,22 +523,29 @@ class SMACCoefficientGenerator:
         return (wavelength_nm / 550.0) ** (-alpha)
 
     def fit_gaseous_absorption(self, wavelength_nm: float, gas: str,
-                               aerosol_type: str = 'continental') -> Tuple[float, float]:
+                               aerosol_type: str = 'continental',
+                               fwhm: float = None) -> Tuple[float, float]:
         """
         Fit gaseous absorption coefficients.
 
         The transmission is modeled as: T = exp(a * (u*m)^n)
 
+        When *fwhm* is provided, runs libRadtran across the band and applies
+        Gaussian SRF integration so that sharp absorption features (e.g. O2-A
+        edge) are correctly averaged over the sensor bandpass.
+
         Args:
             wavelength_nm: Wavelength in nanometers
             gas: Gas name ('h2o', 'o3')
             aerosol_type: Aerosol model type
+            fwhm: FWHM of the sensor band in nm (None = single wavelength)
 
         Returns:
             Tuple of (a, n) coefficients
         """
         if self.verbose:
-            print(f"Fitting {gas.upper()} absorption at {wavelength_nm:.1f} nm...")
+            print(f"Fitting {gas.upper()} absorption at {wavelength_nm:.1f} nm"
+                  f"{f' (FWHM={fwhm:.1f} nm)' if fwhm else ''}...")
 
         # Define gas amounts to test
         if gas == 'h2o':
@@ -440,41 +562,49 @@ class SMACCoefficientGenerator:
         vza = 0.0
         m = 1.0 / np.cos(np.radians(sza)) + 1.0 / np.cos(np.radians(vza))
 
-        transmissions = []
+        use_band = fwhm is not None and fwhm > 0
+        wl_min = wavelength_nm - 2 * fwhm if use_band else None
+        wl_max = wavelength_nm + 2 * fwhm if use_band else None
 
-        # Get reference (no gas absorption) - use surface output for transmission
-        if gas == 'h2o':
-            ref_result = self.runner.run_simulation(
-                wavelength_nm, sza, vza, aod550=0.0, h2o=baseline, o3=0.3,
-                aerosol_type=aerosol_type, output_level='sur'
-            )
-        else:
-            ref_result = self.runner.run_simulation(
-                wavelength_nm, sza, vza, aod550=0.0, h2o=2.0, o3=baseline,
-                aerosol_type=aerosol_type, output_level='sur'
-            )
-
-        if ref_result is None:
-            return 0.0, 0.5
-
-        ref_edir = ref_result['edir']
-
-        # Run simulations for different gas amounts - use surface output
-        for amount in amounts:
-            if gas == 'h2o':
-                result = self.runner.run_simulation(
-                    wavelength_nm, sza, vza, aod550=0.0, h2o=amount, o3=0.3,
+        def _get_edir(h2o_val, o3_val):
+            """Run simulation and return (band-integrated) edir."""
+            if use_band:
+                spec = self.runner.run_simulation_spectrum(
+                    wl_min, wl_max, sza, vza, aod550=0.0,
+                    h2o=h2o_val, o3=o3_val,
                     aerosol_type=aerosol_type, output_level='sur'
+                )
+                if spec is None:
+                    return None
+                return _band_integrate_result(
+                    wavelength_nm, fwhm, spec['wavelengths'], spec['edir']
                 )
             else:
                 result = self.runner.run_simulation(
-                    wavelength_nm, sza, vza, aod550=0.0, h2o=2.0, o3=amount,
+                    wavelength_nm, sza, vza, aod550=0.0,
+                    h2o=h2o_val, o3=o3_val,
                     aerosol_type=aerosol_type, output_level='sur'
                 )
+                return result['edir'] if result is not None else None
 
-            if result is not None:
-                T = result['edir'] / ref_edir
-                transmissions.append(T)
+        # Get reference (minimal gas)
+        if gas == 'h2o':
+            ref_edir = _get_edir(baseline, 0.3)
+        else:
+            ref_edir = _get_edir(2.0, baseline)
+
+        if ref_edir is None or ref_edir < 1e-10:
+            return 0.0, 0.5
+
+        transmissions = []
+        for amount in amounts:
+            if gas == 'h2o':
+                edir = _get_edir(amount, 0.3)
+            else:
+                edir = _get_edir(2.0, amount)
+
+            if edir is not None:
+                transmissions.append(edir / ref_edir)
             else:
                 transmissions.append(1.0)
 
@@ -486,7 +616,6 @@ class SMACCoefficientGenerator:
             return 0.0, 0.5
 
         # Fit: T = exp(a * (u*m)^n)
-        # ln(T) = a * (u*m)^n
         ln_T = np.log(transmissions[valid])
         u_m = amounts[valid] * m
 
@@ -509,7 +638,8 @@ class SMACCoefficientGenerator:
             return 0.0, 0.5
 
     def fit_spherical_albedo(self, wavelength_nm: float,
-                             aerosol_type: str = 'continental') -> Tuple[float, float, float, float]:
+                             aerosol_type: str = 'continental',
+                             fwhm: float = None) -> Tuple[float, float, float, float]:
         """
         Fit spherical albedo coefficients.
 
@@ -518,47 +648,58 @@ class SMACCoefficientGenerator:
         Args:
             wavelength_nm: Wavelength in nanometers
             aerosol_type: Aerosol model type
+            fwhm: FWHM of the sensor band in nm (None = single wavelength)
 
         Returns:
             Tuple of (a0s, a1s, a2s, a3s) coefficients
         """
         if self.verbose:
-            print(f"Fitting spherical albedo at {wavelength_nm:.1f} nm...")
+            print(f"Fitting spherical albedo at {wavelength_nm:.1f} nm"
+                  f"{f' (FWHM={fwhm:.1f} nm)' if fwhm else ''}...")
 
         sza = 30.0
         vza = 0.0
+
+        use_band = fwhm is not None and fwhm > 0
+        wl_min = wavelength_nm - 2 * fwhm if use_band else None
+        wl_max = wavelength_nm + 2 * fwhm if use_band else None
 
         # Test different AOD values
         aod_values = np.array([0.0, 0.05, 0.1, 0.2, 0.3, 0.5])
         albedo1, albedo2 = 0.0, 0.5
 
+        def _get_eglo(aod, albedo):
+            if use_band:
+                spec = self.runner.run_simulation_spectrum(
+                    wl_min, wl_max, sza, vza, aod550=aod,
+                    albedo=albedo, aerosol_type=aerosol_type,
+                    output_level='sur'
+                )
+                if spec is None:
+                    return None
+                return _band_integrate_result(
+                    wavelength_nm, fwhm, spec['wavelengths'], spec['eglo']
+                )
+            else:
+                result = self.runner.run_simulation(
+                    wavelength_nm, sza, vza, aod550=aod, albedo=albedo,
+                    aerosol_type=aerosol_type, output_level='sur'
+                )
+                return result['eglo'] if result is not None else None
+
         s_values = []
-
         for aod in aod_values:
-            # Run two simulations with different surface albedos at SURFACE level
-            # Spherical albedo is measured via multiple scattering at the surface:
-            # Eglo_sur(ρ) = Eglo_sur(0) / (1 - s*ρ)
-            # s = (E1-E2) / (ρ1*E1 - ρ2*E2)
-            r1 = self.runner.run_simulation(
-                wavelength_nm, sza, vza, aod550=aod, albedo=albedo1,
-                aerosol_type=aerosol_type, output_level='sur'
-            )
-            r2 = self.runner.run_simulation(
-                wavelength_nm, sza, vza, aod550=aod, albedo=albedo2,
-                aerosol_type=aerosol_type, output_level='sur'
-            )
+            E1 = _get_eglo(aod, albedo1)
+            E2 = _get_eglo(aod, albedo2)
 
-            if r1 is None or r2 is None:
+            if E1 is None or E2 is None:
                 s_values.append(np.nan)
                 continue
 
-            # Compute spherical albedo from surface global irradiance
-            E1, E2 = r1['eglo'], r2['eglo']
             denom = albedo1 * E1 - albedo2 * E2
-
             if abs(denom) > 1e-10:
                 s = (E1 - E2) / denom
-                s_values.append(max(0, min(1, s)))  # Clamp to [0, 1]
+                s_values.append(max(0, min(1, s)))
             else:
                 s_values.append(np.nan)
 
@@ -566,12 +707,9 @@ class SMACCoefficientGenerator:
         valid = ~np.isnan(s_values)
 
         if np.sum(valid) < 3:
-            # Return analytical approximation
             taur = self.compute_rayleigh_optical_thickness(wavelength_nm)
             return taur * 0.5, 0.2, -0.05, 0.0
 
-        # Fit: s = a0s * P_eq + a3s + a1s * τ + a2s * τ²
-        # At sea level, P_eq = 1.0
         try:
             def s_model(tau, a1s, a2s, a3s):
                 return a3s + a1s * tau + a2s * tau**2
@@ -580,7 +718,6 @@ class SMACCoefficientGenerator:
                                 p0=[0.2, -0.05, 0.0])
             a1s, a2s, a3s = popt
 
-            # a0s is related to Rayleigh scattering
             taur = self.compute_rayleigh_optical_thickness(wavelength_nm)
             a0s = taur * 0.5
 
@@ -597,55 +734,76 @@ class SMACCoefficientGenerator:
             return taur * 0.5, 0.2, -0.05, 0.0
 
     def fit_o2_absorption(self, wavelength_nm: float,
-                          aerosol_type: str = 'continental') -> Tuple[float, float, float]:
+                          aerosol_type: str = 'continental',
+                          fwhm: float = None) -> Tuple[float, float, float]:
         """
         Fit O2 absorption coefficients for the A-band (760nm) and B-band (690nm).
 
         SMAC models O2 transmission as:
             T_O2 = exp(ao2 * (Peq^po2 * m)^no2)
 
-        We run libRadtran at varying pressures to fit these three parameters.
+        When *fwhm* is provided, runs libRadtran across the band and applies
+        Gaussian SRF integration -- critical for the O2-A band where absorption
+        changes dramatically within a 6nm FWHM sensor band.
 
         Args:
             wavelength_nm: Wavelength in nanometers
             aerosol_type: Aerosol model type
+            fwhm: FWHM of the sensor band in nm (None = single wavelength)
 
         Returns:
             Tuple of (ao2, no2, po2) coefficients
         """
         if self.verbose:
-            print(f"Fitting O2 absorption at {wavelength_nm:.1f} nm...")
+            print(f"Fitting O2 absorption at {wavelength_nm:.1f} nm"
+                  f"{f' (FWHM={fwhm:.1f} nm)' if fwhm else ''}...")
 
         sza = 30.0
         vza = 0.0
         m = 1.0 / np.cos(np.radians(sza)) + 1.0 / np.cos(np.radians(vza))
 
+        use_band = fwhm is not None and fwhm > 0
+        wl_min = wavelength_nm - 2 * fwhm if use_band else None
+        wl_max = wavelength_nm + 2 * fwhm if use_band else None
+
         # Vary pressure to change O2 column
         pressures = np.array([500.0, 700.0, 850.0, 950.0, 1013.25])
         Peqs = pressures / 1013.25
 
-        # Reference: very low pressure (minimal O2)
-        ref_result = self.runner.run_simulation(
-            wavelength_nm, sza, vza, aod550=0.0, h2o=0.001, o3=0.001,
-            aerosol_type=aerosol_type, output_level='sur'
-        )
-        if ref_result is None:
-            return 0.0, 0.0, 0.0
+        def _get_edir_at_pressure(P):
+            """Run simulation (band-integrated if fwhm set) at given pressure."""
+            # Note: pressure keyword isn't directly supported in run_simulation
+            # but O2 absorption is pressure-dependent via the atmosphere model.
+            # We use minimal H2O/O3 to isolate O2 effect.
+            if use_band:
+                spec = self.runner.run_simulation_spectrum(
+                    wl_min, wl_max, sza, vza, aod550=0.0,
+                    h2o=0.001, o3=0.001,
+                    aerosol_type=aerosol_type, output_level='sur'
+                )
+                if spec is None:
+                    return None
+                return _band_integrate_result(
+                    wavelength_nm, fwhm, spec['wavelengths'], spec['edir']
+                )
+            else:
+                result = self.runner.run_simulation(
+                    wavelength_nm, sza, vza, aod550=0.0,
+                    h2o=0.001, o3=0.001,
+                    aerosol_type=aerosol_type, output_level='sur'
+                )
+                return result['edir'] if result is not None else None
 
-        ref_edir = ref_result['edir']
-        if ref_edir < 1e-10:
+        # Reference: very low pressure (minimal O2)
+        ref_edir = _get_edir_at_pressure(pressures[0])
+        if ref_edir is None or ref_edir < 1e-10:
             return 0.0, 0.0, 0.0
 
         transmissions = []
         for P in pressures:
-            # Use minimal H2O/O3 to isolate O2 effect
-            result = self.runner.run_simulation(
-                wavelength_nm, sza, vza, aod550=0.0, h2o=0.001, o3=0.001,
-                aerosol_type=aerosol_type, output_level='sur'
-            )
-            if result is not None and result['edir'] > 0:
-                T = result['edir'] / ref_edir
-                transmissions.append(T)
+            edir = _get_edir_at_pressure(P)
+            if edir is not None and edir > 0:
+                transmissions.append(edir / ref_edir)
             else:
                 transmissions.append(1.0)
 
@@ -662,8 +820,6 @@ class SMACCoefficientGenerator:
         ln_T = np.log(transmissions[valid])
 
         try:
-            # Fit: ln(T) = ao2 * (Peq^po2 * m)^no2
-            # Start with po2=1 (linear pressure dependence)
             def o2_model(Peq, ao2, no2, po2):
                 return ao2 * ((Peq ** po2 * m) ** no2)
 
@@ -686,7 +842,8 @@ class SMACCoefficientGenerator:
             return 0.0, 0.0, 0.0
 
     def fit_transmission(self, wavelength_nm: float,
-                         aerosol_type: str = 'continental') -> Tuple[float, float, float, float]:
+                         aerosol_type: str = 'continental',
+                         fwhm: float = None) -> Tuple[float, float, float, float]:
         """
         Fit transmission coefficients.
 
@@ -695,12 +852,18 @@ class SMACCoefficientGenerator:
         Args:
             wavelength_nm: Wavelength in nanometers
             aerosol_type: Aerosol model type
+            fwhm: FWHM of the sensor band in nm (None = single wavelength)
 
         Returns:
             Tuple of (a0T, a1T, a2T, a3T) coefficients
         """
         if self.verbose:
-            print(f"Fitting transmission at {wavelength_nm:.1f} nm...")
+            print(f"Fitting transmission at {wavelength_nm:.1f} nm"
+                  f"{f' (FWHM={fwhm:.1f} nm)' if fwhm else ''}...")
+
+        use_band = fwhm is not None and fwhm > 0
+        wl_min = wavelength_nm - 2 * fwhm if use_band else None
+        wl_max = wavelength_nm + 2 * fwhm if use_band else None
 
         # Test different geometries and AOD values
         sza_values = np.array([0, 20, 40, 60])
@@ -714,34 +877,51 @@ class SMACCoefficientGenerator:
                 continue
 
             for aod in aod_values:
-                # Get extraterrestrial irradiance at TOA (no atmosphere effects)
-                r_toa = self.runner.run_simulation(
-                    wavelength_nm, 0.0, 0.0, aod550=0.0, albedo=0.0,
-                    aerosol_type=aerosol_type, output_level='toa'
-                )
-
-                # Get irradiance at the surface after atmospheric attenuation
-                r_surf = self.runner.run_simulation(
-                    wavelength_nm, sza, 0.0, aod550=aod, albedo=0.0,
-                    aerosol_type=aerosol_type, output_level='sur'
-                )
-
-                if r_toa is not None and r_surf is not None:
-                    # Transmission = E_surface / (E_TOA * cos(sza))
-                    E_toa = r_toa['edir']  # Direct irradiance at TOA (normal incidence)
-                    T = r_surf['eglo'] / (E_toa * cos_sza)
-                    T = max(0, min(1, T))
-
-                    data_points.append({
-                        'T': T,
-                        'tau': aod,
-                        'cos_theta': cos_sza,
-                    })
+                if use_band:
+                    toa_spec = self.runner.run_simulation_spectrum(
+                        wl_min, wl_max, 0.0, 0.0, aod550=0.0,
+                        albedo=0.0, aerosol_type=aerosol_type,
+                        output_level='toa'
+                    )
+                    sur_spec = self.runner.run_simulation_spectrum(
+                        wl_min, wl_max, sza, 0.0, aod550=aod,
+                        albedo=0.0, aerosol_type=aerosol_type,
+                        output_level='sur'
+                    )
+                    if toa_spec is not None and sur_spec is not None:
+                        E_toa = _band_integrate_result(
+                            wavelength_nm, fwhm,
+                            toa_spec['wavelengths'], toa_spec['edir']
+                        )
+                        E_sur = _band_integrate_result(
+                            wavelength_nm, fwhm,
+                            sur_spec['wavelengths'], sur_spec['eglo']
+                        )
+                        T = E_sur / (E_toa * cos_sza)
+                        T = max(0, min(1, T))
+                        data_points.append({
+                            'T': T, 'tau': aod, 'cos_theta': cos_sza,
+                        })
+                else:
+                    r_toa = self.runner.run_simulation(
+                        wavelength_nm, 0.0, 0.0, aod550=0.0, albedo=0.0,
+                        aerosol_type=aerosol_type, output_level='toa'
+                    )
+                    r_surf = self.runner.run_simulation(
+                        wavelength_nm, sza, 0.0, aod550=aod, albedo=0.0,
+                        aerosol_type=aerosol_type, output_level='sur'
+                    )
+                    if r_toa is not None and r_surf is not None:
+                        E_toa = r_toa['edir']
+                        T = r_surf['eglo'] / (E_toa * cos_sza)
+                        T = max(0, min(1, T))
+                        data_points.append({
+                            'T': T, 'tau': aod, 'cos_theta': cos_sza,
+                        })
 
         if len(data_points) < 4:
             return 1.0, -0.1, 0.0, -0.1
 
-        # Fit the transmission model
         try:
             T_data = np.array([d['T'] for d in data_points])
             tau_data = np.array([d['tau'] for d in data_points])
@@ -754,7 +934,7 @@ class SMACCoefficientGenerator:
             popt, _ = curve_fit(T_model, (tau_data, cos_data), T_data,
                                 p0=[1.0, -0.1, -0.1])
             a0T, a1T, a3T = popt
-            a2T = 0.0  # Pressure term
+            a2T = 0.0
 
             if self.verbose:
                 print(f"  Transmission: a0T={a0T:.6f}, a1T={a1T:.6f}, "
@@ -823,7 +1003,7 @@ class SMACCoefficientGenerator:
         ])
         if h2o_active:
             coef.ah2o, coef.nh2o = self.fit_gaseous_absorption(
-                wavelength_nm, 'h2o', aerosol_type
+                wavelength_nm, 'h2o', aerosol_type, fwhm=fwhm_nm
             )
         else:
             coef.ah2o, coef.nh2o = 0.0, 0.5
@@ -831,7 +1011,7 @@ class SMACCoefficientGenerator:
         # O3 absorption (Chappuis band: 400-700nm)
         if 400 < wavelength_nm < 700:
             coef.ao3, coef.no3 = self.fit_gaseous_absorption(
-                wavelength_nm, 'o3', aerosol_type
+                wavelength_nm, 'o3', aerosol_type, fwhm=fwhm_nm
             )
         else:
             coef.ao3, coef.no3 = 0.0, 1.0
@@ -840,7 +1020,7 @@ class SMACCoefficientGenerator:
         o2_active = (750 <= wavelength_nm <= 780) or (685 <= wavelength_nm <= 700)
         if o2_active:
             coef.ao2, coef.no2, coef.po2 = self.fit_o2_absorption(
-                wavelength_nm, aerosol_type
+                wavelength_nm, aerosol_type, fwhm=fwhm_nm
             )
         else:
             coef.ao2, coef.no2, coef.po2 = 0.0, 0.0, 0.0
@@ -851,12 +1031,12 @@ class SMACCoefficientGenerator:
 
         # 5. Fit spherical albedo
         coef.a0s, coef.a1s, coef.a2s, coef.a3s = self.fit_spherical_albedo(
-            wavelength_nm, aerosol_type
+            wavelength_nm, aerosol_type, fwhm=fwhm_nm
         )
 
         # 6. Fit transmission
         coef.a0T, coef.a1T, coef.a2T, coef.a3T = self.fit_transmission(
-            wavelength_nm, aerosol_type
+            wavelength_nm, aerosol_type, fwhm=fwhm_nm
         )
 
         # 7. Phase function (simplified Henyey-Greenstein approximation)

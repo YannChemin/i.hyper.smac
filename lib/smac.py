@@ -30,7 +30,7 @@ def PdeZ(Z) :
 class coeff:
   def __init__(self,smac_filename):
     with open(smac_filename) as f:
-      lines=f.readlines()
+      lines=[l for l in f.readlines() if not l.startswith('#')]
     #H20
     temp=lines[0].strip().split()
     self.ah2o=float(temp[0])
