@@ -1151,12 +1151,14 @@ def apply_lut_correction(input_raster, output_raster, bands,
     wl_min = max(350, int(bands[0]['wavelength']) - 20)
     wl_max = min(2500, int(bands[-1]['wavelength']) + 20)
 
-    # Generate or load cached LUT
+    # Generate or load cached LUT (includes gas at scene-mean WVC/O3
+    # so DISORT handles gas-scattering coupling correctly)
     gs.message("Generating/loading atmospheric LUT...")
     atm_lut = lut_module.AtmosphericLUT.get_or_generate(
         sza=solar_zenith, vza=view_zenith, phi=phi,
         pressure=pressure, aerosol_model=aerosol_model,
         wl_min=wl_min, wl_max=wl_max, wl_step=10,
+        h2o=water_vapor, o3=ozone,
     )
 
     # Get wavelength information from input raster
@@ -1242,14 +1244,11 @@ def apply_lut_correction(input_raster, output_raster, bands,
             # Convert radiance to TOA reflectance
             refl_toa = (np.pi * rad_toa_band * d2) / (E0_band * np.cos(theta_s_rad))
 
-            # Select per-pixel or scalar atmospheric parameters
-            p_pres = pressure_array if pressure_array is not None else pressure
+            # Select per-pixel or scalar AOD for LUT interpolation
             p_aod = aod_array if aod_array is not None else aod
-            p_wvc = wvc_array if wvc_array is not None else water_vapor
-            p_o3 = ozone_array if ozone_array is not None else ozone
 
             try:
-                # Get SMAC coefficients for gas transmission only
+                # Get SMAC coefficients for gas transmission
                 coefs = get_smac_parameters(
                     wavelength=wavelength, fwhm=fwhm,
                     sza=solar_zenith, vza=view_zenith,
@@ -1259,56 +1258,56 @@ def apply_lut_correction(input_raster, output_raster, bands,
                     verbose=gs.verbosity() > 0
                 )
 
-                # Compute gas-only transmission
-                tg = compute_gas_transmission(
-                    coefs, solar_zenith, view_zenith, p_pres, p_wvc, p_o3
+                # Compute gas transmission at scene-mean for opacity check
+                tg_ref = compute_gas_transmission(
+                    coefs, solar_zenith, view_zenith, pressure,
+                    water_vapor, ozone
                 )
 
-                # Apply scattering-absorption coupling correction
-                tg = compute_coupling_correction(
-                    wavelength, tg, p_aod, p_pres, aerosol_model
-                )
-
-                # Mask opaque bands
-                if np.ndim(tg) == 0:
-                    if tg < TRANSMISSION_THRESHOLD:
-                        gs.verbose(
-                            f"Band {band_num} ({wavelength:.1f} nm): "
-                            f"gas transmission {tg:.3f} < {TRANSMISSION_THRESHOLD}, "
-                            f"masking as NaN"
-                        )
-                        refl_boa_band = np.full_like(refl_toa, np.nan)
-                    else:
-                        # Get scattering params from LUT
-                        R_atm, T_scat, s = atm_lut.interpolate(wavelength, p_aod)
-
-                        # Inversion formula
-                        numerator = refl_toa - R_atm * tg
-                        denominator = tg * T_scat + numerator * s
-                        with np.errstate(divide='ignore', invalid='ignore'):
-                            refl_boa_band = numerator / denominator
-                        refl_boa_band = np.clip(
-                            np.nan_to_num(refl_boa_band, nan=0.0), -0.01, 1.5
-                        )
+                # Mask opaque bands (scene-mean check)
+                if tg_ref < TRANSMISSION_THRESHOLD:
+                    gs.verbose(
+                        f"Band {band_num} ({wavelength:.1f} nm): "
+                        f"gas transmission {tg_ref:.3f} < {TRANSMISSION_THRESHOLD}, "
+                        f"masking as NaN"
+                    )
+                    refl_boa_band = np.full_like(refl_toa, np.nan)
                 else:
-                    # Per-pixel path
-                    opaque_mask = tg < TRANSMISSION_THRESHOLD
-                    if np.all(opaque_mask):
-                        gs.verbose(
-                            f"Band {band_num} ({wavelength:.1f} nm): "
-                            f"all pixels opaque, masking as NaN"
-                        )
-                        refl_boa_band = np.full_like(refl_toa, np.nan)
-                    else:
-                        R_atm, T_scat, s = atm_lut.interpolate(wavelength, p_aod)
+                    # LUT R_atm, T_scat, s already include gas at scene-mean
+                    R_atm, T_scat, s = atm_lut.interpolate(wavelength, p_aod)
 
-                        numerator = refl_toa - R_atm * tg
-                        denominator = tg * T_scat + numerator * s
-                        with np.errstate(divide='ignore', invalid='ignore'):
-                            refl_boa_band = numerator / denominator
-                        refl_boa_band = np.clip(
-                            np.nan_to_num(refl_boa_band, nan=0.0), -0.01, 1.5
+                    # Per-pixel gas adjustment via ratio (only when maps exist)
+                    has_perpixel_gas = (wvc_map is not None or
+                                        ozone_map is not None or
+                                        dem is not None)
+                    if has_perpixel_gas:
+                        p_wvc = wvc_array if wvc_array is not None else water_vapor
+                        p_o3 = ozone_array if ozone_array is not None else ozone
+                        p_pres_gas = pressure_array if pressure_array is not None else pressure
+                        tg_pixel = compute_gas_transmission(
+                            coefs, solar_zenith, view_zenith,
+                            p_pres_gas, p_wvc, p_o3
                         )
+                        with np.errstate(divide='ignore', invalid='ignore'):
+                            tg_ratio = tg_pixel / tg_ref
+                        tg_ratio = np.nan_to_num(tg_ratio, nan=1.0)
+                        opaque_mask = tg_pixel < TRANSMISSION_THRESHOLD
+                    else:
+                        tg_ratio = 1.0
+                        opaque_mask = None
+
+                    # Inversion: R_atm/T_scat include gas, tg_ratio adjusts
+                    # for per-pixel deviations from scene-mean
+                    numerator = refl_toa - R_atm * tg_ratio
+                    denominator = T_scat * tg_ratio + numerator * s
+                    with np.errstate(divide='ignore', invalid='ignore'):
+                        refl_boa_band = numerator / denominator
+                    refl_boa_band = np.clip(
+                        np.nan_to_num(refl_boa_band, nan=0.0), -0.01, 1.5
+                    )
+
+                    # Apply per-pixel opaque mask
+                    if opaque_mask is not None and np.any(opaque_mask):
                         refl_boa_band[opaque_mask] = np.nan
 
                 # Write corrected band
