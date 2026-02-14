@@ -1273,42 +1273,61 @@ def apply_lut_correction(input_raster, output_raster, bands,
                     )
                     refl_boa_band = np.full_like(refl_toa, np.nan)
                 else:
+                    # Apply AOD taper in the blue to compensate for aerosol
+                    # model overestimating path radiance at short wavelengths
+                    p_aod_eff = compute_blue_aod_taper(wavelength, p_aod)
+
                     # LUT R_atm, T_scat, s already include gas at scene-mean
-                    R_atm, T_scat, s = atm_lut.interpolate(wavelength, p_aod)
+                    R_atm, T_scat, s = atm_lut.interpolate(
+                        wavelength, p_aod_eff)
 
-                    # Per-pixel gas adjustment via ratio (only when maps exist)
-                    has_perpixel_gas = (wvc_map is not None or
-                                        ozone_map is not None or
-                                        dem is not None)
-                    if has_perpixel_gas:
-                        p_wvc = wvc_array if wvc_array is not None else water_vapor
-                        p_o3 = ozone_array if ozone_array is not None else ozone
-                        p_pres_gas = pressure_array if pressure_array is not None else pressure
-                        tg_pixel = compute_gas_transmission(
-                            coefs, solar_zenith, view_zenith,
-                            p_pres_gas, p_wvc, p_o3
-                        )
-                        with np.errstate(divide='ignore', invalid='ignore'):
-                            tg_ratio = tg_pixel / tg_ref
-                        tg_ratio = np.nan_to_num(tg_ratio, nan=1.0)
-                        opaque_mask = tg_pixel < TRANSMISSION_THRESHOLD
+                    # In gas absorption bands, T_scat -> 0 and the
+                    # three-albedo extraction is numerically unreliable
+                    scalar_lut = np.ndim(T_scat) == 0
+                    if scalar_lut and T_scat < 0.01:
+                        gs.verbose(
+                            f"Band {band_num} ({wavelength:.1f} nm): "
+                            f"LUT T_scat {T_scat:.4f} too low, "
+                            f"masking as NaN")
+                        refl_boa_band = np.full_like(refl_toa, np.nan)
                     else:
-                        tg_ratio = 1.0
-                        opaque_mask = None
+                        # Per-pixel gas adjustment via ratio
+                        has_perpixel_gas = (wvc_map is not None or
+                                            ozone_map is not None or
+                                            dem is not None)
+                        if has_perpixel_gas:
+                            p_wvc = wvc_array if wvc_array is not None else water_vapor
+                            p_o3 = ozone_array if ozone_array is not None else ozone
+                            p_pres_gas = pressure_array if pressure_array is not None else pressure
+                            tg_pixel = compute_gas_transmission(
+                                coefs, solar_zenith, view_zenith,
+                                p_pres_gas, p_wvc, p_o3
+                            )
+                            with np.errstate(divide='ignore', invalid='ignore'):
+                                tg_ratio = tg_pixel / tg_ref
+                            tg_ratio = np.nan_to_num(tg_ratio, nan=1.0)
+                            opaque_mask = tg_pixel < TRANSMISSION_THRESHOLD
+                        else:
+                            tg_ratio = 1.0
+                            opaque_mask = None
 
-                    # Inversion: R_atm/T_scat include gas, tg_ratio adjusts
-                    # for per-pixel deviations from scene-mean
-                    numerator = refl_toa - R_atm * tg_ratio
-                    denominator = T_scat * tg_ratio + numerator * s
-                    with np.errstate(divide='ignore', invalid='ignore'):
-                        refl_boa_band = numerator / denominator
-                    refl_boa_band = np.clip(
-                        np.nan_to_num(refl_boa_band, nan=0.0), -0.01, 1.5
-                    )
+                        # Inversion: R_atm/T_scat include gas, tg_ratio
+                        # adjusts for per-pixel deviations from scene-mean
+                        numerator = refl_toa - R_atm * tg_ratio
+                        denominator = T_scat * tg_ratio + numerator * s
+                        with np.errstate(divide='ignore', invalid='ignore'):
+                            refl_boa_band = numerator / denominator
+                        refl_boa_band = np.clip(
+                            np.nan_to_num(refl_boa_band, nan=0.0),
+                            -0.01, 1.5
+                        )
 
-                    # Apply per-pixel opaque mask
-                    if opaque_mask is not None and np.any(opaque_mask):
-                        refl_boa_band[opaque_mask] = np.nan
+                        # Mask unreliable LUT pixels (per-pixel AOD)
+                        if not scalar_lut:
+                            refl_boa_band[T_scat < 0.01] = np.nan
+                        # Mask per-pixel opaque gas
+                        if opaque_mask is not None and np.any(opaque_mask):
+                            refl_boa_band[opaque_mask] = np.nan
 
                 # Write corrected band
                 output_band = f"tmp_corr_{os.getpid()}_{band_num}"
