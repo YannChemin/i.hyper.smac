@@ -477,6 +477,11 @@ def compute_coupling_correction(wavelength, tg, aod550, pressure,
 
 AOD_MAX = 1.5  # Upper bound for AOD validation
 TRANSMISSION_THRESHOLD = 0.10  # Minimum two-way transmission
+# LUT method uses stricter thresholds because the 5nm grid can't
+# fully resolve sharp gas transitions at band edges
+LUT_TRANSMISSION_MIN = 0.25   # Stricter gas threshold for LUT method
+LUT_TSCAT_MIN = 0.15          # Minimum reliable T_scat from LUT
+LUT_SPECTRAL_RATIO = 2.0     # Max T_scat variation over ±10nm before masking
 
 
 def apply_smac_correction_simple(input_raster, output_raster, bands,
@@ -1095,7 +1100,8 @@ def apply_lut_correction(input_raster, output_raster, bands,
                          view_zenith, view_azimuth,
                          aerosol_model='continental', keep_temp=False,
                          aod_map=None, wvc_map=None,
-                         ozone_map=None, dem=None):
+                         ozone_map=None, dem=None,
+                         polish=False):
     """Apply atmospheric correction using libRadtran LUT.
 
     Uses full multiple-scattering from libRadtran DISORT via a precomputed
@@ -1157,7 +1163,7 @@ def apply_lut_correction(input_raster, output_raster, bands,
     atm_lut = lut_module.AtmosphericLUT.get_or_generate(
         sza=solar_zenith, vza=view_zenith, phi=phi,
         pressure=pressure, aerosol_model=aerosol_model,
-        wl_min=wl_min, wl_max=wl_max, wl_step=10,
+        wl_min=wl_min, wl_max=wl_max, wl_step=5,
         h2o=water_vapor, o3=ozone,
     )
 
@@ -1195,6 +1201,8 @@ def apply_lut_correction(input_raster, output_raster, bands,
     # Store temporary band names for cleanup
     temp_bands = []
     corrected_bands = []
+    # In-memory storage for spectral polishing
+    band_data_list = []  # list of (band_info, refl_boa_band) tuples
 
     theta_s_rad = np.radians(solar_zenith)
 
@@ -1264,11 +1272,11 @@ def apply_lut_correction(input_raster, output_raster, bands,
                     water_vapor, ozone
                 )
 
-                # Mask opaque bands (scene-mean check)
-                if tg_ref < TRANSMISSION_THRESHOLD:
+                # Mask opaque/unreliable gas bands (LUT-specific threshold)
+                if tg_ref < LUT_TRANSMISSION_MIN:
                     gs.verbose(
                         f"Band {band_num} ({wavelength:.1f} nm): "
-                        f"gas transmission {tg_ref:.3f} < {TRANSMISSION_THRESHOLD}, "
+                        f"gas transmission {tg_ref:.3f} < {LUT_TRANSMISSION_MIN}, "
                         f"masking as NaN"
                     )
                     refl_boa_band = np.full_like(refl_toa, np.nan)
@@ -1281,14 +1289,65 @@ def apply_lut_correction(input_raster, output_raster, bands,
                     R_atm, T_scat, s = atm_lut.interpolate(
                         wavelength, p_aod_eff)
 
-                    # In gas absorption bands, T_scat -> 0 and the
-                    # three-albedo extraction is numerically unreliable
+                    # Check LUT reliability at this wavelength
                     scalar_lut = np.ndim(T_scat) == 0
-                    if scalar_lut and T_scat < 0.01:
-                        gs.verbose(
-                            f"Band {band_num} ({wavelength:.1f} nm): "
-                            f"LUT T_scat {T_scat:.4f} too low, "
-                            f"masking as NaN")
+                    band_reliable = True
+
+                    if scalar_lut:
+                        # Adaptive T_scat threshold: compare with expected
+                        # scattering-only transmittance. If T_scat is much
+                        # lower, gas absorption has contaminated the LUT.
+                        wl_um = wavelength / 1000.0
+                        tau_r = (0.008569 * wl_um**(-4) *
+                                 (1 + 0.0113 * wl_um**(-2)) *
+                                 pressure / 1013.25)
+                        aod_scalar = (float(np.mean(p_aod_eff))
+                                      if np.ndim(p_aod_eff) > 0
+                                      else float(p_aod_eff))
+                        tau_a = aod_scalar * (wavelength / 550.0)**(-1.3)
+                        m_geom = (1.0 / np.cos(theta_s_rad) +
+                                  1.0 / np.cos(np.radians(view_zenith)))
+                        T_expected = np.exp(-(tau_r + tau_a) * 0.5 * m_geom)
+                        # Wavelength-dependent factor: permissive at blue
+                        # (gas-scattering coupling legitimately reduces T_scat)
+                        # strict at NIR/SWIR (T_scat should match T_expected)
+                        if wavelength < 550:
+                            adapt_factor = 0.3
+                        elif wavelength > 750:
+                            adapt_factor = 0.6
+                        else:
+                            adapt_factor = 0.3 + 0.3 * (wavelength - 550) / 200
+                        T_min_adaptive = adapt_factor * T_expected
+                        effective_min = max(LUT_TSCAT_MIN, T_min_adaptive)
+
+                        if T_scat < effective_min:
+                            band_reliable = False
+                            gs.verbose(
+                                f"Band {band_num} ({wavelength:.1f} nm): "
+                                f"LUT T_scat {T_scat:.4f} < "
+                                f"{effective_min:.4f} (gas contamination)")
+                        else:
+                            # Spectral stability: if T_scat changes rapidly
+                            # over ±10nm, we're at a gas band edge where LUT
+                            # interpolation blends incompatible gas states
+                            wl_lo = max(wavelength - 10.0,
+                                        atm_lut.wavelengths[0])
+                            wl_hi = min(wavelength + 10.0,
+                                        atm_lut.wavelengths[-1])
+                            _, T_lo, _ = atm_lut.interpolate(
+                                wl_lo, p_aod_eff)
+                            _, T_hi, _ = atm_lut.interpolate(
+                                wl_hi, p_aod_eff)
+                            T_max = max(T_lo, T_scat, T_hi)
+                            T_min_v = max(min(T_lo, T_scat, T_hi), 1e-6)
+                            if T_max / T_min_v > LUT_SPECTRAL_RATIO:
+                                band_reliable = False
+                                gs.verbose(
+                                    f"Band {band_num} ({wavelength:.1f} nm): "
+                                    f"T_scat unstable "
+                                    f"({T_min_v:.3f}-{T_max:.3f})")
+
+                    if not band_reliable:
                         refl_boa_band = np.full_like(refl_toa, np.nan)
                     else:
                         # Per-pixel gas adjustment via ratio
@@ -1306,7 +1365,7 @@ def apply_lut_correction(input_raster, output_raster, bands,
                             with np.errstate(divide='ignore', invalid='ignore'):
                                 tg_ratio = tg_pixel / tg_ref
                             tg_ratio = np.nan_to_num(tg_ratio, nan=1.0)
-                            opaque_mask = tg_pixel < TRANSMISSION_THRESHOLD
+                            opaque_mask = tg_pixel < LUT_TRANSMISSION_MIN
                         else:
                             tg_ratio = 1.0
                             opaque_mask = None
@@ -1324,36 +1383,109 @@ def apply_lut_correction(input_raster, output_raster, bands,
 
                         # Mask unreliable LUT pixels (per-pixel AOD)
                         if not scalar_lut:
-                            refl_boa_band[T_scat < 0.01] = np.nan
+                            refl_boa_band[T_scat < LUT_TSCAT_MIN] = np.nan
                         # Mask per-pixel opaque gas
                         if opaque_mask is not None and np.any(opaque_mask):
                             refl_boa_band[opaque_mask] = np.nan
 
-                # Write corrected band
-                output_band = f"tmp_corr_{os.getpid()}_{band_num}"
-                corrected_bands.append(output_band)
-
-                ncols = refl_boa_band.shape[1] if refl_boa_band.ndim > 1 else refl_boa_band.shape[0]
-                with RasterRow(output_band, mode='w', mtype='DCELL', overwrite=True) as r:
-                    for row_idx, row_data in enumerate(refl_boa_band):
-                        buf = Buffer((ncols,), mtype='DCELL')
-                        buf[:] = row_data
-                        r.put_row(buf)
-
-                band_comment = f"Band {band_num}: {wavelength:.2f} nm"
-                if fwhm:
-                    band_comment += f", FWHM: {fwhm:.2f} nm"
-                gs.run_command('r.support', map=output_band,
-                              title=band_comment, units="reflectance",
-                              quiet=True)
+                # Store corrected band data in memory
+                band_data_list.append((band, refl_boa_band))
 
                 gs.percent(i, len(bands), 1)
 
             except Exception as e:
                 gs.fatal(f"Error processing band {band_num}: {str(e)}")
 
-        if not corrected_bands:
+        if not band_data_list:
             gs.fatal("No bands were successfully processed")
+
+        # --- In-memory spectral polishing (before writing to rasters) ---
+        if polish:
+            import spectral_polish
+
+            gs.message("Applying spectral polishing...")
+
+            wavelengths_arr = np.array(
+                [b['wavelength'] for b, _ in band_data_list])
+            n_bands_p = len(band_data_list)
+
+            # Compute per-band gas transmission for quality weighting
+            tg_per_band = np.ones(n_bands_p)
+            for idx, (binfo, _) in enumerate(band_data_list):
+                try:
+                    coefs_p = get_smac_parameters(
+                        wavelength=binfo['wavelength'],
+                        fwhm=binfo.get('fwhm', 10.0),
+                        aerosol_model=aerosol_model,
+                    )
+                    tg_p = compute_gas_transmission(
+                        coefs_p, solar_zenith, view_zenith,
+                        pressure, water_vapor, ozone,
+                    )
+                    tg_per_band[idx] = float(tg_p)
+                except Exception:
+                    tg_per_band[idx] = 1.0
+
+            quality_weights = spectral_polish.compute_quality_weights(
+                wavelengths_arr, tg_per_band
+            )
+
+            # Stack band data: [n_bands, rows, cols]
+            ref_shape = band_data_list[0][1].shape
+            all_data = np.stack([d for _, d in band_data_list], axis=0)
+
+            if all_data.ndim == 3:
+                rows, cols = all_data.shape[1], all_data.shape[2]
+                pixels = all_data.reshape(n_bands_p, -1).T
+            else:
+                # 1D bands (single row)
+                pixels = all_data.T
+
+            polished, pflags = spectral_polish.spectral_polish(
+                pixels, wavelengths_arr,
+                quality_weights=quality_weights,
+                window=15, mad_threshold=2.5, replace=True,
+            )
+
+            n_flagged = np.sum(pflags)
+            gs.message(f"Spectral polishing: {n_flagged} band-pixel values "
+                       f"flagged and interpolated")
+
+            # Write polished data back
+            if all_data.ndim == 3:
+                polished_3d = polished.T.reshape(n_bands_p, rows, cols)
+            else:
+                polished_3d = polished.T
+
+            band_data_list = [
+                (binfo, polished_3d[idx])
+                for idx, (binfo, _) in enumerate(band_data_list)
+            ]
+
+        # Write corrected bands to GRASS rasters
+        gs.message("Writing corrected bands...")
+        for binfo, refl_data in band_data_list:
+            band_num = binfo['band_num']
+            wavelength = binfo['wavelength']
+            fwhm = binfo.get('fwhm', 10.0)
+
+            output_band = f"tmp_corr_{os.getpid()}_{band_num}"
+            corrected_bands.append(output_band)
+
+            ncols = refl_data.shape[1] if refl_data.ndim > 1 else refl_data.shape[0]
+            with RasterRow(output_band, mode='w', mtype='DCELL',
+                           overwrite=True) as r:
+                for row_data in refl_data:
+                    buf = Buffer((ncols,), mtype='DCELL')
+                    buf[:] = row_data
+                    r.put_row(buf)
+
+            band_comment = f"Band {band_num}: {wavelength:.2f} nm"
+            if fwhm:
+                band_comment += f", FWHM: {fwhm:.2f} nm"
+            gs.run_command('r.support', map=output_band,
+                          title=band_comment, units="reflectance",
+                          quiet=True)
 
         # Restore 3D region and combine bands
         gs.run_command('g.region', raster_3d=input_raster, quiet=True)
@@ -1483,7 +1615,7 @@ def _apply_spectral_polishing(output_raster, bands, solar_zenith, view_zenith,
 
     polished, flags = spectral_polish.spectral_polish(
         pixels, wavelengths, quality_weights=quality_weights,
-        window=7, mad_threshold=3.0, replace=True,
+        window=15, mad_threshold=2.5, replace=True,
     )
 
     n_flagged = np.sum(flags)
@@ -1792,12 +1924,13 @@ def main():
             wvc_map=wvc_map,
             ozone_map=ozone_map,
             dem=dem,
+            polish=apply_polish,
         )
     else:
         gs.fatal(f"Unknown method: {method}. Choose 'simple', 'libradtran', or 'lut'.")
 
-    # --- Post-processing: spectral polishing ---
-    if apply_polish:
+    # --- Post-processing: spectral polishing (non-LUT methods) ---
+    if apply_polish and method != 'lut':
         _apply_spectral_polishing(output_raster, bands,
                                    solar_zenith, view_zenith,
                                    pressure, water_vapor, ozone,
