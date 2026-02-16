@@ -116,6 +116,14 @@
 # %end
 
 # %option
+# % key: angstrom
+# % type: double
+# % required: no
+# % description: Angstrom exponent for aerosol wavelength dependence (default: auto from aerosol model)
+# % guisection: Atmospheric
+# %end
+
+# %option
 # % key: method
 # % type: string
 # % required: no
@@ -1101,7 +1109,7 @@ def apply_lut_correction(input_raster, output_raster, bands,
                          aerosol_model='continental', keep_temp=False,
                          aod_map=None, wvc_map=None,
                          ozone_map=None, dem=None,
-                         polish=False):
+                         polish=False, angstrom_alpha=None):
     """Apply atmospheric correction using libRadtran LUT.
 
     Uses full multiple-scattering from libRadtran DISORT via a precomputed
@@ -1165,6 +1173,7 @@ def apply_lut_correction(input_raster, output_raster, bands,
         pressure=pressure, aerosol_model=aerosol_model,
         wl_min=wl_min, wl_max=wl_max, wl_step=5,
         h2o=water_vapor, o3=ozone,
+        angstrom_alpha=angstrom_alpha,
     )
 
     # Get wavelength information from input raster
@@ -1173,20 +1182,39 @@ def apply_lut_correction(input_raster, output_raster, bands,
                        if 'Band' in line and 'nm' in line]
 
     # Load per-pixel atmospheric maps (if provided)
+    # NaN pixels (e.g. outside Dark Target coverage) are filled with scene-mean
     if aod_map:
         aod_array = np.clip(read_raster_as_array(aod_map), 0.001, AOD_MAX)
+        nan_mask = np.isnan(aod_array)
+        if np.any(nan_mask):
+            n_nan = int(np.sum(nan_mask))
+            gs.message(f"Filling {n_nan}/{aod_array.size} NaN AOD pixels "
+                       f"with scene-mean {aod:.4f}")
+            aod_array[nan_mask] = aod
         gs.message(f"Loaded per-pixel AOD map: {aod_map}")
     else:
         aod_array = None
 
     if wvc_map:
         wvc_array = np.clip(read_raster_as_array(wvc_map), 0.1, 8.0)
+        nan_mask = np.isnan(wvc_array)
+        if np.any(nan_mask):
+            n_nan = int(np.sum(nan_mask))
+            gs.message(f"Filling {n_nan}/{wvc_array.size} NaN WVC pixels "
+                       f"with scene-mean {water_vapor:.4f}")
+            wvc_array[nan_mask] = water_vapor
         gs.message(f"Loaded per-pixel WVC map: {wvc_map}")
     else:
         wvc_array = None
 
     if ozone_map:
         ozone_array = np.clip(read_raster_as_array(ozone_map) * 0.001, 0.1, 0.6)
+        nan_mask = np.isnan(ozone_array)
+        if np.any(nan_mask):
+            n_nan = int(np.sum(nan_mask))
+            gs.message(f"Filling {n_nan}/{ozone_array.size} NaN ozone pixels "
+                       f"with scene-mean {ozone:.4f}")
+            ozone_array[nan_mask] = ozone
         gs.message(f"Loaded per-pixel ozone map: {ozone_map}")
     else:
         ozone_array = None
@@ -1194,6 +1222,12 @@ def apply_lut_correction(input_raster, output_raster, bands,
     if dem:
         elev = read_raster_as_array(dem)
         pressure_array = 1013.25 * (1 - 0.0065 * elev / 288.15) ** 5.255
+        nan_mask = np.isnan(pressure_array)
+        if np.any(nan_mask):
+            n_nan = int(np.sum(nan_mask))
+            gs.message(f"Filling {n_nan}/{pressure_array.size} NaN pressure "
+                       f"pixels with {pressure:.1f} hPa")
+            pressure_array[nan_mask] = pressure
         gs.message(f"Loaded DEM for per-pixel pressure: {dem}")
     else:
         pressure_array = None
@@ -1252,6 +1286,11 @@ def apply_lut_correction(input_raster, output_raster, bands,
             # Convert radiance to TOA reflectance
             refl_toa = (np.pi * rad_toa_band * d2) / (E0_band * np.cos(theta_s_rad))
 
+            # Mark nodata pixels: GRASS null (NaN) or zero radiance
+            # Set to NaN so they propagate through inversion naturally
+            nodata = np.isnan(rad_toa_band) | (rad_toa_band <= 0)
+            refl_toa[nodata] = np.nan
+
             # Select per-pixel or scalar AOD for LUT interpolation
             p_aod = aod_array if aod_array is not None else aod
 
@@ -1281,9 +1320,9 @@ def apply_lut_correction(input_raster, output_raster, bands,
                     )
                     refl_boa_band = np.full_like(refl_toa, np.nan)
                 else:
-                    # Apply AOD taper in the blue to compensate for aerosol
-                    # model overestimating path radiance at short wavelengths
-                    p_aod_eff = compute_blue_aod_taper(wavelength, p_aod)
+                    # No blue AOD taper for LUT method — DISORT 16-stream
+                    # handles multiple scattering correctly at all wavelengths
+                    p_aod_eff = p_aod
 
                     # LUT R_atm, T_scat, s already include gas at scene-mean
                     R_atm, T_scat, s = atm_lut.interpolate(
@@ -1376,9 +1415,11 @@ def apply_lut_correction(input_raster, output_raster, bands,
                         denominator = T_scat * tg_ratio + numerator * s
                         with np.errstate(divide='ignore', invalid='ignore'):
                             refl_boa_band = numerator / denominator
-                        refl_boa_band = np.clip(
-                            np.nan_to_num(refl_boa_band, nan=0.0),
-                            -0.01, 1.5
+                        # Clip valid values; NaN (nodata) stays NaN
+                        finite = np.isfinite(refl_boa_band)
+                        refl_boa_band[~finite] = np.nan
+                        refl_boa_band[finite] = np.clip(
+                            refl_boa_band[finite], -0.01, 1.5
                         )
 
                         # Mask unreliable LUT pixels (per-pixel AOD)
@@ -1866,6 +1907,7 @@ def main():
         generate_coefs = False
 
     aerosol_model = options.get('aerosol_model', 'continental')
+    angstrom_alpha = float(options['angstrom']) if options.get('angstrom') else None
     apply_polish = flags['p']
     adjacency_psf = float(options.get('adjacency_psf', 0))
 
@@ -1882,6 +1924,12 @@ def main():
 
     if method == 'lut':
         gs.message(f"  Aerosol model: {aerosol_model}")
+        if angstrom_alpha is not None:
+            gs.message(f"  Angstrom exponent: {angstrom_alpha:.2f} (user override)")
+        else:
+            from lib.lut import AEROSOL_CONFIG
+            default_alpha = AEROSOL_CONFIG.get(aerosol_model, {}).get('alpha', 1.0)
+            gs.message(f"  Angstrom exponent: {default_alpha:.2f} (default for {aerosol_model})")
 
     if apply_polish:
         gs.message("  Spectral polishing: ENABLED")
@@ -1925,6 +1973,7 @@ def main():
             ozone_map=ozone_map,
             dem=dem,
             polish=apply_polish,
+            angstrom_alpha=angstrom_alpha,
         )
     else:
         gs.fatal(f"Unknown method: {method}. Choose 'simple', 'libradtran', or 'lut'.")
