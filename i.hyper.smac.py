@@ -123,15 +123,6 @@
 # % guisection: Atmospheric
 # %end
 
-# %option
-# % key: method
-# % type: string
-# % required: no
-# % options: simple,libradtran,lut
-# % answer: lut
-# % description: Atmospheric correction method to use (simple, libradtran, or lut)
-# % guisection: Method
-# %end
 
 # %option
 # % key: ozone
@@ -156,16 +147,17 @@
 # % guisection: Optional
 # %end
 
-# %flag
-# % key: g
-# % description: Generate SMAC coefficients from libRadtran (requires libRadtran and scipy)
-# % guisection: Advanced
-# %end
 
 # %flag
 # % key: p
 # % description: Apply spectral polishing to remove outlier bands
 # % guisection: Optional
+# %end
+
+# %flag
+# % key: c
+# % description: Clear cached LUT and regenerate from libRadtran
+# % guisection: Advanced
 # %end
 
 # %option
@@ -175,6 +167,19 @@
 # % answer: 0
 # % description: Adjacency effect PSF radius in km (0 = disabled, typical 1.0)
 # % guisection: Advanced
+# %end
+
+# %flag
+# % key: u
+# % description: Compute per-band reflectance uncertainty
+# % guisection: Advanced
+# %end
+
+# %option G_OPT_R3_OUTPUT
+# % key: output_uncertainty
+# % required: no
+# % description: Output uncertainty 3D raster map (requires -u flag)
+# % guisection: Output
 # %end
 
 import sys
@@ -483,6 +488,264 @@ def compute_coupling_correction(wavelength, tg, aod550, pressure,
     return np.asarray(tg) ** (1.0 + k * tau_scat)
 
 
+def calibrate_path_radiance(input_raster, bands, atm_lut, aod,
+                            solar_zenith, view_zenith, d2):
+    """Derive path radiance correction from dark vegetation targets.
+
+    Compares LUT-predicted R_atm with observed path reflectance at dark
+    vegetation pixels (DDV) to correct for aerosol SSA/phase-function
+    mismatch.
+
+    Uses blue (470nm) and red (660nm) bands to fit a two-parameter
+    correction model:
+        R_atm_corrected(wl) = R_atm(wl) * c * (wl/550)^delta
+
+    where c captures the overall magnitude error (SSA too high/low) and
+    delta captures the spectral tilt error (Angstrom mismatch).
+
+    Args:
+        input_raster: GRASS 3D raster name (radiance).
+        bands: List of band info dicts with 'band_num', 'wavelength', 'fwhm'.
+        atm_lut: AtmosphericLUT instance.
+        aod: Scene-mean AOD at 550nm (scalar).
+        solar_zenith: Solar zenith angle (degrees).
+        view_zenith: View zenith angle (degrees).
+        d2: Earth-Sun distance squared.
+
+    Returns:
+        Tuple (c, delta, t_corr): correction parameters.
+        c, delta: path radiance correction R_atm * c * (wl/550)^delta
+        t_corr: NIR/SWIR transmittance correction factor (multiply T_down*T_up
+                by t_corr for wavelengths >= 700nm). Values > 1 increase
+                transmittance (reduce retrieved reflectance).
+        Returns (1.0, 0.0, 1.0) if calibration fails.
+    """
+    try:
+        import radtran
+    except ImportError:
+        from lib import radtran
+
+    BLUE_TARGET = 470.0
+    RED_TARGET = 660.0
+    SWIR_TARGET = 2130.0
+    NIR_TARGET = 860.0
+
+    # Find nearest bands
+    def find_band(target):
+        best = min(bands, key=lambda b: abs(b['wavelength'] - target))
+        if abs(best['wavelength'] - target) > 30:
+            return None
+        return best
+
+    blue_band = find_band(BLUE_TARGET)
+    red_band = find_band(RED_TARGET)
+    swir_band = find_band(SWIR_TARGET)
+    nir_band = find_band(NIR_TARGET)
+
+    if not all([blue_band, red_band, swir_band, nir_band]):
+        gs.warning("Cannot calibrate path radiance: missing required bands")
+        return 1.0, 0.0, 1.0, 1.0
+
+    # Extract bands to arrays
+    theta_s_rad = np.radians(solar_zenith)
+    cos_sza = np.cos(theta_s_rad)
+    arrays = {}
+    temp_maps = []
+
+    try:
+        for name, band in [('blue', blue_band), ('red', red_band),
+                            ('nir', nir_band), ('swir', swir_band)]:
+            band_num = band['band_num']
+            wl = band['wavelength']
+            fwhm = band.get('fwhm', 10.0)
+            temp_name = f"tmp_calib_{name}_{os.getpid()}"
+            temp_maps.append(temp_name)
+
+            gs.run_command('g.region', t=band_num + 0.1, b=band_num,
+                           quiet=True)
+            gs.run_command('r3.to.rast', input=input_raster,
+                           output=temp_name, overwrite=True, quiet=True)
+            gs.run_command('g.rename',
+                           raster=f"{temp_name}_00001,{temp_name}",
+                           overwrite=True, quiet=True)
+
+            with RasterRow(temp_name) as r:
+                r.open('r')
+                rad_array = np.array(r, dtype=float)
+
+            # Convert radiance to apparent reflectance
+            try:
+                e0 = radtran.E0(wl, fwhm)
+                if e0 is None or e0 <= 0:
+                    raise ValueError("E0 invalid")
+            except Exception:
+                wl_m = wl * 1e-9
+                hc_kT = 6.626e-34 * 2.998e8 / (wl_m * 1.381e-23 * 5778.0)
+                B = (2 * 6.626e-34 * (2.998e8)**2
+                     / (wl_m**5 * (np.exp(hc_kT) - 1.0)))
+                e0 = 6.794e-5 * B * 1e-6
+
+            arrays[name] = (np.pi * rad_array * d2) / (e0 * cos_sza)
+
+        # Reset region
+        gs.run_command('g.region', raster_3d=input_raster, quiet=True)
+
+        # Select dark vegetation pixels
+        swir = arrays['swir']
+        nir = arrays['nir']
+        red = arrays['red']
+
+        with np.errstate(divide='ignore', invalid='ignore'):
+            ndvi = (nir - red) / (nir + red + 1e-6)
+
+        valid = (np.isfinite(swir) & np.isfinite(nir)
+                 & np.isfinite(red) & np.isfinite(arrays['blue']))
+        dark_mask = valid & (swir > 0.01) & (swir < 0.25) & (ndvi > 0.2)
+
+        n_dark = int(np.sum(dark_mask))
+        if n_dark < 100:
+            gs.warning(f"Only {n_dark} dark target pixels found, "
+                       f"skipping path radiance calibration")
+            return 1.0, 0.0, 1.0
+
+        # Filter to 20th-50th percentile of SWIR
+        swir_dark = swir[dark_mask]
+        p20 = np.nanpercentile(swir_dark, 20)
+        p50 = np.nanpercentile(swir_dark, 50)
+        dark_mask &= (swir >= p20) & (swir <= p50)
+
+        n_filtered = int(np.sum(dark_mask))
+        if n_filtered < 50:
+            gs.warning("Insufficient filtered dark pixels for calibration")
+            return 1.0, 0.0, 1.0
+
+        # Median observed apparent reflectance at dark pixels
+        rho_swir_dark = np.nanmedian(swir[dark_mask])
+        rho_blue_toa = np.nanmedian(arrays['blue'][dark_mask])
+        rho_red_toa = np.nanmedian(arrays['red'][dark_mask])
+
+        # Kaufman (1997) surface reflectance estimates
+        rho_surf_blue = 0.25 * rho_swir_dark
+        rho_surf_red = 0.50 * rho_swir_dark
+
+        # LUT predictions at scene-mean AOD
+        wl_blue = blue_band['wavelength']
+        wl_red = red_band['wavelength']
+        R_blue, Td_blue, Tu_blue, s_blue = atm_lut.interpolate(wl_blue, aod)
+        R_red, Td_red, Tu_red, s_red = atm_lut.interpolate(wl_red, aod)
+
+        # Observed path reflectance accounting for transmittance:
+        # ρ_TOA = R_atm + T_down × T_up × ρ_surf / (1 - s × ρ_surf)
+        # => R_atm_obs = ρ_TOA - T_down × T_up × ρ_surf / (1 - s × ρ_surf)
+        surf_contrib_blue = (Td_blue * Tu_blue * rho_surf_blue
+                             / (1.0 - s_blue * rho_surf_blue))
+        surf_contrib_red = (Td_red * Tu_red * rho_surf_red
+                            / (1.0 - s_red * rho_surf_red))
+
+        obs_path_blue = max(rho_blue_toa - surf_contrib_blue, 0.001)
+        obs_path_red = max(rho_red_toa - surf_contrib_red, 0.001)
+
+        if R_blue < 0.001 or R_red < 0.001:
+            gs.warning("LUT R_atm near zero, skipping calibration")
+            return 1.0, 0.0, 1.0
+
+        # Correction factors at blue and red
+        f_blue = obs_path_blue / R_blue
+        f_red = obs_path_red / R_red
+
+        # Fit: f(wl) = c * (wl/550)^delta
+        # ln(f_blue) = ln(c) + delta * ln(wl_blue/550)
+        # ln(f_red)  = ln(c) + delta * ln(wl_red/550)
+        ln_f_blue = np.log(f_blue)
+        ln_f_red = np.log(f_red)
+        ln_wl_blue = np.log(wl_blue / 550.0)
+        ln_wl_red = np.log(wl_red / 550.0)
+
+        denom = ln_wl_blue - ln_wl_red
+        if abs(denom) > 0.01:
+            delta = (ln_f_blue - ln_f_red) / denom
+        else:
+            delta = 0.0
+        c = f_blue / (wl_blue / 550.0) ** delta
+
+        # Clamp to reasonable bounds
+        c = float(np.clip(c, 0.3, 1.5))
+        delta = float(np.clip(delta, -2.0, 2.0))
+
+        gs.message("Path radiance calibration from dark targets:")
+        gs.message(f"  Dark pixels used: {n_filtered}")
+        gs.message(f"  SWIR dark median: {rho_swir_dark:.4f}")
+        gs.message(f"  Kaufman surface est: blue={rho_surf_blue:.4f}, "
+                   f"red={rho_surf_red:.4f}")
+        gs.message(f"  TOA apparent refl: blue={rho_blue_toa:.4f}, "
+                   f"red={rho_red_toa:.4f}")
+        gs.message(f"  Surface contrib (T*rho/(1-s*rho)): "
+                   f"blue={surf_contrib_blue:.4f}, red={surf_contrib_red:.4f}")
+        gs.message(f"  Blue ({wl_blue:.0f}nm): obs_path={obs_path_blue:.4f}, "
+                   f"LUT_R_atm={R_blue:.4f}, ratio={f_blue:.3f}")
+        gs.message(f"  Red ({wl_red:.0f}nm): obs_path={obs_path_red:.4f}, "
+                   f"LUT_R_atm={R_red:.4f}, ratio={f_red:.3f}")
+        gs.message(f"  Correction: R_atm * {c:.3f} * (wl/550)^{delta:.3f}")
+
+        # --- P3: NIR transmittance correction from dark vegetation ---
+        # Dense dark vegetation at 860nm has known surface reflectance.
+        # Compare LUT-inverted reflectance with expected to derive
+        # a transmittance correction factor for NIR/SWIR bands.
+        t_corr = 1.0
+        try:
+            wl_nir = nir_band['wavelength']
+            rho_nir_toa = np.nanmedian(arrays['nir'][dark_mask])
+
+            # Expected NIR surface reflectance for dark vegetation
+            # Empirical: NIR ≈ 2.0 × SWIR(2130nm) for typical vegetation
+            # (Kaufman & Tanré 1992; value 3.5 was too high, causing t_corr
+            # to always clamp at 0.70 and inflate r_boa by ~60%)
+            rho_surf_nir_expected = np.clip(2.0 * rho_swir_dark, 0.20, 0.55)
+
+            # LUT atmospheric parameters at 860nm
+            R_nir, Td_nir, Tu_nir, s_nir = atm_lut.interpolate(wl_nir, aod)
+            T_nir = float(Td_nir * Tu_nir) if np.ndim(Td_nir) == 0 else Td_nir * Tu_nir
+
+            # Invert TOA to surface reflectance at NIR
+            y_nir = (rho_nir_toa - float(R_nir)) / float(T_nir)
+            rho_surf_nir_retrieved = y_nir / (1.0 + float(s_nir) * y_nir)
+
+            if (rho_surf_nir_retrieved > 0.05 and
+                    rho_surf_nir_expected > 0.05):
+                # t_corr > 1 means T is too low (need to increase it)
+                t_corr_raw = rho_surf_nir_retrieved / rho_surf_nir_expected
+                # Clamp to reasonable range [0.7, 1.3]
+                t_corr = float(np.clip(t_corr_raw, 0.7, 1.3))
+
+                gs.message(f"  NIR transmittance correction (P3):")
+                gs.message(f"    NIR TOA refl (dark veg): {rho_nir_toa:.4f}")
+                gs.message(f"    LUT R_atm(NIR): {float(R_nir):.4f}, "
+                           f"T(NIR): {float(T_nir):.4f}")
+                gs.message(f"    Retrieved NIR surf: {rho_surf_nir_retrieved:.4f}")
+                gs.message(f"    Expected NIR surf: {rho_surf_nir_expected:.4f}")
+                gs.message(f"    T correction factor: {t_corr:.4f}")
+            else:
+                gs.warning("NIR transmittance correction: invalid reflectance values, "
+                           "skipping")
+        except Exception as e:
+            gs.warning(f"NIR transmittance correction failed: {e}")
+
+        return c, delta, t_corr
+
+    except Exception as e:
+        gs.warning(f"Path radiance calibration failed: {e}")
+        return 1.0, 0.0, 1.0
+
+    finally:
+        for tmp in temp_maps:
+            try:
+                gs.run_command('g.remove', flags='f', type='raster',
+                               name=tmp, quiet=True)
+            except Exception:
+                pass
+        gs.run_command('g.region', raster_3d=input_raster, quiet=True)
+
+
 AOD_MAX = 1.5  # Upper bound for AOD validation
 TRANSMISSION_THRESHOLD = 0.10  # Minimum two-way transmission
 # LUT method uses stricter thresholds because the 5nm grid can't
@@ -490,6 +753,192 @@ TRANSMISSION_THRESHOLD = 0.10  # Minimum two-way transmission
 LUT_TRANSMISSION_MIN = 0.25   # Stricter gas threshold for LUT method
 LUT_TSCAT_MIN = 0.15          # Minimum reliable T_scat from LUT
 LUT_SPECTRAL_RATIO = 2.0     # Max T_scat variation over ±10nm before masking
+
+
+def estimate_h2o_from_940nm(input_raster, bands, atm_lut, aod,
+                             solar_zenith, view_zenith, d2):
+    """Estimate per-pixel water vapor from the 940nm absorption band.
+
+    ISOFIT-style retrieval: for each H2O value in the LUT grid, invert the
+    observed radiance at 865nm (shoulder), 945nm (absorption), and 1040nm
+    (shoulder) to surface reflectance.  The correct H2O produces a smooth
+    continuum across the absorption feature (residual D ≈ 0).
+
+    Args:
+        input_raster: GRASS 3D raster name (radiance).
+        bands: List of band info dicts with 'band_num', 'wavelength', 'fwhm'.
+        atm_lut: AtmosphericLUT instance with h2o_grid.
+        aod: Scene-mean AOD at 550nm (scalar).
+        solar_zenith: Solar zenith angle (degrees).
+        view_zenith: View zenith angle (degrees).
+        d2: Earth-Sun distance squared.
+
+    Returns:
+        2D array of per-pixel H2O (g/cm²), or scalar h2o_ref if retrieval
+        fails or LUT has no H2O dimension.
+    """
+    try:
+        import radtran
+    except ImportError:
+        from lib import radtran
+
+    if atm_lut.h2o_grid is None or atm_lut.R_atm.ndim != 3:
+        gs.warning("LUT has no H2O dimension, using scene-mean H2O")
+        return atm_lut.h2o_ref
+
+    h2o_grid = atm_lut.h2o_grid
+
+    # Target wavelengths for 940nm absorption retrieval
+    SHOULDER_LO = 865.0   # Left shoulder
+    ABSORPTION = 945.0     # Absorption center
+    SHOULDER_HI = 1040.0   # Right shoulder
+
+    # Find nearest bands
+    def find_band(target, max_dist=30):
+        best = min(bands, key=lambda b: abs(b['wavelength'] - target))
+        if abs(best['wavelength'] - target) > max_dist:
+            return None
+        return best
+
+    band_lo = find_band(SHOULDER_LO)
+    band_abs = find_band(ABSORPTION)
+    band_hi = find_band(SHOULDER_HI)
+
+    if not all([band_lo, band_abs, band_hi]):
+        gs.warning("Cannot find 865/945/1040nm bands for H2O retrieval, "
+                   "using scene-mean H2O")
+        return atm_lut.h2o_ref
+
+    theta_s_rad = np.radians(solar_zenith)
+    cos_sza = np.cos(theta_s_rad)
+    temp_maps = []
+
+    try:
+        # Extract the 3 bands and convert to TOA reflectance
+        refl_toa = {}
+        for name, band in [('lo', band_lo), ('abs', band_abs),
+                            ('hi', band_hi)]:
+            band_num = band['band_num']
+            wl = band['wavelength']
+            fwhm = band.get('fwhm', 10.0)
+            temp_name = f"tmp_h2o_{name}_{os.getpid()}"
+            temp_maps.append(temp_name)
+
+            gs.run_command('g.region', t=band_num + 0.1, b=band_num,
+                           quiet=True)
+            gs.run_command('r3.to.rast', input=input_raster,
+                           output=temp_name, overwrite=True, quiet=True)
+            gs.run_command('g.rename',
+                           raster=f"{temp_name}_00001,{temp_name}",
+                           overwrite=True, quiet=True)
+
+            with RasterRow(temp_name) as r:
+                r.open('r')
+                rad_array = np.array(r, dtype=float)
+
+            try:
+                e0 = radtran.E0(wl, fwhm)
+                if e0 is None or e0 <= 0:
+                    raise ValueError("E0 invalid")
+            except Exception:
+                wl_m = wl * 1e-9
+                hc_kT = 6.626e-34 * 2.998e8 / (wl_m * 1.381e-23 * 5778.0)
+                B = (2 * 6.626e-34 * (2.998e8)**2
+                     / (wl_m**5 * (np.exp(hc_kT) - 1.0)))
+                e0 = 6.794e-5 * B * 1e-6
+
+            refl_toa[name] = (np.pi * rad_array * d2) / (e0 * cos_sza)
+
+        # Reset region
+        gs.run_command('g.region', raster_3d=input_raster, quiet=True)
+
+        wl_lo = band_lo['wavelength']
+        wl_abs = band_abs['wavelength']
+        wl_hi = band_hi['wavelength']
+
+        # Linear interpolation weight for continuum at absorption wavelength
+        w_cont = (wl_abs - wl_lo) / (wl_hi - wl_lo)
+
+        # For each H2O grid value, invert to surface reflectance and
+        # compute absorption residual D = continuum(945) - rfl(945)
+        ref_shape = refl_toa['lo'].shape
+        D_stack = np.zeros((len(h2o_grid),) + ref_shape)
+
+        for hi, h2o_val in enumerate(h2o_grid):
+            rfl = {}
+            for name, wl in [('lo', wl_lo), ('abs', wl_abs), ('hi', wl_hi)]:
+                R_atm, T_down, T_up, s = atm_lut.interpolate(
+                    wl, aod, h2o=h2o_val)
+                # Invert: rfl = (rho_toa - R_atm) / (T_down * T_up + s * (rho_toa - R_atm))
+                numerator = refl_toa[name] - R_atm
+                denominator = T_down * T_up + s * numerator
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    rfl[name] = numerator / denominator
+                rfl[name] = np.nan_to_num(rfl[name], nan=0.0)
+
+            # Continuum at absorption band = linear interp of shoulders
+            continuum = rfl['lo'] + w_cont * (rfl['hi'] - rfl['lo'])
+            D_stack[hi] = continuum - rfl['abs']
+
+        # Per-pixel: find H2O that minimizes |D| by linear interpolation
+        # D should go from positive (too little H2O) to negative (too much)
+        # Find the zero-crossing
+        h2o_map = np.full(ref_shape, atm_lut.h2o_ref)
+        n_h2o = len(h2o_grid)
+
+        if n_h2o >= 2:
+            # Vectorized: for each adjacent pair, find pixels where D
+            # crosses zero
+            flat_shape = np.prod(ref_shape)
+            D_flat = D_stack.reshape(n_h2o, flat_shape)
+            h2o_flat = np.full(flat_shape, atm_lut.h2o_ref)
+            assigned = np.zeros(flat_shape, dtype=bool)
+
+            for i in range(n_h2o - 1):
+                D_lo = D_flat[i]
+                D_hi = D_flat[i + 1]
+                # Zero crossing: signs differ or D is exactly zero
+                cross = ((D_lo * D_hi) <= 0) & ~assigned
+                if not np.any(cross):
+                    continue
+                dD = D_lo[cross] - D_hi[cross]
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    frac = np.where(np.abs(dD) > 1e-10,
+                                    D_lo[cross] / dD, 0.5)
+                frac = np.clip(frac, 0.0, 1.0)
+                h2o_flat[cross] = (h2o_grid[i]
+                                   + frac * (h2o_grid[i + 1] - h2o_grid[i]))
+                assigned[cross] = True
+
+            # Pixels without zero crossing: use H2O with smallest |D|
+            if not np.all(assigned):
+                abs_D = np.abs(D_flat[:, ~assigned])
+                best_idx = np.argmin(abs_D, axis=0)
+                h2o_flat[~assigned] = h2o_grid[best_idx]
+
+            h2o_map = h2o_flat.reshape(ref_shape)
+
+        # Clamp to grid bounds
+        h2o_map = np.clip(h2o_map, h2o_grid[0], h2o_grid[-1])
+
+        gs.message(f"H2O retrieval from 940nm: "
+                   f"mean={np.nanmean(h2o_map):.3f}, "
+                   f"std={np.nanstd(h2o_map):.3f} g/cm²")
+
+        return h2o_map
+
+    except Exception as e:
+        gs.warning(f"H2O retrieval failed: {e}, using scene-mean")
+        return atm_lut.h2o_ref
+
+    finally:
+        for tmp in temp_maps:
+            try:
+                gs.run_command('g.remove', flags='f', type='raster',
+                               name=tmp, quiet=True)
+            except Exception:
+                pass
+        gs.run_command('g.region', raster_3d=input_raster, quiet=True)
 
 
 def apply_smac_correction_simple(input_raster, output_raster, bands,
@@ -720,7 +1169,8 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
                                    aerosol_model='continental', keep_temp=False,
                                    generate_coefs=False,
                                    aod_map=None, wvc_map=None,
-                                   ozone_map=None, dem=None):
+                                   ozone_map=None, dem=None,
+                                   force_regenerate=False):
     """Apply libradtran-based SMAC atmospheric correction.
 
     Args:
@@ -820,7 +1270,8 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
         blue_lut = lut_module.AtmosphericLUT.get_or_generate(
             sza=solar_zenith, vza=view_zenith, phi=phi,
             pressure=pressure, aerosol_model=aerosol_model,
-            wl_min=350, wl_max=700, wl_step=5,
+            wl_min=350, wl_max=700, wl_step=2,
+            force_regenerate=force_regenerate,
         )
 
     try:
@@ -1109,12 +1560,26 @@ def apply_lut_correction(input_raster, output_raster, bands,
                          aerosol_model='continental', keep_temp=False,
                          aod_map=None, wvc_map=None,
                          ozone_map=None, dem=None,
-                         polish=False, angstrom_alpha=None):
+                         polish=False, angstrom_alpha=None,
+                         force_regenerate=False,
+                         adjacency_psf_km=0.0, pixel_size=None,
+                         compute_uncertainty=False,
+                         output_uncertainty=None):
     """Apply atmospheric correction using libRadtran LUT.
 
     Uses full multiple-scattering from libRadtran DISORT via a precomputed
-    look-up table for R_atm, T_scat, and s.  Gas absorption is handled
-    separately via SMAC coefficients (supports per-pixel WVC).
+    look-up table for R_atm, T_down, T_up, and s.  H2O is a LUT dimension:
+    per-pixel water vapor is retrieved from the 940nm absorption band
+    (ISOFIT-style) and the LUT is interpolated in (wavelength, AOD, H2O)
+    space — no separate gas transmission correction needed.
+
+    Includes ISOFIT-inspired improvements:
+    1. Superpixel smoothing of AOD/H2O fields
+    2. In-loop adjacency effect correction
+    3. Surface reflectance prior (Gaussian mixture)
+    4. Per-band reflectance uncertainty propagation
+    5. MAP inner loop (prior-weighted inversion)
+    6. Model discrepancy noise floor
 
     Args:
         input_raster (str): Input 3D raster name
@@ -1134,6 +1599,10 @@ def apply_lut_correction(input_raster, output_raster, bands,
         wvc_map (str, optional): GRASS raster name for per-pixel water vapor (g/cm²)
         ozone_map (str, optional): GRASS raster name for per-pixel ozone (DU)
         dem (str, optional): GRASS raster name for DEM (m) -> per-pixel pressure
+        adjacency_psf_km (float): PSF radius for adjacency correction (0 = disabled)
+        pixel_size (float, optional): Pixel size in meters (auto-detect from GRASS)
+        compute_uncertainty (bool): Whether to compute per-band uncertainty
+        output_uncertainty (str, optional): Name for uncertainty 3D raster
     """
     import lut as lut_module
 
@@ -1171,9 +1640,10 @@ def apply_lut_correction(input_raster, output_raster, bands,
     atm_lut = lut_module.AtmosphericLUT.get_or_generate(
         sza=solar_zenith, vza=view_zenith, phi=phi,
         pressure=pressure, aerosol_model=aerosol_model,
-        wl_min=wl_min, wl_max=wl_max, wl_step=5,
+        wl_min=wl_min, wl_max=wl_max, wl_step=2,
         h2o=water_vapor, o3=ozone,
         angstrom_alpha=angstrom_alpha,
+        force_regenerate=force_regenerate,
     )
 
     # Get wavelength information from input raster
@@ -1232,11 +1702,95 @@ def apply_lut_correction(input_raster, output_raster, bands,
     else:
         pressure_array = None
 
+    # Calibrate path radiance from dark vegetation targets
+    path_corr_c, path_corr_delta, path_corr_t = calibrate_path_radiance(
+        input_raster, bands, atm_lut, aod,
+        solar_zenith, view_zenith, d2,
+    )
+
+    # Retrieve per-pixel H2O from 940nm absorption band
+    h2o_map = estimate_h2o_from_940nm(
+        input_raster, bands, atm_lut, aod,
+        solar_zenith, view_zenith, d2,
+    )
+
+    # --- Improvement #1: Superpixel smoothing of AOD/H2O fields ---
+    try:
+        import superpixel as superpixel_module
+        has_superpixel = True
+    except ImportError:
+        has_superpixel = False
+
+    if has_superpixel and (
+        (isinstance(h2o_map, np.ndarray) and h2o_map.ndim == 2) or
+        (aod_array is not None)
+    ):
+        # Extract a NIR reference band (~860nm) for SLIC segmentation
+        nir_band = None
+        nir_band_info = None
+        for b in bands:
+            if 840 <= b['wavelength'] <= 880:
+                nir_band_info = b
+                break
+        if nir_band_info is None:
+            # Fallback: pick closest to 860
+            nir_band_info = min(bands, key=lambda b: abs(b['wavelength'] - 860))
+
+        nir_name = f"tmp_nir_seg_{os.getpid()}"
+        try:
+            gs.run_command('g.region', t=nir_band_info['band_num'] + 0.1,
+                          b=nir_band_info['band_num'], quiet=True)
+            gs.run_command('r3.to.rast', input=input_raster,
+                          output=nir_name, overwrite=True, quiet=True)
+            gs.run_command('g.rename',
+                          raster=f"{nir_name}_00001,{nir_name}",
+                          overwrite=True, quiet=True)
+            with RasterRow(nir_name) as r:
+                r.open('r')
+                nir_band = np.array(r)
+            gs.run_command('g.remove', flags='f', type='raster',
+                          name=nir_name, quiet=True)
+        except Exception as e:
+            gs.warning(f"Could not extract NIR band for superpixel: {e}")
+
+        if nir_band is not None:
+            gs.message("Superpixel smoothing of atmospheric fields...")
+            try:
+                sp_labels = superpixel_module.segment_image(nir_band, n_segments=200)
+
+                # Smooth H2O map
+                if isinstance(h2o_map, np.ndarray) and h2o_map.ndim == 2:
+                    sp_h2o = superpixel_module.superpixel_means(h2o_map, sp_labels)
+                    h2o_map = superpixel_module.interpolate_superpixel_field(
+                        sp_labels, sp_h2o, smoothing_sigma=2.0)
+                    gs.message("  H2O field smoothed via superpixels")
+
+                # Smooth AOD map
+                if aod_array is not None:
+                    sp_aod = superpixel_module.superpixel_means(aod_array, sp_labels)
+                    aod_array = superpixel_module.interpolate_superpixel_field(
+                        sp_labels, sp_aod, smoothing_sigma=2.0)
+                    aod_array = np.clip(aod_array, 0.001, AOD_MAX)
+                    gs.message("  AOD field smoothed via superpixels")
+            except Exception as e:
+                gs.warning(f"Superpixel smoothing failed: {e}")
+
+    # --- Auto-detect pixel size for adjacency correction ---
+    if adjacency_psf_km > 0 and pixel_size is None:
+        try:
+            region = gs.region()
+            pixel_size = (region['ewres'] + region['nsres']) / 2.0
+        except Exception:
+            pixel_size = 30.0  # fallback to 30m
+            gs.warning(f"Could not detect pixel size, using {pixel_size}m")
+
     # Store temporary band names for cleanup
     temp_bands = []
     corrected_bands = []
     # In-memory storage for spectral polishing
     band_data_list = []  # list of (band_info, refl_boa_band) tuples
+    # Parallel storage for uncertainty
+    uncertainty_list = []  # list of (band_info, sigma_rfl) tuples
 
     theta_s_rad = np.radians(solar_zenith)
 
@@ -1319,14 +1873,31 @@ def apply_lut_correction(input_raster, output_raster, bands,
                         f"masking as NaN"
                     )
                     refl_boa_band = np.full_like(refl_toa, np.nan)
+                    sigma_rfl_band = np.full_like(refl_toa, np.nan)
                 else:
-                    # No blue AOD taper for LUT method — DISORT 16-stream
-                    # handles multiple scattering correctly at all wavelengths
-                    p_aod_eff = p_aod
+                    # Apply AOD taper in the blue to compensate for aerosol
+                    # model overestimating path radiance at short wavelengths
+                    p_aod_eff = compute_blue_aod_taper(wavelength, p_aod)
 
-                    # LUT R_atm, T_scat, s already include gas at scene-mean
-                    R_atm, T_scat, s = atm_lut.interpolate(
-                        wavelength, p_aod_eff)
+                    # LUT R_atm, T_down, T_up, s with per-pixel H2O
+                    p_h2o = h2o_map if h2o_map is not None else water_vapor
+                    R_atm, T_down, T_up, s = atm_lut.interpolate(
+                        wavelength, p_aod_eff, h2o=p_h2o)
+
+                    # Apply path radiance calibration from dark targets
+                    # (VIS only — extrapolation to SWIR degrades results)
+                    if wavelength < 1000.0:
+                        R_atm = R_atm * path_corr_c * (wavelength / 550.0) ** path_corr_delta
+
+                    # P3: NIR/SWIR transmittance correction from dark vegetation
+                    # t_corr > 1 means retrieved > expected → T too low → increase T
+                    if wavelength >= 700.0 and path_corr_t != 1.0:
+                        t_corr_sqrt = np.sqrt(path_corr_t)
+                        T_down = T_down * t_corr_sqrt
+                        T_up = T_up * t_corr_sqrt
+
+                    # Combined two-way transmittance for reliability checks
+                    T_scat = T_down * T_up
 
                     # Check LUT reliability at this wavelength
                     scalar_lut = np.ndim(T_scat) == 0
@@ -1373,10 +1944,12 @@ def apply_lut_correction(input_raster, output_raster, bands,
                                         atm_lut.wavelengths[0])
                             wl_hi = min(wavelength + 10.0,
                                         atm_lut.wavelengths[-1])
-                            _, T_lo, _ = atm_lut.interpolate(
+                            _, Td_lo, Tu_lo, _ = atm_lut.interpolate(
                                 wl_lo, p_aod_eff)
-                            _, T_hi, _ = atm_lut.interpolate(
+                            T_lo = Td_lo * Tu_lo
+                            _, Td_hi, Tu_hi, _ = atm_lut.interpolate(
                                 wl_hi, p_aod_eff)
+                            T_hi = Td_hi * Tu_hi
                             T_max = max(T_lo, T_scat, T_hi)
                             T_min_v = max(min(T_lo, T_scat, T_hi), 1e-6)
                             if T_max / T_min_v > LUT_SPECTRAL_RATIO:
@@ -1388,33 +1961,14 @@ def apply_lut_correction(input_raster, output_raster, bands,
 
                     if not band_reliable:
                         refl_boa_band = np.full_like(refl_toa, np.nan)
+                        sigma_rfl_band = np.full_like(refl_toa, np.nan)
                     else:
-                        # Per-pixel gas adjustment via ratio
-                        has_perpixel_gas = (wvc_map is not None or
-                                            ozone_map is not None or
-                                            dem is not None)
-                        if has_perpixel_gas:
-                            p_wvc = wvc_array if wvc_array is not None else water_vapor
-                            p_o3 = ozone_array if ozone_array is not None else ozone
-                            p_pres_gas = pressure_array if pressure_array is not None else pressure
-                            tg_pixel = compute_gas_transmission(
-                                coefs, solar_zenith, view_zenith,
-                                p_pres_gas, p_wvc, p_o3
-                            )
-                            with np.errstate(divide='ignore', invalid='ignore'):
-                                tg_ratio = tg_pixel / tg_ref
-                            tg_ratio = np.nan_to_num(tg_ratio, nan=1.0)
-                            opaque_mask = tg_pixel < LUT_TRANSMISSION_MIN
-                        else:
-                            tg_ratio = 1.0
-                            opaque_mask = None
-
-                        # Inversion: R_atm/T_scat include gas, tg_ratio
-                        # adjusts for per-pixel deviations from scene-mean
-                        numerator = refl_toa - R_atm * tg_ratio
-                        denominator = T_scat * tg_ratio + numerator * s
+                        # 6S-style inversion: LUT already includes gas
+                        # absorption at the per-pixel H2O (no tg_ratio needed)
+                        T_total = T_down * T_up
+                        y = (refl_toa - R_atm) / T_total
                         with np.errstate(divide='ignore', invalid='ignore'):
-                            refl_boa_band = numerator / denominator
+                            refl_boa_band = y / (1.0 + s * y)
                         # Clip valid values; NaN (nodata) stays NaN
                         finite = np.isfinite(refl_boa_band)
                         refl_boa_band[~finite] = np.nan
@@ -1425,12 +1979,47 @@ def apply_lut_correction(input_raster, output_raster, bands,
                         # Mask unreliable LUT pixels (per-pixel AOD)
                         if not scalar_lut:
                             refl_boa_band[T_scat < LUT_TSCAT_MIN] = np.nan
-                        # Mask per-pixel opaque gas
-                        if opaque_mask is not None and np.any(opaque_mask):
-                            refl_boa_band[opaque_mask] = np.nan
+
+                        # --- Improvement #2: In-loop adjacency correction ---
+                        if adjacency_psf_km > 0 and pixel_size is not None:
+                            try:
+                                import adjacency as adj_module
+                                r_env = adj_module.compute_environmental_reflectance(
+                                    refl_boa_band, pixel_size, adjacency_psf_km)
+                                T_dir = adj_module.compute_direct_transmittance(
+                                    wavelength, p_aod, pressure, solar_zenith,
+                                    view_zenith)
+                                T_diff = np.clip(T_total - T_dir, 0.0, T_total)
+                                correction = (T_diff * s * (refl_boa_band - r_env)
+                                              / (1.0 - s * r_env + 1e-10))
+                                refl_boa_band = refl_boa_band + correction
+                                refl_boa_band = np.clip(
+                                    np.nan_to_num(refl_boa_band, nan=np.nan),
+                                    -0.01, 1.5)
+                            except Exception as e:
+                                if i == 0:
+                                    gs.warning(f"In-loop adjacency failed: {e}")
+
+                        # --- Improvement #4/#6: Per-band uncertainty ---
+                        sigma_rfl_band = np.zeros_like(refl_boa_band)
+                        if compute_uncertainty:
+                            try:
+                                import uncertainty as unc_module
+                                sigma_rfl_band = unc_module.compute_reflectance_uncertainty(
+                                    rad_toa_band, refl_boa_band,
+                                    E0_band, d2, np.cos(theta_s_rad),
+                                    T_down, T_up, s, R_atm,
+                                    aod_sigma=0.04,
+                                    atm_lut=atm_lut,
+                                    wavelength=wavelength,
+                                    aod=p_aod, h2o=p_h2o)
+                            except Exception as e:
+                                if i == 0:
+                                    gs.warning(f"Uncertainty computation failed: {e}")
 
                 # Store corrected band data in memory
                 band_data_list.append((band, refl_boa_band))
+                uncertainty_list.append((band, sigma_rfl_band))
 
                 gs.percent(i, len(bands), 1)
 
@@ -1439,6 +2028,57 @@ def apply_lut_correction(input_raster, output_raster, bands,
 
         if not band_data_list:
             gs.fatal("No bands were successfully processed")
+
+        # --- Improvement #3/#5: Surface prior regularization (MAP blend) ---
+        if polish or compute_uncertainty:
+            try:
+                import surface_model as surface_model_module
+                import uncertainty as unc_module
+
+                wavelengths_for_prior = np.array(
+                    [b['wavelength'] for b, _ in band_data_list])
+                n_bp = len(band_data_list)
+                ref_shape = band_data_list[0][1].shape
+
+                # Stack reflectance into [n_bands, rows, cols]
+                refl_stack = np.stack([d for _, d in band_data_list], axis=0)
+
+                if refl_stack.ndim == 3:
+                    surf_mdl = surface_model_module.SurfaceModel(wavelengths_for_prior)
+
+                    # Build measurement variance from uncertainty + model discrepancy (#6)
+                    sigma_obs2 = None
+                    if compute_uncertainty and uncertainty_list:
+                        unc_stack = np.stack([u for _, u in uncertainty_list], axis=0)
+                        sigma_model = unc_module.compute_model_discrepancy(
+                            wavelengths_for_prior)
+                        # Add model discrepancy to measurement uncertainty
+                        sigma_total_sq = (unc_stack ** 2 +
+                                          sigma_model[:, np.newaxis, np.newaxis] ** 2)
+                        sigma_obs2 = sigma_total_sq
+
+                        # Update uncertainty_list with total including model discrepancy
+                        sigma_total = np.sqrt(sigma_total_sq)
+                        uncertainty_list = [
+                            (binfo, sigma_total[idx])
+                            for idx, (binfo, _) in enumerate(uncertainty_list)
+                        ]
+
+                    gs.message("Applying surface prior regularization (MAP)...")
+                    refl_reg = surf_mdl.regularize(
+                        refl_stack, sigma_obs2=sigma_obs2, weight=0.1)
+
+                    # Write regularized data back to band_data_list
+                    band_data_list = [
+                        (binfo, refl_reg[idx])
+                        for idx, (binfo, _) in enumerate(band_data_list)
+                    ]
+                    gs.message("  Surface prior regularization complete")
+
+            except ImportError:
+                gs.verbose("Surface model not available, skipping MAP regularization")
+            except Exception as e:
+                gs.warning(f"Surface prior regularization failed: {e}")
 
         # --- In-memory spectral polishing (before writing to rasters) ---
         if polish:
@@ -1534,6 +2174,34 @@ def apply_lut_correction(input_raster, output_raster, bands,
         gs.message("Combining corrected bands into 3D raster...")
         gs.run_command('r.to.rast3', input=','.join(corrected_bands),
                       output=output_raster, overwrite=True)
+
+        # --- Write uncertainty raster (Improvement #4) ---
+        if compute_uncertainty and output_uncertainty and uncertainty_list:
+            gs.message("Writing uncertainty bands...")
+            unc_band_names = []
+            for binfo, sigma_data in uncertainty_list:
+                band_num = binfo['band_num']
+                unc_name = f"tmp_unc_{os.getpid()}_{band_num}"
+                unc_band_names.append(unc_name)
+
+                ncols = (sigma_data.shape[1] if sigma_data.ndim > 1
+                         else sigma_data.shape[0])
+                with RasterRow(unc_name, mode='w', mtype='DCELL',
+                               overwrite=True) as r:
+                    for row_data in sigma_data:
+                        buf = Buffer((ncols,), mtype='DCELL')
+                        buf[:] = row_data
+                        r.put_row(buf)
+
+            gs.run_command('r.to.rast3', input=','.join(unc_band_names),
+                          output=output_uncertainty, overwrite=True)
+            gs.message(f"Uncertainty raster written: {output_uncertainty}")
+
+            # Clean up uncertainty temp bands
+            for name in unc_band_names:
+                if gs.find_file(name, element='cell')['file']:
+                    gs.run_command('g.remove', flags='f', type='raster',
+                                  name=name, quiet=True)
 
         # Transfer metadata
         try:
@@ -1690,7 +2358,8 @@ def _apply_spectral_polishing(output_raster, bands, solar_zenith, view_zenith,
 
 
 def _apply_adjacency_correction(output_raster, bands, solar_zenith, view_zenith,
-                                 aod, pressure, aerosol_model, psf_radius_km):
+                                 aod, pressure, aerosol_model, psf_radius_km,
+                                 force_regenerate=False):
     """Apply adjacency effect correction to the corrected 3D raster in-place.
 
     For each band, reads the BOA reflectance, computes the environmental
@@ -1711,6 +2380,7 @@ def _apply_adjacency_correction(output_raster, bands, solar_zenith, view_zenith,
     atm_lut = lut_module.AtmosphericLUT.get_or_generate(
         sza=solar_zenith, vza=view_zenith, phi=phi,
         pressure=pressure, aerosol_model=aerosol_model,
+        force_regenerate=force_regenerate,
     )
 
     corrected_band_names = []
@@ -1734,7 +2404,8 @@ def _apply_adjacency_correction(output_raster, bands, solar_zenith, view_zenith,
             r_boa = np.array(r)
 
         # Get scattering parameters from LUT
-        R_atm, T_scat, s = atm_lut.interpolate(wavelength, aod)
+        R_atm, T_down, T_up, s = atm_lut.interpolate(wavelength, aod)
+        T_scat = T_down * T_up
 
         r_adj = adjacency.adjacency_correction(
             r_boa, T_scat, s, wavelength, aod, pressure,
@@ -1775,8 +2446,8 @@ def main():
     output_raster = options['output']
     dem = options['dem']
     keep_temp = flags['k']
-    generate_coefs = flags['g']
-    method = options.get('method', 'simple')
+    clear_lut_cache = flags['c']
+    method = 'lut'
     
     # Get viewing geometry
     if options['solar_zenith']:
@@ -1808,6 +2479,7 @@ def main():
     # Initialize default AOD value and map
     aod = 0.15  # Typical clear atmosphere
     aod_map = None  # Initialize aod_map to None
+    retrieved_alpha = None  # Angstrom exponent from Dark Target
 
     if options['aod'] and options['aod'].strip():  # Check for non-empty string
         try:
@@ -1817,7 +2489,7 @@ def main():
             gs.message("AOD not provided, estimating from hyperspectral data...")
     else:
         # Estimate AOD if not provided
-        aod_map, aod = estimate_aod(
+        aod_map, aod, retrieved_alpha = estimate_aod(
             input_raster=input_raster,
             dem=dem,
             method='auto',
@@ -1829,6 +2501,8 @@ def main():
             verbose=gs.verbosity() > 1
         )
         gs.message(f"Estimated AOD @ 550nm: {aod:.3f}")
+        if retrieved_alpha is not None:
+            gs.message(f"Retrieved Angstrom exponent: {retrieved_alpha:.2f}")
 
     # Fix 3: Clamp AOD to upper bound
     if aod > AOD_MAX:
@@ -1894,103 +2568,57 @@ def main():
     # Print atmospheric parameters
     gs.message("=" * 60)
     gs.message("Atmospheric Parameters:")
-    gs.message(f"  Method: {method}")
+    gs.message(f"  Method: lut (libRadtran DISORT, reptran_fine, 2nm step)")
     gs.message(f"  Solar zenith: {solar_zenith:.1f}°")
     gs.message(f"  AOD @ 550nm: {aod:.3f}")
     gs.message(f"  Water vapor: {water_vapor:.2f} g/cm²")
     gs.message(f"  Ozone: {ozone:.2f} cm-atm")
     gs.message(f"  Pressure: {pressure:.1f} hPa")
-    
-    if generate_coefs and method not in ('libradtran', 'lut'):
-        gs.warning("The -g flag (generate coefficients from libRadtran) is only used "
-                   "with method=libradtran. Ignoring -g flag.")
-        generate_coefs = False
 
     aerosol_model = options.get('aerosol_model', 'continental')
-    angstrom_alpha = float(options['angstrom']) if options.get('angstrom') else None
+    angstrom_alpha = float(options['angstrom']) if options.get('angstrom') else retrieved_alpha
     apply_polish = flags['p']
     adjacency_psf = float(options.get('adjacency_psf', 0))
+    do_uncertainty = flags.get('u', False)
+    unc_output = options.get('output_uncertainty', '')
 
-    if method == 'libradtran':
-        sensor_type = options.get('sensor', '').upper()
-        visibility = float(options['visibility']) if options.get('visibility') else None
-
-        gs.message(f"  Sensor: {sensor_type}")
-        gs.message(f"  Aerosol model: {aerosol_model}")
-        if visibility:
-            gs.message(f"  Visibility: {visibility} km")
-        if generate_coefs:
-            gs.message("  Coefficient generation: ENABLED (libRadtran + scipy fitting)")
-
-    if method == 'lut':
-        gs.message(f"  Aerosol model: {aerosol_model}")
-        if angstrom_alpha is not None:
-            gs.message(f"  Angstrom exponent: {angstrom_alpha:.2f} (user override)")
-        else:
-            from lib.lut import AEROSOL_CONFIG
-            default_alpha = AEROSOL_CONFIG.get(aerosol_model, {}).get('alpha', 1.0)
-            gs.message(f"  Angstrom exponent: {default_alpha:.2f} (default for {aerosol_model})")
+    gs.message(f"  Aerosol model: {aerosol_model}")
+    if options.get('angstrom'):
+        gs.message(f"  Angstrom exponent: {angstrom_alpha:.2f} (user override)")
+    elif angstrom_alpha is not None:
+        gs.message(f"  Angstrom exponent: {angstrom_alpha:.2f} (retrieved from Dark Target)")
+    else:
+        gs.message(f"  Angstrom exponent: native Shettle (default for {aerosol_model})")
 
     if apply_polish:
         gs.message("  Spectral polishing: ENABLED")
     if adjacency_psf > 0:
         gs.message(f"  Adjacency correction: PSF radius = {adjacency_psf:.1f} km")
+    if do_uncertainty:
+        gs.message("  Uncertainty estimation: ENABLED")
+        if unc_output:
+            gs.message(f"  Uncertainty output: {unc_output}")
 
     gs.message("=" * 60)
 
-    # Apply the selected correction method
-    if method == 'simple':
-        apply_smac_correction_simple(
-            input_raster, output_raster, bands,
-            aod, water_vapor, ozone, pressure,
-            solar_zenith, solar_azimuth,
-            view_zenith, view_azimuth,
-            keep_temp
-        )
-    elif method == 'libradtran':
-        apply_smac_correction_libradtran(
-            input_raster, output_raster, bands,
-            aod, water_vapor, ozone, pressure,
-            solar_zenith, solar_azimuth,
-            view_zenith, view_azimuth,
-            sensor_type, visibility,
-            aerosol_model, keep_temp,
-            generate_coefs,
-            aod_map=aod_map,
-            wvc_map=wvc_map,
-            ozone_map=ozone_map,
-            dem=dem,
-        )
-    elif method == 'lut':
-        apply_lut_correction(
-            input_raster, output_raster, bands,
-            aod, water_vapor, ozone, pressure,
-            solar_zenith, solar_azimuth,
-            view_zenith, view_azimuth,
-            aerosol_model, keep_temp,
-            aod_map=aod_map,
-            wvc_map=wvc_map,
-            ozone_map=ozone_map,
-            dem=dem,
-            polish=apply_polish,
-            angstrom_alpha=angstrom_alpha,
-        )
-    else:
-        gs.fatal(f"Unknown method: {method}. Choose 'simple', 'libradtran', or 'lut'.")
-
-    # --- Post-processing: spectral polishing (non-LUT methods) ---
-    if apply_polish and method != 'lut':
-        _apply_spectral_polishing(output_raster, bands,
-                                   solar_zenith, view_zenith,
-                                   pressure, water_vapor, ozone,
-                                   aod, aerosol_model)
-
-    # --- Post-processing: adjacency correction ---
-    if adjacency_psf > 0:
-        _apply_adjacency_correction(output_raster, bands,
-                                     solar_zenith, view_zenith,
-                                     aod, pressure, aerosol_model,
-                                     adjacency_psf)
+    # Apply LUT correction (only method)
+    apply_lut_correction(
+        input_raster, output_raster, bands,
+        aod, water_vapor, ozone, pressure,
+        solar_zenith, solar_azimuth,
+        view_zenith, view_azimuth,
+        aerosol_model, keep_temp,
+        aod_map=aod_map,
+        wvc_map=wvc_map,
+        ozone_map=ozone_map,
+        dem=dem,
+        polish=apply_polish,
+        angstrom_alpha=angstrom_alpha,
+        force_regenerate=clear_lut_cache,
+        adjacency_psf_km=adjacency_psf,
+        compute_uncertainty=do_uncertainty,
+        output_uncertainty=unc_output if unc_output else None,
+    )
 
     return 0
 
