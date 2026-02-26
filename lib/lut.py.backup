@@ -46,7 +46,7 @@ except ImportError:
 
 # Import parallel LUT generator
 try:
-    import parallel_lut
+    from . import parallel_lut
 except ImportError:
     gs.warning("Parallel LUT generator not available")
     parallel_lut = None
@@ -617,8 +617,6 @@ class AtmosphericLUT:
             o3: Ozone column (cm-atm). If None, uses default atmosphere.
             angstrom_alpha: Angstrom exponent override. If None, uses default for aerosol_model.
             libradtran_path: Path to libRadtran (auto-detect if None).
-            parallel: Enable parallel LUT generation (default: False).
-            max_workers: Maximum number of parallel workers (default: CPU cores - 1).
 
         Returns:
             AtmosphericLUT instance with 3D arrays [n_wl, n_aod, n_h2o].
@@ -691,13 +689,14 @@ class AtmosphericLUT:
                 parallel = False  # Fall back to sequential
         
         if not parallel:
-            gs.message(f"Generating atmospheric LUT (6S method): {n_aod} AOD values "
-                       f"x {n_h2o} H2O values x 2 albedos = {total_runs} "
-                       f"libRadtran runs")
-            gs.message(f"  SZA={sza:.1f}, VZA={vza:.1f}, PHI={phi:.1f}, "
-                       f"P={pressure:.1f} hPa, aerosol={aerosol_model}")
-            gs.message(f"  H2O grid: {h2o_grid} g/cm²")
-            gs.message(f"  Wavelength range: {wl_min}-{wl_max} nm, step={wl_step} nm")
+
+        gs.message(f"Generating atmospheric LUT (6S method): {n_aod} AOD values "
+                   f"x {n_h2o} H2O values x 2 albedos = {total_runs} "
+                   f"libRadtran runs")
+        gs.message(f"  SZA={sza:.1f}, VZA={vza:.1f}, PHI={phi:.1f}, "
+                   f"P={pressure:.1f} hPa, aerosol={aerosol_model}")
+        gs.message(f"  H2O grid: {h2o_grid} g/cm²")
+        gs.message(f"  Wavelength range: {wl_min}-{wl_max} nm, step={wl_step} nm")
 
         # Storage: spectra[albedo_idx][aod_idx][h2o_idx] = (wls, edir_sur, edn_sur, edir_toa, uu_toa)
         spectra = [[[None] * n_h2o for _ in range(n_aod)] for _ in range(2)]
@@ -883,7 +882,7 @@ class AtmosphericLUT:
                         h2o=None, o3=None,
                         angstrom_alpha=None,
                         cache_dir=None, libradtran_path=None,
-                        force_regenerate=False, parallel=False, max_workers=None):
+                        force_regenerate=False):
         """Load a cached LUT or generate and cache a new one.
 
         Args:
@@ -896,8 +895,6 @@ class AtmosphericLUT:
             cache_dir: Directory for cached LUTs (default: COEFS/LUT/).
             libradtran_path: Path to libRadtran.
             force_regenerate: If True, delete cached LUT and regenerate.
-            parallel: Enable parallel LUT generation (default: False).
-            max_workers: Maximum number of parallel workers (default: CPU cores - 1).
 
         Returns:
             AtmosphericLUT instance.
@@ -942,7 +939,6 @@ class AtmosphericLUT:
             h2o=h2o, o3=o3,
             angstrom_alpha=angstrom_alpha,
             libradtran_path=libradtran_path,
-            parallel=parallel, max_workers=max_workers
         )
 
         lut.save(cache_file)

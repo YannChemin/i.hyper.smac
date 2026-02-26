@@ -1,4 +1,4 @@
-MODULE_TOPDIR = ../..
+MODULE_TOPDIR = $(HOME)/dev/grass
 
 PGM = i.hyper.smac
 

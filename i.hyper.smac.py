@@ -214,6 +214,7 @@
 import sys
 import os
 import numpy as np
+import multiprocessing as mp
 import grass.script as gs
 from grass.pygrass.raster import RasterRow
 from grass.pygrass.raster.buffer import Buffer
@@ -1686,9 +1687,32 @@ def apply_lut_correction(input_raster, output_raster, bands,
     wl_min = max(350, int(bands[0]['wavelength']) - 20)
     wl_max = min(2500, int(bands[-1]['wavelength']) + 20)
 
-    # Generate or load cached LUT (includes gas at scene-mean WVC/O3
-    # so DISORT handles gas-scattering coupling correctly)
-    gs.message("Generating/loading atmospheric LUT...")
+    # Configure parallel LUT generation with 75% resource usage
+    if parallel_lut == 'disabled':
+        # Disable parallel processing
+        parallel = False
+        max_workers = None
+    else:
+        # Enable parallel processing with 75% resource usage
+        parallel = True
+        if parallel_lut == 'auto' and mp.cpu_count() <= 2:
+            # For systems with 2 or fewer cores, use sequential
+            parallel = False
+            max_workers = None
+        else:
+            # Use new 75% resource configuration
+            try:
+                import parallel_lut as parallel_module
+                generator = parallel_module.create_optimal_parallel_generator(
+                    resource_usage=0.75,  # 75% of resources
+                    device_type='auto'    # GPU first, CPU fallback
+                )
+                max_workers = generator.max_workers
+            except ImportError:
+                # Fallback to old method
+                max_workers = mp.cpu_count() - 1
+    
+    # Generate or load atmospheric LUT
     atm_lut = lut_module.AtmosphericLUT.get_or_generate(
         sza=solar_zenith, vza=view_zenith, phi=phi,
         pressure=pressure, aerosol_model=aerosol_model,
@@ -1696,9 +1720,8 @@ def apply_lut_correction(input_raster, output_raster, bands,
         h2o=water_vapor, o3=ozone,
         angstrom_alpha=angstrom_alpha,
         force_regenerate=force_regenerate,
-        parallel=(parallel_lut == 'enabled' or 
-                 (parallel_lut == 'auto' and mp.cpu_count() > 2)),
-        max_workers=None if parallel_lut == 'disabled' else mp.cpu_count() - 1
+        parallel=parallel,
+        max_workers=max_workers
     )
 
     # Get wavelength information from input raster
