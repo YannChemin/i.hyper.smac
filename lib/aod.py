@@ -52,6 +52,7 @@ class AODEstimator:
         self.verbose = verbose
         self.band_info = []
         self.temp_maps = []
+        self.retrieved_alpha = None  # Angstrom exponent from Dark Target
 
         # Precompute cosines (angles in degrees -> radians)
         self.mu_s = math.cos(math.radians(solar_zenith))
@@ -375,6 +376,9 @@ class AODEstimator:
         except Exception:
             alpha = ANGSTROM_DEFAULT
 
+        # Store retrieved Angstrom exponent
+        self.retrieved_alpha = alpha
+
         # Scale blue-band AOD to 550nm
         # tau_550 = tau_blue * (550/470)^(-alpha)
         scale_to_550 = (550.0 / BLUE_WL) ** (-alpha)
@@ -551,7 +555,9 @@ def estimate_aod(input_raster, dem, method='auto',
         verbose: Enable verbose output
 
     Returns:
-        tuple: (aod_map, mean_aod)
+        tuple: (aod_map, mean_aod, retrieved_alpha)
+            retrieved_alpha is the Angstrom exponent from Dark Target retrieval,
+            or None if not available (fallback methods).
     """
     estimator = AODEstimator(
         input_raster, dem,
@@ -566,6 +572,6 @@ def estimate_aod(input_raster, dem, method='auto',
         gs.run_command('g.copy', raster=f"{aod_map},{permanent_aod}",
                        overwrite=True, quiet=not verbose)
 
-        return permanent_aod, mean_aod
+        return permanent_aod, mean_aod, estimator.retrieved_alpha
     finally:
         estimator.cleanup()

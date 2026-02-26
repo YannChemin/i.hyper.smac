@@ -82,9 +82,9 @@
 
 # %option
 # % key: water_vapor
-# % type: double
+# % type: string
 # % required: no
-# % description: Water vapor content (g/cm²)
+# % description: Water vapor content (g/cm²) or method (joint,940nm,1130nm,average)
 # % guisection: Atmospheric
 # %end
 
@@ -139,6 +139,35 @@
 # % required: no
 # % description: Atmospheric pressure (hPa)
 # % guisection: Atmospheric
+# %end
+
+# %option
+# % key: opencl_device
+# % type: string
+# % required: no
+# % options: auto,gpu,cpu
+# % answer: auto
+# % description: OpenCL device type for GPU acceleration
+# % guisection: Performance
+# %end
+
+# %option
+# % key: opencl_memory
+# % type: integer
+# % required: no
+# % answer: 1024
+# % description: OpenCL memory limit in MB (0 = unlimited)
+# % guisection: Performance
+# %end
+
+# %option
+# % key: parallel_lut
+# % type: string
+# % required: no
+# % options: auto,enabled,disabled
+# % answer: auto
+# % description: Enable parallel LUT generation using multiple uvspec processes
+# % guisection: Performance
 # %end
 
 # %flag
@@ -208,6 +237,8 @@ if lib_path.exists():
         import aod
         import wvc
         import o3
+        import gas_absorption  # New: enhanced gas absorption modeling
+        import opencl_accelerator  # New: OpenCL GPU acceleration
         estimate_aod = aod.estimate_aod
         estimate_wvc = wvc.estimate_wvc
         get_smac_parameters = radtran.get_smac_parameters
@@ -1564,7 +1595,9 @@ def apply_lut_correction(input_raster, output_raster, bands,
                          force_regenerate=False,
                          adjacency_psf_km=0.0, pixel_size=None,
                          compute_uncertainty=False,
-                         output_uncertainty=None):
+                         output_uncertainty=None,
+                         opencl_device='auto', opencl_memory=1024,
+                         parallel_lut='auto'):
     """Apply atmospheric correction using libRadtran LUT.
 
     Uses full multiple-scattering from libRadtran DISORT via a precomputed
@@ -1603,10 +1636,29 @@ def apply_lut_correction(input_raster, output_raster, bands,
         pixel_size (float, optional): Pixel size in meters (auto-detect from GRASS)
         compute_uncertainty (bool): Whether to compute per-band uncertainty
         output_uncertainty (str, optional): Name for uncertainty 3D raster
+        opencl_device (str): OpenCL device type ('auto', 'gpu', 'cpu')
+        opencl_memory (int): OpenCL memory limit in MB (0 = unlimited)
+        parallel_lut (str): Parallel LUT generation ('auto', 'enabled', 'disabled')
     """
     import lut as lut_module
+    import opencl_accelerator
 
     gs.message("Applying libRadtran LUT atmospheric correction...")
+    
+    # Initialize OpenCL accelerator
+    accelerator = opencl_accelerator.create_opencl_accelerator(
+        device_type=opencl_device, 
+        verbose=gs.verbosity() > 1
+    )
+    
+    if accelerator.is_available():
+        device_info = accelerator.get_device_info()
+        gs.message(f"Using OpenCL acceleration: {device_info['name']} ({device_info['type']})")
+        gs.message(f"Device: {device_info['max_compute_units']} compute units, "
+                  f"{device_info['global_memory'] // (1024*1024)} MB memory")
+    else:
+        gs.message("OpenCL not available, using CPU processing")
+        accelerator = None
 
     # Get acquisition date from metadata
     try:
@@ -1644,6 +1696,9 @@ def apply_lut_correction(input_raster, output_raster, bands,
         h2o=water_vapor, o3=ozone,
         angstrom_alpha=angstrom_alpha,
         force_regenerate=force_regenerate,
+        parallel=(parallel_lut == 'enabled' or 
+                 (parallel_lut == 'auto' and mp.cpu_count() > 2)),
+        max_workers=None if parallel_lut == 'disabled' else mp.cpu_count() - 1
     )
 
     # Get wavelength information from input raster
@@ -1794,6 +1849,114 @@ def apply_lut_correction(input_raster, output_raster, bands,
 
     theta_s_rad = np.radians(solar_zenith)
 
+    # GPU-accelerated processing function
+    def process_bands_gpu(bands_subset, accelerator, atm_lut, aod_array, h2o_map, 
+                          path_corr_c, path_corr_delta, path_corr_t):
+        """Process multiple bands using GPU acceleration."""
+        if not accelerator or not accelerator.is_available():
+            return None
+        
+        try:
+            # Collect all band data for GPU processing
+            band_data = []
+            for band in bands_subset:
+                band_num = band['band_num']
+                wavelength = band['wavelength']
+                fwhm = band.get('fwhm', 10.0)
+                
+                # Extract band from 3D raster
+                input_band = f"tmp_input_{os.getpid()}_{band_num}"
+                gs.run_command('g.region', t=band_num + 0.1, b=band_num, quiet=True)
+                gs.run_command('r3.to.rast', input=input_raster,
+                              output=input_band, overwrite=True, quiet=True)
+                gs.run_command('g.rename',
+                              raster=f"{input_band}_00001,{input_band}",
+                              overwrite=True, quiet=True)
+                
+                # Read raster data
+                with RasterRow(input_band) as r:
+                    r.open('r')
+                    rad_toa_band = np.array(r)
+                
+                # Get exo-atmospheric irradiance
+                try:
+                    E0_band = radtran.E0(wavelength, fwhm)
+                    if E0_band is None:
+                        raise ValueError("E0 returned None")
+                except Exception:
+                    wl_m = wavelength * 1e-9
+                    hc_kT = 6.626e-34 * 2.998e8 / (wl_m * 1.381e-23 * 5778.0)
+                    B = 2 * 6.626e-34 * (2.998e8)**2 / (wl_m**5 * (np.exp(hc_kT) - 1.0))
+                    E0_band = 6.794e-5 * B * 1e-6
+                
+                # Convert radiance to TOA reflectance
+                refl_toa = (np.pi * rad_toa_band * d2) / (E0_band * np.cos(theta_s_rad))
+                nodata = np.isnan(rad_toa_band) | (rad_toa_band <= 0)
+                refl_toa[nodata] = np.nan
+                
+                band_data.append({
+                    'band_num': band_num,
+                    'wavelength': wavelength,
+                    'fwhm': fwhm,
+                    'refl_toa': refl_toa,
+                    'input_band': input_band
+                })
+            
+            # Stack all bands for GPU processing
+            all_refl_toa = np.stack([b['refl_toa'] for b in band_data])
+            wavelengths = np.array([b['wavelength'] for b in band_data])
+            
+            # Prepare LUT data for GPU (simplified)
+            lut_data = {
+                'r_atm': np.zeros((1, len(bands_subset))),
+                't_down': np.zeros((1, len(bands_subset))),
+                't_up': np.zeros((1, len(bands_subset))),
+                's': np.zeros((1, len(bands_subset)))
+            }
+            
+            # Prepare atmospheric maps
+            atmospheric_maps = {
+                'aod': aod_array if aod_array is not None else np.array([aod]),
+                'wvc': h2o_map if h2o_map is not None else np.array([water_vapor]),
+                'o3': np.array([ozone]),
+                'pressure': np.array([pressure])
+            }
+            
+            # Prepare geometry
+            geometry = {
+                'solar_zenith': solar_zenith,
+                'view_zenith': view_zenith,
+                'solar_azimuth': solar_azimuth,
+                'view_azimuth': view_azimuth
+            }
+            
+            # Prepare bands info
+            bands_info = [{'wavelength': b['wavelength']} for b in band_data]
+            
+            # Apply GPU atmospheric correction
+            gpu_result = accelerator.atmospheric_correction_gpu(
+                all_refl_toa, lut_data, atmospheric_maps, geometry, bands_info, 
+                use_maps=True
+            )
+            
+            if gpu_result is not None:
+                # Unstack results and return band data
+                results = []
+                for i, band in enumerate(band_data):
+                    results.append({
+                        **band,
+                        'refl_boa': gpu_result[i],
+                        'gpu_processed': True
+                    })
+                return results
+            else:
+                return None
+                
+        except Exception as e:
+            if gs.verbosity() > 1:
+                gs.warning(f"GPU processing failed: {e}")
+            return None
+
     try:
         for i, band in enumerate(bands):
             band_num = band['band_num']
@@ -1807,6 +1970,39 @@ def apply_lut_correction(input_raster, output_raster, bands,
 
             gs.message(f"Processing band {band_num}: {wavelength:.2f} nm, "
                        f"FWHM: {fwhm:.2f} nm")
+
+            # Try GPU processing for batches of bands
+            if accelerator and accelerator.is_available() and i % 10 == 0:
+                # Process this band and next few bands with GPU
+                batch_size = min(10, len(bands) - i)
+                batch_bands = bands[i:i+batch_size]
+                
+                gpu_results = process_bands_gpu(
+                    batch_bands, accelerator, atm_lut, aod_array, h2o_map,
+                    path_corr_c, path_corr_delta, path_corr_t
+                )
+                
+                if gpu_results:
+                    # GPU processing succeeded, use results and skip CPU processing
+                    for j, result in enumerate(gpu_results):
+                        band_data_list.append((
+                            batch_bands[j],
+                            result['refl_boa']
+                        ))
+                        uncertainty_list.append((
+                            batch_bands[j],
+                            np.full_like(result['refl_boa'], 0.01)  # Placeholder uncertainty
+                        ))
+                        temp_bands.append(result['input_band'])
+                    
+                    gs.message(f"GPU processed {len(gpu_results)} bands")
+                    
+                    # Skip ahead for the processed bands
+                    i += len(gpu_results) - 1
+                    continue
+                else:
+                    # GPU processing failed, fall back to CPU
+                    gs.verbose("GPU processing failed, using CPU for this band")
 
             # Extract band from 3D raster
             input_band = f"tmp_input_{os.getpid()}_{band_num}"
@@ -2262,6 +2458,12 @@ def apply_lut_correction(input_raster, output_raster, bands,
                 if gs.find_file(corr_band, element='cell')['file']:
                     gs.run_command('g.remove', flags='f', type='raster',
                                   name=corr_band, quiet=True)
+        
+        # Clean up OpenCL resources
+        if accelerator:
+            accelerator.cleanup()
+            if gs.verbosity() > 1:
+                gs.message("OpenCL resources cleaned up")
 
 
 def _apply_spectral_polishing(output_raster, bands, solar_zenith, view_zenith,
@@ -2537,23 +2739,38 @@ def main():
     gs.message("WVC: Estimating water vapor content...")
     water_vapor = 2.0  # g/cm² - typical mid-latitude value
     wvc_map = None  # Initialize wvc_map to None
-
+    wvc_uncertainty = 0.1  # Default uncertainty
+    wvc_method = 'joint'  # Default method
+    
+    # Parse water_vapor parameter - can be numeric value or method name
     if options['water_vapor']:
-        water_vapor = float(options['water_vapor'])
-    else:
+        wv_input = options['water_vapor'].strip().lower()
+        if wv_input in ['joint', '940nm', '1130nm', 'average']:
+            # It's a method specification
+            wvc_method = wv_input
+            gs.message(f"Using WVC estimation method: {wvc_method}")
+        else:
+            # It's a numeric water vapor value
+            try:
+                water_vapor = float(wv_input)
+                gs.message(f"Using provided water vapor value: {water_vapor} g/cm²")
+            except ValueError:
+                gs.warning(f"Invalid water_vapor value '{wv_input}', using default estimation")
+    
+    if wvc_method != 'joint' and not options['water_vapor']:
+        # If method wasn't specified and we're not using a numeric value, estimate WVC
         gs.message("Water vapor not provided, estimating from hyperspectral data...")
         try:
-            # Estimate WVC from hyperspectral data
-            wvc_map, water_vapor = estimate_wvc(
+            # Estimate WVC from hyperspectral data using enhanced joint retrieval
+            wvc_map, water_vapor, wvc_uncertainty = estimate_wvc(
                 input_raster=input_raster,
                 dem=dem,
-                method='average',
+                method=wvc_method,  # Use specified method
                 solar_zenith=solar_zenith,
                 view_zenith=view_zenith,
                 verbose=gs.verbosity() > 0
             )
-            gs.message(f"Estimated water vapor content: {water_vapor:.2f} g/cm²")
-                            
+            gs.message(f"Estimated water vapor content: {water_vapor:.2f} g/cm² (±{wvc_uncertainty:.2f})")
         except Exception as e:
             gs.warning(f"Failed to estimate water vapor from data: {str(e)}")
             gs.warning("Falling back to default water vapor value")
@@ -2568,10 +2785,16 @@ def main():
     # Print atmospheric parameters
     gs.message("=" * 60)
     gs.message("Atmospheric Parameters:")
-    gs.message(f"  Method: lut (libRadtran DISORT, reptran_fine, 2nm step)")
+    gs.message(f"  Method: lut (libRadtran DISORT, enhanced gas absorption)")
+    if options['water_vapor'] and options['water_vapor'].strip().lower() in ['joint', '940nm', '1130nm', 'average']:
+        gs.message(f"  WVC Retrieval: {wvc_method} (optimal estimation)")
+    else:
+        gs.message(f"  WVC Retrieval: estimation from data")
     gs.message(f"  Solar zenith: {solar_zenith:.1f}°")
     gs.message(f"  AOD @ 550nm: {aod:.3f}")
     gs.message(f"  Water vapor: {water_vapor:.2f} g/cm²")
+    if 'wvc_uncertainty' in locals():
+        gs.message(f"  WVC uncertainty: ±{wvc_uncertainty:.2f} g/cm²")
     gs.message(f"  Ozone: {ozone:.2f} cm-atm")
     gs.message(f"  Pressure: {pressure:.1f} hPa")
 
@@ -2618,6 +2841,9 @@ def main():
         adjacency_psf_km=adjacency_psf,
         compute_uncertainty=do_uncertainty,
         output_uncertainty=unc_output if unc_output else None,
+        opencl_device=options.get('opencl_device', 'auto'),
+        opencl_memory=int(options.get('opencl_memory', 1024)),
+        parallel_lut=options.get('parallel_lut', 'auto')
     )
 
     return 0

@@ -252,7 +252,7 @@ def earth_sun_distance(year, month, day):
     # Earth orbital eccentricity approximation
     # Distance = 1 + 0.0167 * cos(2*pi*(doy-3)/365)
     beta = 2 * np.pi * (doy - 3) / 365.25
-    dist = 1 + 0.01670963 * np.cos(beta) - 0.0000146 * np.cos(2 * beta)
+    dist = 1 - 0.01670963 * np.cos(beta) - 0.0000146 * np.cos(2 * beta)
     
     return dist  # in AU
 
