@@ -1,0 +1,249 @@
+\chapter{i.\+hyper.\+smac -\/ Apply SMAC atmospheric correction to hyperspectral imagery}
+\hypertarget{md_i_8hyper_8smac}{}\label{md_i_8hyper_8smac}\index{i.hyper.smac -\/ Apply SMAC atmospheric correction to hyperspectral imagery@{i.hyper.smac -\/ Apply SMAC atmospheric correction to hyperspectral imagery}}
+\label{md_i_8hyper_8smac_autotoc_md0}%
+\Hypertarget{md_i_8hyper_8smac_autotoc_md0}%
+ \hypertarget{md_i_8hyper_8smac_autotoc_md1}{}\doxysection{\texorpdfstring{DESCRIPTION}{DESCRIPTION}}\label{md_i_8hyper_8smac_autotoc_md1}
+{\ttfamily i.\+hyper.\+smac} applies atmospheric correction to hyperspectral imagery using the SMAC (Simplified Method for Atmospheric Correction) algorithm enhanced with lib\+Radtran-\/based Look-\/\+Up Tables (LUTs). The module supports\+:
+
+
+\begin{DoxyItemize}
+\item {\bfseries{Full multiple-\/scattering}} atmospheric correction via lib\+Radtran DISORT
+\item {\bfseries{Parallel LUT generation}} using 75\% of available CPU resources
+\item {\bfseries{Open\+CL acceleration}} for atmospheric correction pixel processing
+\item {\bfseries{Spectral polishing}} to remove outlier bands
+\item {\bfseries{Uncertainty quantification}} for atmospheric correction results
+\item {\bfseries{Multiple sensor support}} with pre-\/configured parameters
+\end{DoxyItemize}\hypertarget{md_i_8hyper_8smac_autotoc_md2}{}\doxysection{\texorpdfstring{KEY FEATURES}{KEY FEATURES}}\label{md_i_8hyper_8smac_autotoc_md2}
+\hypertarget{md_i_8hyper_8smac_autotoc_md3}{}\doxysubsection{\texorpdfstring{Parallel LUT Generation (\+NEW)}{Parallel LUT Generation (NEW)}}\label{md_i_8hyper_8smac_autotoc_md3}
+
+\begin{DoxyItemize}
+\item {\bfseries{75\% Resource Usage}}\+: Automatically uses 75\% of available CPU resources
+\item {\bfseries{Smart Detection}}\+: Auto-\/detects optimal worker count based on CPU cores and RAM
+\item {\bfseries{Memory Aware}}\+: Considers system RAM constraints for uvspec processes
+\item {\bfseries{Performance}}\+: 6x speedup on 8-\/core systems vs sequential
+\item {\bfseries{CPU-\/only}}\+: uvspec runs on CPU with multiple parallel processes
+\end{DoxyItemize}\hypertarget{md_i_8hyper_8smac_autotoc_md4}{}\doxysubsection{\texorpdfstring{Open\+CL Acceleration for Atmospheric Correction}{OpenCL Acceleration for Atmospheric Correction}}\label{md_i_8hyper_8smac_autotoc_md4}
+
+\begin{DoxyItemize}
+\item {\bfseries{Two-\/\+Stage Process}}\+: LUT generation (CPU) + Atmospheric correction (Open\+CL)
+\item {\bfseries{Device Selection}}\+: Auto, GPU, or CPU Open\+CL devices for correction stage
+\item {\bfseries{Memory Management}}\+: Configurable memory limits for Open\+CL kernels
+\item {\bfseries{Fallback}}\+: Automatic CPU Open\+CL fallback if GPU unavailable
+\item {\bfseries{Note}}\+: uvspec itself is CPU-\/only; Open\+CL accelerates pixel processing
+\end{DoxyItemize}\hypertarget{md_i_8hyper_8smac_autotoc_md5}{}\doxysection{\texorpdfstring{ARCHITECTURE}{ARCHITECTURE}}\label{md_i_8hyper_8smac_autotoc_md5}
+\hypertarget{md_i_8hyper_8smac_autotoc_md6}{}\doxysubsection{\texorpdfstring{Two-\/\+Stage Atmospheric Correction Process}{Two-Stage Atmospheric Correction Process}}\label{md_i_8hyper_8smac_autotoc_md6}
+{\bfseries{Stage 1\+: LUT Generation (CPU-\/only)}} 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\#\ Multiple\ uvspec\ processes\ run\ in\ parallel\ on\ CPU}
+\DoxyCodeLine{uvspec\ <\ input\_1.inp\ \ \#\ Process\ 1:\ AOD=0.0,\ H2O=0.3,\ Albedo=0.0}
+\DoxyCodeLine{uvspec\ <\ input\_2.inp\ \ \#\ Process\ 2:\ AOD=0.1,\ H2O=0.3,\ Albedo=0.0}
+\DoxyCodeLine{uvspec\ <\ input\_3.inp\ \ \#\ Process\ 3:\ AOD=0.3,\ H2O=0.3,\ Albedo=0.0}
+\DoxyCodeLine{\#\ ...\ (96\ total\ combinations)}
+
+\end{DoxyCode}
+
+\begin{DoxyItemize}
+\item {\bfseries{lib\+Radtran uvspec}} calculates radiative transfer
+\item {\bfseries{Multiple CPU cores}} run different parameter combinations
+\item {\bfseries{Generates complete lookup table}} for all atmospheric conditions
+\end{DoxyItemize}
+
+{\bfseries{Stage 2\+: Atmospheric Correction (Open\+CL)}} 
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\#\ OpenCL\ kernels\ apply\ LUT\ to\ hyperspectral\ data}
+\DoxyCodeLine{opencl\_kernel\_process\_pixels(lut\_data,\ hyperspectral\_image)}
+
+\end{DoxyCode}
+
+\begin{DoxyItemize}
+\item {\bfseries{Open\+CL kernels}} process millions of pixels in parallel
+\item {\bfseries{GPU or CPU Open\+CL}} devices can be used
+\item {\bfseries{Applies pre-\/computed LUT}} to actual scene data
+\end{DoxyItemize}\hypertarget{md_i_8hyper_8smac_autotoc_md7}{}\doxysection{\texorpdfstring{USAGE}{USAGE}}\label{md_i_8hyper_8smac_autotoc_md7}
+\hypertarget{md_i_8hyper_8smac_autotoc_md8}{}\doxysubsection{\texorpdfstring{Basic Atmospheric Correction}{Basic Atmospheric Correction}}\label{md_i_8hyper_8smac_autotoc_md8}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{i.hyper.smac\ input=hyperspectral\ output=corrected\ dem=elevation}
+
+\end{DoxyCode}
+\hypertarget{md_i_8hyper_8smac_autotoc_md9}{}\doxysubsection{\texorpdfstring{Advanced Configuration with Parallel Processing}{Advanced Configuration with Parallel Processing}}\label{md_i_8hyper_8smac_autotoc_md9}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{i.hyper.smac\ input=hyperspectral\ output=corrected\ dem=elevation\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ solar\_zenith=40\ solar\_azimuth=130\ view\_zenith=50\ view\_azimuth=100\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ sensor=TANAGER\ aerosol\_model=urban\ water\_vapor=joint\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ parallel\_lut=auto\ -\/c}
+
+\end{DoxyCode}
+\hypertarget{md_i_8hyper_8smac_autotoc_md10}{}\doxysubsection{\texorpdfstring{GPU Acceleration}{GPU Acceleration}}\label{md_i_8hyper_8smac_autotoc_md10}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{i.hyper.smac\ input=hyperspectral\ output=corrected\ dem=elevation\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ opencl\_device=gpu\ opencl\_memory=2048}
+
+\end{DoxyCode}
+\hypertarget{md_i_8hyper_8smac_autotoc_md11}{}\doxysection{\texorpdfstring{PARAMETERS}{PARAMETERS}}\label{md_i_8hyper_8smac_autotoc_md11}
+\hypertarget{md_i_8hyper_8smac_autotoc_md12}{}\doxysubsection{\texorpdfstring{Required Parameters}{Required Parameters}}\label{md_i_8hyper_8smac_autotoc_md12}
+
+\begin{DoxyItemize}
+\item {\bfseries{input}} -\/ Input hyperspectral 3D raster map
+\item {\bfseries{output}} -\/ Output atmospherically corrected 3D raster map ~\newline
+
+\item {\bfseries{dem}} -\/ Digital Elevation Model in meters
+\end{DoxyItemize}\hypertarget{md_i_8hyper_8smac_autotoc_md13}{}\doxysubsection{\texorpdfstring{Atmospheric Parameters}{Atmospheric Parameters}}\label{md_i_8hyper_8smac_autotoc_md13}
+
+\begin{DoxyItemize}
+\item {\bfseries{aod}} -\/ Aerosol Optical Depth at 550nm (auto-\/estimated if not provided)
+\item {\bfseries{water\+\_\+vapor}} -\/ Water vapor content (g/cm²) or estimation method
+\item {\bfseries{aerosol\+\_\+model}} -\/ Aerosol type (continental, maritime, urban, desert)
+\item {\bfseries{pressure}} -\/ Atmospheric pressure (h\+Pa)
+\item {\bfseries{ozone}} -\/ Ozone content (cm-\/atm, default\+: 0.\+3)
+\end{DoxyItemize}\hypertarget{md_i_8hyper_8smac_autotoc_md14}{}\doxysubsection{\texorpdfstring{Geometric Parameters}{Geometric Parameters}}\label{md_i_8hyper_8smac_autotoc_md14}
+
+\begin{DoxyItemize}
+\item {\bfseries{solar\+\_\+zenith}} -\/ Solar zenith angle in degrees
+\item {\bfseries{solar\+\_\+azimuth}} -\/ Solar azimuth angle in degrees (default\+: 0)
+\item {\bfseries{view\+\_\+zenith}} -\/ View zenith angle in degrees (default\+: 0)
+\item {\bfseries{view\+\_\+azimuth}} -\/ View azimuth angle in degrees (default\+: 0)
+\end{DoxyItemize}\hypertarget{md_i_8hyper_8smac_autotoc_md15}{}\doxysubsection{\texorpdfstring{Performance Parameters}{Performance Parameters}}\label{md_i_8hyper_8smac_autotoc_md15}
+
+\begin{DoxyItemize}
+\item {\bfseries{parallel\+\_\+lut}} -\/ Parallel LUT generation (auto, enabled, disabled)
+\begin{DoxyItemize}
+\item {\bfseries{auto}}\+: Use 75\% of resources, auto-\/detect GPU/\+CPU (default)
+\item {\bfseries{enabled}}\+: Force parallel processing with 75\% resources
+\item {\bfseries{disabled}}\+: Sequential processing (single core)
+\end{DoxyItemize}
+\item {\bfseries{opencl\+\_\+device}} -\/ Open\+CL device type (auto, gpu, cpu)
+\item {\bfseries{opencl\+\_\+memory}} -\/ Open\+CL memory limit in MB (default\+: 1024)
+\end{DoxyItemize}\hypertarget{md_i_8hyper_8smac_autotoc_md16}{}\doxysubsection{\texorpdfstring{Sensor Configuration}{Sensor Configuration}}\label{md_i_8hyper_8smac_autotoc_md16}
+
+\begin{DoxyItemize}
+\item {\bfseries{sensor}} -\/ Pre-\/configured sensor parameters\+:
+\begin{DoxyItemize}
+\item PRISMA, AVIRIS, AVIRIS\+\_\+\+NG, HYPERION, ENMAP
+\item OSK\+\_\+\+GHOST, PIXXEL, ESPER, IPERLITE
+\item KUVASPACE\+\_\+23, KUVASPACE\+\_\+32
+\item WYVERN\+\_\+23, WYVERN\+\_\+32, HYP4U, TANAGER
+\end{DoxyItemize}
+\end{DoxyItemize}\hypertarget{md_i_8hyper_8smac_autotoc_md17}{}\doxysubsection{\texorpdfstring{Advanced Options}{Advanced Options}}\label{md_i_8hyper_8smac_autotoc_md17}
+
+\begin{DoxyItemize}
+\item {\bfseries{adjacency\+\_\+psf}} -\/ Adjacency effect PSF radius in km (default\+: 0)
+\item {\bfseries{output\+\_\+uncertainty}} -\/ Uncertainty output raster (requires -\/u flag)
+\end{DoxyItemize}\hypertarget{md_i_8hyper_8smac_autotoc_md18}{}\doxysection{\texorpdfstring{FLAGS}{FLAGS}}\label{md_i_8hyper_8smac_autotoc_md18}
+
+\begin{DoxyItemize}
+\item {\bfseries{-\/k}} -\/ Keep temporary bands
+\item {\bfseries{-\/p}} -\/ Apply spectral polishing to remove outlier bands
+\item {\bfseries{-\/c}} -\/ Clear cached LUT and regenerate from lib\+Radtran
+\item {\bfseries{-\/u}} -\/ Compute per-\/band reflectance uncertainty
+\item {\bfseries{--overwrite}} -\/ Overwrite existing output files
+\end{DoxyItemize}\hypertarget{md_i_8hyper_8smac_autotoc_md19}{}\doxysection{\texorpdfstring{PERFORMANCE OPTIMIZATION}{PERFORMANCE OPTIMIZATION}}\label{md_i_8hyper_8smac_autotoc_md19}
+\hypertarget{md_i_8hyper_8smac_autotoc_md20}{}\doxysubsection{\texorpdfstring{Parallel LUT Generation}{Parallel LUT Generation}}\label{md_i_8hyper_8smac_autotoc_md20}
+The module automatically uses 75\% of available resources\+:
+
+\tabulinesep=1mm
+\begin{longtabu}spread 0pt [c]{*{3}{|X[-1]}|}
+\hline
+\PBS\centering \cellcolor{\tableheadbgcolor}\textbf{ System Cores   }&\PBS\centering \cellcolor{\tableheadbgcolor}\textbf{ Workers Used   }&\PBS\centering \cellcolor{\tableheadbgcolor}\textbf{ Speedup    }\\\cline{1-3}
+\endfirsthead
+\hline
+\endfoot
+\hline
+\PBS\centering \cellcolor{\tableheadbgcolor}\textbf{ System Cores   }&\PBS\centering \cellcolor{\tableheadbgcolor}\textbf{ Workers Used   }&\PBS\centering \cellcolor{\tableheadbgcolor}\textbf{ Speedup    }\\\cline{1-3}
+\endhead
+4 cores   &3 workers   &3x    \\\cline{1-3}
+8 cores   &6 workers   &6x    \\\cline{1-3}
+16 cores   &12 workers   &12x   \\\cline{1-3}
+\end{longtabu}
+\hypertarget{md_i_8hyper_8smac_autotoc_md21}{}\doxysubsection{\texorpdfstring{Resource Usage Examples}{Resource Usage Examples}}\label{md_i_8hyper_8smac_autotoc_md21}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\#\ Default:\ 75\%\ resources,\ auto-\/detect}
+\DoxyCodeLine{i.hyper.smac\ input=rad\ output=smac\ dem=DEM\ parallel\_lut=auto}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ Force\ enable\ parallel\ processing}
+\DoxyCodeLine{i.hyper.smac\ input=rad\ output=smac\ dem=DEM\ parallel\_lut=enabled}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ Disable\ for\ debugging}
+\DoxyCodeLine{i.hyper.smac\ input=rad\ output=smac\ dem=DEM\ parallel\_lut=disabled}
+
+\end{DoxyCode}
+\hypertarget{md_i_8hyper_8smac_autotoc_md22}{}\doxysubsection{\texorpdfstring{GPU Acceleration}{GPU Acceleration}}\label{md_i_8hyper_8smac_autotoc_md22}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\#\ Auto-\/detect\ GPU}
+\DoxyCodeLine{i.hyper.smac\ input=rad\ output=smac\ dem=DEM\ opencl\_device=auto}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ Force\ GPU\ usage}
+\DoxyCodeLine{i.hyper.smac\ input=rad\ output=smac\ dem=DEM\ opencl\_device=gpu}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ Increase\ GPU\ memory}
+\DoxyCodeLine{i.hyper.smac\ input=rad\ output=smac\ dem=DEM\ opencl\_memory=2048}
+
+\end{DoxyCode}
+\hypertarget{md_i_8hyper_8smac_autotoc_md23}{}\doxysection{\texorpdfstring{EXAMPLES}{EXAMPLES}}\label{md_i_8hyper_8smac_autotoc_md23}
+\hypertarget{md_i_8hyper_8smac_autotoc_md24}{}\doxysubsection{\texorpdfstring{Basic Usage with Auto-\/\+Detection}{Basic Usage with Auto-Detection}}\label{md_i_8hyper_8smac_autotoc_md24}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\#\ Automatic\ atmospheric\ correction\ with\ 75\%\ parallel\ resources}
+\DoxyCodeLine{i.hyper.smac\ input=PRISMA\_L1C\ output=PRISMA\_L2A\ dem=SRTM\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ sensor=PRISMA\ water\_vapor=joint\ -\/c}
+
+\end{DoxyCode}
+\hypertarget{md_i_8hyper_8smac_autotoc_md25}{}\doxysubsection{\texorpdfstring{Advanced Configuration}{Advanced Configuration}}\label{md_i_8hyper_8smac_autotoc_md25}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\#\ Full\ configuration\ with\ parallel\ processing\ and\ GPU\ acceleration}
+\DoxyCodeLine{i.hyper.smac\ input=AVIRIS\_NG\ output=AVIRIS\_NG\_corrected\ dem=DEM\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ solar\_zenith=35.2\ solar\_azimuth=145.8\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ view\_zenith=15.5\ view\_azimuth=90.3\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ aerosol\_model=maritime\ water\_vapor=1.2\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ parallel\_lut=enabled\ opencl\_device=gpu\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ opencl\_memory=2048\ -\/p\ -\/u}
+
+\end{DoxyCode}
+\hypertarget{md_i_8hyper_8smac_autotoc_md26}{}\doxysubsection{\texorpdfstring{Batch Processing}{Batch Processing}}\label{md_i_8hyper_8smac_autotoc_md26}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\#\ Process\ multiple\ scenes\ with\ optimal\ settings}
+\DoxyCodeLine{for\ scene\ in\ scene1\ scene2\ scene3;\ do}
+\DoxyCodeLine{\ \ \ \ i.hyper.smac\ input=\$\{scene\}\_raw\ output=\$\{scene\}\_corrected\ dem=DEM\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ sensor=TANAGER\ parallel\_lut=auto\ -\/c\ -\/-\/overwrite}
+\DoxyCodeLine{done}
+
+\end{DoxyCode}
+\hypertarget{md_i_8hyper_8smac_autotoc_md27}{}\doxysection{\texorpdfstring{NOTES}{NOTES}}\label{md_i_8hyper_8smac_autotoc_md27}
+\hypertarget{md_i_8hyper_8smac_autotoc_md28}{}\doxysubsection{\texorpdfstring{LUT Generation}{LUT Generation}}\label{md_i_8hyper_8smac_autotoc_md28}
+
+\begin{DoxyItemize}
+\item {\bfseries{First Run}}\+: Requires lib\+Radtran LUT generation (\texorpdfstring{$\sim$}{\string~}10-\/20 minutes with 75\% parallel)
+\item {\bfseries{Subsequent Runs}}\+: Uses cached LUTs (\texorpdfstring{$\sim$}{\string~}1-\/2 minutes)
+\item {\bfseries{Force Regenerate}}\+: Use -\/c flag to regenerate LUTs
+\item {\bfseries{Parallel Speed}}\+: 75\% resource usage provides optimal balance
+\end{DoxyItemize}\hypertarget{md_i_8hyper_8smac_autotoc_md29}{}\doxysubsection{\texorpdfstring{Memory Requirements}{Memory Requirements}}\label{md_i_8hyper_8smac_autotoc_md29}
+
+\begin{DoxyItemize}
+\item {\bfseries{Sequential}}\+: \texorpdfstring{$\sim$}{\string~}200\+MB per uvspec process
+\item {\bfseries{Parallel}}\+: 75\% of available RAM for LUT generation
+\item {\bfseries{GPU}}\+: Additional 500MB-\/2\+GB for Open\+CL processing
+\end{DoxyItemize}\hypertarget{md_i_8hyper_8smac_autotoc_md30}{}\doxysubsection{\texorpdfstring{Compatibility}{Compatibility}}\label{md_i_8hyper_8smac_autotoc_md30}
+
+\begin{DoxyItemize}
+\item {\bfseries{GRASS GIS}}\+: Version 8.\+0+
+\item {\bfseries{Python}}\+: 3.\+8+
+\item {\bfseries{lib\+Radtran}}\+: 2.\+0+
+\item {\bfseries{Open\+CL}}\+: Optional for GPU acceleration
+\end{DoxyItemize}\hypertarget{md_i_8hyper_8smac_autotoc_md31}{}\doxysection{\texorpdfstring{AUTHORS}{AUTHORS}}\label{md_i_8hyper_8smac_autotoc_md31}
+{\ttfamily i.\+hyper.\+smac} was developed by the GRASS GIS hyperspectral team with contributions from the atmospheric correction and parallel computing communities.\hypertarget{md_i_8hyper_8smac_autotoc_md32}{}\doxysection{\texorpdfstring{SEE ALSO}{SEE ALSO}}\label{md_i_8hyper_8smac_autotoc_md32}
+
+\begin{DoxyItemize}
+\item {\ttfamily i.\+hyper.\+import} -\/ Import hyperspectral data
+\item {\ttfamily i.\+hyper.\+spectral} -\/ Spectral analysis tools
+\item {\ttfamily r.\+in.\+gdal} -\/ Import raster data
+\item lib\+Radtran documentation for atmospheric modeling
+\end{DoxyItemize}\hypertarget{md_i_8hyper_8smac_autotoc_md33}{}\doxysection{\texorpdfstring{COPYRIGHT}{COPYRIGHT}}\label{md_i_8hyper_8smac_autotoc_md33}
+(C) 2024-\/2026 GRASS GIS Development Team
+
+This program is free software under the GNU General Public License (\texorpdfstring{$>$}{>}=v2). Read the file COPYING that comes with GRASS for details. 

@@ -1,0 +1,399 @@
+\chapter{i.\+hyper.\+smac Programmer Manual}
+\hypertarget{md_PROGRAMMER__MANUAL}{}\label{md_PROGRAMMER__MANUAL}\index{i.hyper.smac Programmer Manual@{i.hyper.smac Programmer Manual}}
+\label{md_PROGRAMMER__MANUAL_autotoc_md203}%
+\Hypertarget{md_PROGRAMMER__MANUAL_autotoc_md203}%
+ \hypertarget{md_PROGRAMMER__MANUAL_autotoc_md204}{}\doxysection{\texorpdfstring{Table of Contents}{Table of Contents}}\label{md_PROGRAMMER__MANUAL_autotoc_md204}
+
+\begin{DoxyEnumerate}
+\item Overview
+\item Installation
+\item Architecture
+\item API Reference
+\item Testing
+\item Performance Optimization
+\item Troubleshooting
+\item Contributing
+\end{DoxyEnumerate}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md205}{}\doxysection{\texorpdfstring{Overview}{Overview}}\label{md_PROGRAMMER__MANUAL_autotoc_md205}
+The {\ttfamily i.\+hyper.\+smac} module provides advanced atmospheric correction capabilities for hyperspectral imagery using the Simplified Method for Atmospheric Correction (SMAC) enhanced with lib\+Radtran DISORT calculations. This module implements state-\/of-\/the-\/art atmospheric correction algorithms including automatic aerosol and water vapor estimation, parallel processing, and Open\+CL acceleration.\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md206}{}\doxysubsection{\texorpdfstring{Key Features}{Key Features}}\label{md_PROGRAMMER__MANUAL_autotoc_md206}
+
+\begin{DoxyItemize}
+\item {\bfseries{Full lib\+Radtran DISORT Integration}}\+: Multiple scattering atmospheric correction
+\item {\bfseries{Automatic AOD Estimation}}\+: Dark Target retrieval algorithm
+\item {\bfseries{Water Vapor Retrieval}}\+: Joint optimal estimation and band ratio methods
+\item {\bfseries{Smart LUT System}}\+: Scene-\/specific Look-\/\+Up Table optimization (77\% speedup)
+\item {\bfseries{Parallel Processing}}\+: Multi-\/core LUT generation with automatic resource detection
+\item {\bfseries{Open\+CL Acceleration}}\+: GPU/\+CPU acceleration for atmospheric correction
+\item {\bfseries{Uncertainty Quantification}}\+: Per-\/band uncertainty propagation
+\item {\bfseries{Adjacency Correction}}\+: Point Spread Function based correction
+\item {\bfseries{Spectral Polishing}}\+: ISOFIT-\/inspired spectral smoothing
+\end{DoxyItemize}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md207}{}\doxysection{\texorpdfstring{Installation}{Installation}}\label{md_PROGRAMMER__MANUAL_autotoc_md207}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md208}{}\doxysubsection{\texorpdfstring{System Requirements}{System Requirements}}\label{md_PROGRAMMER__MANUAL_autotoc_md208}
+
+\begin{DoxyItemize}
+\item {\bfseries{GRASS GIS}}\+: Version 8.\+0 or higher
+\item {\bfseries{Python}}\+: 3.\+7 or higher
+\item {\bfseries{lib\+Radtran}}\+: For atmospheric modeling
+\item {\bfseries{Open\+CL}}\+: For GPU acceleration (optional)
+\end{DoxyItemize}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md209}{}\doxysubsection{\texorpdfstring{Dependencies}{Dependencies}}\label{md_PROGRAMMER__MANUAL_autotoc_md209}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\#\ Ubuntu/Debian}
+\DoxyCodeLine{sudo\ apt-\/get\ install\ grass\ grass-\/dev\ libradtran-\/dev\ libopencl-\/dev}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ Python\ dependencies}
+\DoxyCodeLine{pip\ install\ numpy\ scipy\ pyopencl\ netcdf4\ h5py}
+
+\end{DoxyCode}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md210}{}\doxysubsection{\texorpdfstring{Module Installation}{Module Installation}}\label{md_PROGRAMMER__MANUAL_autotoc_md210}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\#\ Clone\ repository}
+\DoxyCodeLine{git\ clone\ https://github.com/YannChemin/i.hyper.smac.git}
+\DoxyCodeLine{cd\ i.hyper.smac}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ Install\ module}
+\DoxyCodeLine{make\ install}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ Test\ installation}
+\DoxyCodeLine{make\ test}
+
+\end{DoxyCode}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md211}{}\doxysection{\texorpdfstring{Architecture}{Architecture}}\label{md_PROGRAMMER__MANUAL_autotoc_md211}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md212}{}\doxysubsection{\texorpdfstring{System Architecture}{System Architecture}}\label{md_PROGRAMMER__MANUAL_autotoc_md212}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{i.hyper.smac\ (main\ module)}
+\DoxyCodeLine{├──\ Atmospheric\ Parameter\ Estimation}
+\DoxyCodeLine{│\ \ \ ├──\ Dark\ Target\ AOD\ Retrieval}
+\DoxyCodeLine{│\ \ \ ├──\ Water\ Vapor\ Content\ Retrieval}
+\DoxyCodeLine{│\ \ \ └──\ Pressure\ Estimation\ from\ DEM}
+\DoxyCodeLine{├──\ LUT\ Generation\ and\ Management}
+\DoxyCodeLine{│\ \ \ ├──\ Smart\ LUT\ System\ (smart\_lut.py)}
+\DoxyCodeLine{│\ \ \ ├──\ Parallel\ LUT\ Generator\ (parallel\_lut.py)}
+\DoxyCodeLine{│\ \ \ └──\ Standard\ LUT\ (lut.py)}
+\DoxyCodeLine{├──\ Atmospheric\ Correction\ Engine}
+\DoxyCodeLine{│\ \ \ ├──\ OpenCL\ Accelerator\ (opencl\_accelerator.py)}
+\DoxyCodeLine{│\ \ \ ├──\ Spectral\ Polishing}
+\DoxyCodeLine{│\ \ \ └──\ Adjacency\ Correction}
+\DoxyCodeLine{└──\ Uncertainty\ Quantification}
+\DoxyCodeLine{\ \ \ \ ├──\ Error\ Propagation}
+\DoxyCodeLine{\ \ \ \ └──\ MAP\ Inversion}
+
+\end{DoxyCode}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md213}{}\doxysubsection{\texorpdfstring{Data Flow}{Data Flow}}\label{md_PROGRAMMER__MANUAL_autotoc_md213}
+
+\begin{DoxyEnumerate}
+\item {\bfseries{Input Processing}}\+: Read hyperspectral 3D raster and metadata
+\item {\bfseries{Atmospheric Estimation}}\+: Estimate AOD, water vapor, and pressure
+\item {\bfseries{LUT Generation}}\+: Create or load optimized Look-\/\+Up Tables
+\item {\bfseries{Atmospheric Correction}}\+: Apply correction using Open\+CL acceleration
+\item {\bfseries{Post-\/\+Processing}}\+: Apply spectral polishing and adjacency correction
+\item {\bfseries{Output Generation}}\+: Write corrected data and uncertainty maps
+\end{DoxyEnumerate}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md214}{}\doxysection{\texorpdfstring{API Reference}{API Reference}}\label{md_PROGRAMMER__MANUAL_autotoc_md214}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md215}{}\doxysubsection{\texorpdfstring{Main Functions}{Main Functions}}\label{md_PROGRAMMER__MANUAL_autotoc_md215}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md216}{}\doxysubsubsection{\texorpdfstring{$<$tt$>$apply\+\_\+lut\+\_\+correction()$<$/tt$>$}{<tt>apply\_lut\_correction()</tt>}}\label{md_PROGRAMMER__MANUAL_autotoc_md216}
+Main atmospheric correction function.
+
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{keyword}{def\ }apply\_lut\_correction(input\_raster,\ output\_raster,\ bands,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ aod,\ water\_vapor,\ ozone,\ pressure,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ solar\_zenith,\ solar\_azimuth,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ view\_zenith,\ view\_azimuth,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ aerosol\_model='continental',\ }
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ smart\_lut='auto',}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ parallel\_lut='auto',}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ opencl\_device='auto',}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ **kwargs):}
+\DoxyCodeLine{\ \ \ \ \textcolor{stringliteral}{"{}"{}"{}}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ Apply\ atmospheric\ correction\ to\ hyperspectral\ data}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ }}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ Parameters:}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ -\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ input\_raster\ :\ str}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Input\ hyperspectral\ 3D\ raster\ name}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ output\_raster\ :\ str\ \ }}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Output\ corrected\ 3D\ raster\ name}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ bands\ :\ list}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ List\ of\ band\ wavelength\ dictionaries}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ aod\ :\ float}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Aerosol\ Optical\ Depth\ at\ 550nm}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ water\_vapor\ :\ float\ or\ str}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Water\ vapor\ content\ (g/cm²)\ or\ retrieval\ method}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ ozone\ :\ float}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Ozone\ content\ (cm-\/atm)}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ pressure\ :\ float}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Atmospheric\ pressure\ (hPa)}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ solar\_zenith\ :\ float}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Solar\ zenith\ angle\ (degrees)}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ solar\_azimuth\ :\ float}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Solar\ azimuth\ angle\ (degrees)}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ view\_zenith\ :\ float}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ View\ zenith\ angle\ (degrees)}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ view\_azimuth\ :\ float}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ View\ azimuth\ angle\ (degrees)}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ aerosol\_model\ :\ str}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Aerosol\ model\ type}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ smart\_lut\ :\ str}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Smart\ LUT\ mode\ ('auto',\ 'yes',\ 'no')}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ parallel\_lut\ :\ str}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Parallel\ LUT\ mode\ ('auto',\ 'enabled',\ 'disabled')}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ opencl\_device\ :\ str}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ OpenCL\ device\ type\ ('auto',\ 'gpu',\ 'cpu')}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ }}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ Returns:}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ -\/-\/-\/-\/-\/-\/-\/-\/}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ AtmosphericLUT\ object}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Generated\ or\ loaded\ atmospheric\ LUT}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ "{}"{}"{}}}
+
+\end{DoxyCode}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md217}{}\doxysubsection{\texorpdfstring{LUT Classes}{LUT Classes}}\label{md_PROGRAMMER__MANUAL_autotoc_md217}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md218}{}\doxysubsubsection{\texorpdfstring{$<$tt$>$\+Atmospheric\+LUT$<$/tt$>$}{<tt>AtmosphericLUT</tt>}}\label{md_PROGRAMMER__MANUAL_autotoc_md218}
+Atmospheric Look-\/\+Up Table for hyperspectral correction.
+
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{keyword}{class\ }AtmosphericLUT:}
+\DoxyCodeLine{\ \ \ \ \textcolor{stringliteral}{"{}"{}"{}}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ Atmospheric\ Look-\/Up\ Table\ for\ hyperspectral\ correction}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ }}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ Attributes:}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ -\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ wavelengths\ :\ array}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Wavelength\ array\ (nm)}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ aod\_grid\ :\ array}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Aerosol\ Optical\ Depth\ grid}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ h2o\_grid\ :\ array}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Water\ vapor\ grid\ (g/cm²)}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ r\_atm\ :\ array}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Atmospheric\ reflectance\ (wavelength\ ×\ AOD\ ×\ H2O)}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ t\_down\ :\ array}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Downward\ transmittance}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ t\_up\ :\ array}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Upward\ transmittance}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ s\ :\ array}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Spherical\ albedo}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ "{}"{}"{}}}
+\DoxyCodeLine{\ \ \ \ }
+\DoxyCodeLine{\ \ \ \ \textcolor{preprocessor}{@classmethod}}
+\DoxyCodeLine{\ \ \ \ \textcolor{keyword}{def\ }get\_or\_generate(cls,\ sza,\ vza,\ phi,\ pressure,\ aerosol\_model,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ wl\_min,\ wl\_max,\ wl\_step,\ h2o=None,\ o3=None,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ **kwargs):}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \textcolor{stringliteral}{"{}"{}"{}}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Get\ cached\ LUT\ or\ generate\ new\ one}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ }}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Implements\ intelligent\ caching\ with\ scene-\/aware\ keys}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ "{}"{}"{}}}
+
+\end{DoxyCode}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md219}{}\doxysubsubsection{\texorpdfstring{$<$tt$>$\+Smart\+LUTManager$<$/tt$>$}{<tt>SmartLUTManager</tt>}}\label{md_PROGRAMMER__MANUAL_autotoc_md219}
+Smart LUT management system.
+
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{keyword}{class\ }SmartLUTManager:}
+\DoxyCodeLine{\ \ \ \ \textcolor{stringliteral}{"{}"{}"{}}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ Smart\ LUT\ management\ system}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ }}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ Methods:}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ -\/-\/-\/-\/-\/-\/-\/-\/}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ get\_smart\_lut\_config(scene\_aod,\ precision\_threshold)}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Generate\ scene-\/specific\ AOD\ grid\ configuration}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ }}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ should\_regenerate\_lut(scene\_aod,\ cache\_path,\ precision\_threshold)}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Check\ if\ LUT\ regeneration\ is\ needed}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ }}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ generate\_cache\_key(scene\_parameters)}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Generate\ cache\ key\ for\ LUT\ storage}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ "{}"{}"{}}}
+
+\end{DoxyCode}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md220}{}\doxysection{\texorpdfstring{Testing}{Testing}}\label{md_PROGRAMMER__MANUAL_autotoc_md220}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md221}{}\doxysubsection{\texorpdfstring{Test Suite Structure}{Test Suite Structure}}\label{md_PROGRAMMER__MANUAL_autotoc_md221}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{testsuite/}
+\DoxyCodeLine{├──\ test\_i\_hyper\_smac.py\ \ \ \ \#\ Main\ unit\ test\ file}
+\DoxyCodeLine{├──\ run\_tests.py\ \ \ \ \ \ \ \ \ \ \ \ \#\ Comprehensive\ test\ runner}
+\DoxyCodeLine{├──\ generate\_test\_data.py\ \ \ \#\ Test\ data\ generator}
+\DoxyCodeLine{├──\ Makefile\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \#\ GRASS\ make\ integration}
+\DoxyCodeLine{└──\ README.md\ \ \ \ \ \ \ \ \ \ \ \ \ \ \#\ Test\ documentation}
+
+\end{DoxyCode}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md222}{}\doxysubsection{\texorpdfstring{Running Tests}{Running Tests}}\label{md_PROGRAMMER__MANUAL_autotoc_md222}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\#\ Run\ all\ tests}
+\DoxyCodeLine{make\ test-\/all}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ Run\ specific\ test\ categories}
+\DoxyCodeLine{make\ test-\/unit\ \ \ \ \ \ \ \ \ \ \#\ Unit\ tests\ only}
+\DoxyCodeLine{make\ test-\/integration\ \ \ \ \#\ Integration\ tests\ only}
+\DoxyCodeLine{make\ test-\/performance\ \ \ \ \#\ Performance\ tests\ only}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ Generate\ test\ coverage}
+\DoxyCodeLine{make\ test-\/coverage}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ Run\ with\ custom\ test\ data}
+\DoxyCodeLine{cd\ testsuite}
+\DoxyCodeLine{python\ run\_tests.py\ -\/-\/test-\/data\ /path/to/test/data}
+
+\end{DoxyCode}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md223}{}\doxysubsection{\texorpdfstring{Test Categories}{Test Categories}}\label{md_PROGRAMMER__MANUAL_autotoc_md223}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md224}{}\doxysubsubsection{\texorpdfstring{Unit Tests}{Unit Tests}}\label{md_PROGRAMMER__MANUAL_autotoc_md224}
+
+\begin{DoxyItemize}
+\item {\bfseries{Basic Functionality}}\+: Module existence and basic operations
+\item {\bfseries{Parameter Validation}}\+: Input validation and error handling
+\item {\bfseries{AOD Estimation}}\+: Dark Target algorithm testing
+\item {\bfseries{Water Vapor Retrieval}}\+: Multiple retrieval methods
+\item {\bfseries{Smart LUT System}}\+: Performance optimization validation
+\item {\bfseries{Open\+CL Acceleration}}\+: GPU/\+CPU acceleration testing
+\end{DoxyItemize}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md225}{}\doxysubsubsection{\texorpdfstring{Integration Tests}{Integration Tests}}\label{md_PROGRAMMER__MANUAL_autotoc_md225}
+
+\begin{DoxyItemize}
+\item {\bfseries{End-\/to-\/\+End Workflows}}\+: Complete atmospheric correction pipelines
+\item {\bfseries{Output Generation}}\+: File creation and verification
+\item {\bfseries{Error Handling}}\+: Graceful failure and recovery
+\end{DoxyItemize}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md226}{}\doxysubsubsection{\texorpdfstring{Performance Tests}{Performance Tests}}\label{md_PROGRAMMER__MANUAL_autotoc_md226}
+
+\begin{DoxyItemize}
+\item {\bfseries{Smart LUT vs Standard LUT}}\+: \texorpdfstring{$\sim$}{\string~}77\% speedup validation
+\item {\bfseries{Parallel vs Serial Processing}}\+: Multi-\/core acceleration
+\item {\bfseries{Open\+CL vs CPU}}\+: GPU acceleration benchmarks
+\end{DoxyItemize}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md227}{}\doxysection{\texorpdfstring{Performance Optimization}{Performance Optimization}}\label{md_PROGRAMMER__MANUAL_autotoc_md227}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md228}{}\doxysubsection{\texorpdfstring{Smart LUT System}{Smart LUT System}}\label{md_PROGRAMMER__MANUAL_autotoc_md228}
+The Smart LUT system optimizes LUT generation based on scene characteristics\+:
+
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{comment}{\#\ Standard\ LUT:\ 96\ runs\ (13\ AOD\ ×\ 8\ H2O\ ×\ 2\ albedo)}}
+\DoxyCodeLine{\textcolor{comment}{\#\ Smart\ LUT:\ 36\ runs\ (3-\/5\ AOD\ ×\ 6\ H2O\ ×\ 2\ albedo)}}
+\DoxyCodeLine{\textcolor{comment}{\#\ Speedup:\ \string~77\%\ reduction\ in\ computation\ time}}
+
+\end{DoxyCode}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md229}{}\doxysubsection{\texorpdfstring{Parallel Processing}{Parallel Processing}}\label{md_PROGRAMMER__MANUAL_autotoc_md229}
+Multi-\/core LUT generation with automatic resource detection\+:
+
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{comment}{\#\ Enable\ parallel\ processing}}
+\DoxyCodeLine{gs.run\_command(\textcolor{stringliteral}{'i.hyper.smac'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ input=\textcolor{stringliteral}{'hyperspectral'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ output=\textcolor{stringliteral}{'corrected'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ parallel\_lut=\textcolor{stringliteral}{'enabled'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ max\_workers=\textcolor{stringliteral}{'auto'})}
+
+\end{DoxyCode}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md230}{}\doxysubsection{\texorpdfstring{Open\+CL Acceleration}{OpenCL Acceleration}}\label{md_PROGRAMMER__MANUAL_autotoc_md230}
+GPU/\+CPU acceleration for atmospheric correction\+:
+
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{comment}{\#\ GPU\ acceleration}}
+\DoxyCodeLine{gs.run\_command(\textcolor{stringliteral}{'i.hyper.smac'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ input=\textcolor{stringliteral}{'hyperspectral'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ output=\textcolor{stringliteral}{'corrected'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ opencl\_device=\textcolor{stringliteral}{'gpu'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ opencl\_memory=2048)}
+
+\end{DoxyCode}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md231}{}\doxysection{\texorpdfstring{Troubleshooting}{Troubleshooting}}\label{md_PROGRAMMER__MANUAL_autotoc_md231}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md232}{}\doxysubsection{\texorpdfstring{Common Issues}{Common Issues}}\label{md_PROGRAMMER__MANUAL_autotoc_md232}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md233}{}\doxysubsubsection{\texorpdfstring{lib\+Radtran not found}{libRadtran not found}}\label{md_PROGRAMMER__MANUAL_autotoc_md233}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\#\ Install\ libRadtran}
+\DoxyCodeLine{sudo\ apt-\/get\ install\ libradtran-\/dev}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ Set\ environment\ variable}
+\DoxyCodeLine{export\ LIBRADTRAN\_PATH=/usr/local/lib}
+
+\end{DoxyCode}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md234}{}\doxysubsubsection{\texorpdfstring{Open\+CL initialization fails}{OpenCL initialization fails}}\label{md_PROGRAMMER__MANUAL_autotoc_md234}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\#\ Install\ OpenCL\ drivers}
+\DoxyCodeLine{sudo\ apt-\/get\ install\ opencl-\/headers\ ocl-\/icd-\/opencl-\/dev}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ Use\ CPU\ fallback}
+\DoxyCodeLine{gs.run\_command('i.hyper.smac',\ opencl\_device='cpu')}
+
+\end{DoxyCode}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md235}{}\doxysubsubsection{\texorpdfstring{Memory errors}{Memory errors}}\label{md_PROGRAMMER__MANUAL_autotoc_md235}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\#\ Reduce\ memory\ usage}
+\DoxyCodeLine{gs.run\_command('i.hyper.smac',\ opencl\_memory=512)}
+
+\end{DoxyCode}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md236}{}\doxysubsection{\texorpdfstring{Debug Mode}{Debug Mode}}\label{md_PROGRAMMER__MANUAL_autotoc_md236}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\#\ Enable\ verbose\ output}
+\DoxyCodeLine{export\ GRASS\_VERBOSE=3}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ Run\ with\ debugging}
+\DoxyCodeLine{gs.run\_command('i.hyper.smac',\ flags='v')}
+
+\end{DoxyCode}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md237}{}\doxysection{\texorpdfstring{Contributing}{Contributing}}\label{md_PROGRAMMER__MANUAL_autotoc_md237}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md238}{}\doxysubsection{\texorpdfstring{Development Setup}{Development Setup}}\label{md_PROGRAMMER__MANUAL_autotoc_md238}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\#\ Clone\ repository}
+\DoxyCodeLine{git\ clone\ https://github.com/YannChemin/i.hyper.smac.git}
+\DoxyCodeLine{cd\ i.hyper.smac}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ Install\ development\ dependencies}
+\DoxyCodeLine{pip\ install\ -\/r\ requirements-\/dev.txt}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ Run\ tests}
+\DoxyCodeLine{make\ test-\/all}
+
+\end{DoxyCode}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md239}{}\doxysubsection{\texorpdfstring{Code Style}{Code Style}}\label{md_PROGRAMMER__MANUAL_autotoc_md239}
+Follow GRASS GIS coding standards\+:
+
+
+\begin{DoxyItemize}
+\item {\bfseries{Python}}\+: PEP 8 with 4-\/space indentation
+\item {\bfseries{Documentation}}\+: Doxygen format for C/\+C++, docstrings for Python
+\item {\bfseries{Testing}}\+: Comprehensive test coverage required
+\end{DoxyItemize}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md240}{}\doxysubsection{\texorpdfstring{Submitting Changes}{Submitting Changes}}\label{md_PROGRAMMER__MANUAL_autotoc_md240}
+
+\begin{DoxyEnumerate}
+\item Fork repository
+\item Create feature branch
+\item Add tests for new functionality
+\item Ensure all tests pass
+\item Submit pull request
+\end{DoxyEnumerate}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md241}{}\doxysubsection{\texorpdfstring{Test Coverage}{Test Coverage}}\label{md_PROGRAMMER__MANUAL_autotoc_md241}
+Maintain high test coverage\+:
+
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\#\ Generate\ coverage\ report}
+\DoxyCodeLine{make\ test-\/coverage}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ View\ coverage\ report}
+\DoxyCodeLine{open\ testsuite/htmlcov/index.html}
+
+\end{DoxyCode}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md242}{}\doxysection{\texorpdfstring{References}{References}}\label{md_PROGRAMMER__MANUAL_autotoc_md242}
+
+\begin{DoxyItemize}
+\item Vermote, E., et al. (1997). Second simulation of the satellite signal in the solar spectrum (6S). IEEE TGRS.
+\item Levy, R.\+C., et al. (2007). Global aerosol optical properties and application to MODIS aerosol retrieval over land. JGR.
+\item Thompson, D.\+R., et al. (2018). ISOFIT\+: A full-\/physics, optimal estimation retrieval package for remote sensing. JQSRT.
+\item Mayer, B., \& Kylling, A. (2005). Technical note\+: The lib\+Radtran software package for radiative transfer calculations. ACP.
+\end{DoxyItemize}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md243}{}\doxysection{\texorpdfstring{License}{License}}\label{md_PROGRAMMER__MANUAL_autotoc_md243}
+This program is free software under GNU General Public License (\texorpdfstring{$>$}{>}=v2). Read the file COPYING that comes with GRASS for details.\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md244}{}\doxysection{\texorpdfstring{Support}{Support}}\label{md_PROGRAMMER__MANUAL_autotoc_md244}
+
+\begin{DoxyItemize}
+\item {\bfseries{GRASS GIS Website}}\+: \href{https://grass.osgeo.org}{\texttt{ https\+://grass.\+osgeo.\+org}}
+\item {\bfseries{Documentation}}\+: \href{https://grass.osgeo.org/documentation/}{\texttt{ https\+://grass.\+osgeo.\+org/documentation/}}
+\item {\bfseries{Mailing List}}\+: \href{mailto:grass-dev@lists.osgeo.org}{\texttt{ grass-\/dev@lists.\+osgeo.\+org}}
+\item {\bfseries{Issue Tracker}}\+: \href{https://github.com/YannChemin/i.hyper.smac/issues}{\texttt{ https\+://github.\+com/\+Yann\+Chemin/i.\+hyper.\+smac/issues}} 
+\end{DoxyItemize}

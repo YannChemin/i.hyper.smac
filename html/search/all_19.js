@@ -1,0 +1,15 @@
+var searchData=
+[
+  ['uncertainty_20propagation_0',['Uncertainty Propagation',['../md_README.html#autotoc_md292',1,'']]],
+  ['under_20snow_1',['Sub-arctic mid-winter — boreal forest under snow',['../md_README.html#autotoc_md260',1,'']]],
+  ['unit_20tests_2',['Unit Tests',['../md_PROGRAMMER__MANUAL.html#autotoc_md224',1,'']]],
+  ['urban_20temperate_20mid_20winter_20e_20g_20paris_20january_3',['Continental urban temperate mid-winter (e.g. Paris, January)',['../md_README.html#autotoc_md258',1,'']]],
+  ['usage_4',['usage',['../md_PARALLEL__LUT__FINAL.html#autotoc_md144',1,'Advanced Usage'],['../i_hyper_smac.html#i_hyper_smac_advanced_example',1,'Advanced Usage'],['../md_PARALLEL__LUT__SUCCESS.html#autotoc_md168',1,'Advanced Usage'],['../md_PARALLEL__LUT__SUMMARY.html#autotoc_md190',1,'Advanced Usage'],['../md_PARALLEL__LUT__COMPLETE.html#autotoc_md122',1,'Advanced Usage'],['../i_hyper_smac.html#i_hyper_smac_basic_example',1,'Basic Usage'],['../md_OPENCL__INTEGRATION.html#autotoc_md44',1,'Basic Usage'],['../md_PARALLEL__LUT__SUMMARY.html#autotoc_md189',1,'Basic Usage'],['../i_hyper_smac.html#i_hyper_smac_programmatic_example',1,'Programmatic Usage'],['../md_i_8hyper_8smac.html#autotoc_md7',1,'USAGE'],['../md_README.html#autotoc_md255',1,'Usage'],['../md_PARALLEL__LUT.html#autotoc_md94',1,'Usage'],['../md_OPENCL__INTEGRATION.html#autotoc_md43',1,'Usage']]],
+  ['usage_20examples_5',['usage examples',['../md_OPENCL__SUMMARY.html#autotoc_md78',1,'📋 Usage Examples'],['../md_i_8hyper_8smac.html#autotoc_md21',1,'Resource Usage Examples'],['../i_hyper_smac.html#i_hyper_smac_examples',1,'Usage Examples'],['../md_README.html#autotoc_md269',1,'Usage Examples']]],
+  ['usage_20examples_20strong_6',['usage examples strong',['../md_PARALLEL__LUT__SUCCESS.html#autotoc_md166',1,'📋 &lt;strong&gt;Usage Examples&lt;/strong&gt;'],['../md_PARALLEL__LUT__SUMMARY.html#autotoc_md188',1,'📋 &lt;strong&gt;Usage Examples&lt;/strong&gt;'],['../md_PARALLEL__LUT__FINAL.html#autotoc_md142',1,'🚀 &lt;strong&gt;Usage Examples&lt;/strong&gt;'],['../md_PARALLEL__LUT__COMPLETE.html#autotoc_md120',1,'🚀 &lt;strong&gt;Usage Examples&lt;/strong&gt;']]],
+  ['usage_20recommended_7',['usage recommended',['../md_PARALLEL__LUT__SUCCESS.html#autotoc_md167',1,'Basic Usage (Recommended)'],['../md_PARALLEL__LUT__FINAL.html#autotoc_md143',1,'Basic Usage (Recommended)'],['../md_PARALLEL__LUT__COMPLETE.html#autotoc_md121',1,'Basic Usage (Recommended)']]],
+  ['usage_20with_20auto_20detection_8',['Basic Usage with Auto-Detection',['../md_i_8hyper_8smac.html#autotoc_md24',1,'']]],
+  ['user_20benefits_20delivered_20strong_9',['user benefits delivered strong',['../md_PARALLEL__LUT__COMPLETE.html#autotoc_md117',1,'🎉 &lt;strong&gt;User Benefits Delivered&lt;/strong&gt;'],['../md_PARALLEL__LUT__FINAL.html#autotoc_md139',1,'🎯 &lt;strong&gt;User Benefits Delivered&lt;/strong&gt;']]],
+  ['user_20benefits_20strong_10',['🎉 &lt;strong&gt;User Benefits&lt;/strong&gt;',['../md_PARALLEL__LUT__SUCCESS.html#autotoc_md163',1,'']]],
+  ['users_20strong_11',['🎯 &lt;strong&gt;Impact on Users&lt;/strong&gt;',['../md_PARALLEL__LUT__SUMMARY.html#autotoc_md195',1,'']]]
+];

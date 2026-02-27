@@ -43,8 +43,8 @@ libRadtran-based Look-Up Tables (LUTs). The module supports:
 
 <ul>
 <li><b>Full multiple-scattering</b> atmospheric correction via libRadtran DISORT</li>
-<li><b>Parallel LUT generation</b> using 75% of available CPU/GPU resources</li>
-<li><b>GPU acceleration</b> with OpenCL for enhanced performance</li>
+<li><b>Parallel LUT generation</b> using 75% of available CPU resources</li>
+<li><b>OpenCL acceleration</b> for atmospheric correction pixel processing</li>
 <li><b>Spectral polishing</b> to remove outlier bands</li>
 <li><b>Uncertainty quantification</b> for atmospheric correction results</li>
 <li><b>Multiple sensor support</b> with pre-configured parameters</li>
@@ -54,17 +54,49 @@ libRadtran-based Look-Up Tables (LUTs). The module supports:
 
 <h3>Parallel LUT Generation (NEW)</h3>
 <ul>
-<li><b>75% Resource Usage</b>: Automatically uses 75% of available CPU/GPU resources</li>
-<li><b>Smart Detection</b>: Auto-detects GPU first, falls back to CPU</li>
-<li><b>Memory Aware</b>: Considers system RAM constraints</li>
+<li><b>75% Resource Usage</b>: Automatically uses 75% of available CPU resources</li>
+<li><b>Smart Detection</b>: Auto-detects optimal worker count based on CPU cores and RAM</li>
+<li><b>Memory Aware</b>: Considers system RAM constraints for uvspec processes</li>
 <li><b>Performance</b>: 6x speedup on 8-core systems vs sequential</li>
+<li><b>CPU-only</b>: uvspec runs on CPU with multiple parallel processes</li>
 </ul>
 
-<h3>OpenCL GPU Acceleration</h3>
+<h3>OpenCL Acceleration for Atmospheric Correction</h3>
 <ul>
-<li><b>Device Selection</b>: Auto, GPU, or CPU OpenCL devices</li>
-<li><b>Memory Management</b>: Configurable memory limits</li>
-<li><b>Fallback</b>: Automatic CPU fallback if GPU unavailable</li>
+<li><b>Two-Stage Process</b>: LUT generation (CPU) + Atmospheric correction (OpenCL)</li>
+<li><b>Device Selection</b>: Auto, GPU, or CPU OpenCL devices for correction stage</li>
+<li><b>Memory Management</b>: Configurable memory limits for OpenCL kernels</li>
+<li><b>Fallback</b>: Automatic CPU OpenCL fallback if GPU unavailable</li>
+<li><b>Note</b>: uvspec itself is CPU-only; OpenCL accelerates pixel processing</li>
+</ul>
+
+<h2 id="architecture">ARCHITECTURE</h2>
+
+<h3>Two-Stage Atmospheric Correction Process</h3>
+
+<h4>Stage 1: LUT Generation (CPU-only)</h4>
+<pre>
+# Multiple uvspec processes run in parallel on CPU
+uvspec &lt; input_1.inp  # Process 1: AOD=0.0, H2O=0.3, Albedo=0.0
+uvspec &lt; input_2.inp  # Process 2: AOD=0.1, H2O=0.3, Albedo=0.0
+uvspec &lt; input_3.inp  # Process 3: AOD=0.3, H2O=0.3, Albedo=0.0
+# ... (96 total combinations)
+</pre>
+<ul>
+<li><b>libRadtran uvspec</b> calculates radiative transfer</li>
+<li><b>Multiple CPU cores</b> run different parameter combinations</li>
+<li><b>Generates complete lookup table</b> for all atmospheric conditions</li>
+</ul>
+
+<h4>Stage 2: Atmospheric Correction (OpenCL)</h4>
+<pre>
+# OpenCL kernels apply LUT to hyperspectral data
+opencl_kernel_process_pixels(lut_data, hyperspectral_image)
+</pre>
+<ul>
+<li><b>OpenCL kernels</b> process millions of pixels in parallel</li>
+<li><b>GPU or CPU OpenCL</b> devices can be used</li>
+<li><b>Applies pre-computed LUT</b> to actual scene data</li>
 </ul>
 
 <h2 id="parameters">PARAMETERS</h2>

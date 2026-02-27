@@ -1,0 +1,404 @@
+\chapter{i.\+hyper.\+smac\+: Hyperspectral Atmospheric Correction Module}
+\hypertarget{i_hyper_smac}{}\label{i_hyper_smac}\index{i.hyper.smac: Hyperspectral Atmospheric Correction Module@{i.hyper.smac: Hyperspectral Atmospheric Correction Module}}
+\hypertarget{i_hyper_smac_i_hyper_smac_overview}{}\doxysection{\texorpdfstring{Overview}{Overview}}\label{i_hyper_smac_i_hyper_smac_overview}
+The i.\+hyper.\+smac module provides advanced atmospheric correction capabilities for hyperspectral imagery using the Simplified Method for Atmospheric Correction (SMAC) enhanced with lib\+Radtran DISORT calculations. This module implements state-\/of-\/the-\/art atmospheric correction algorithms including automatic aerosol and water vapor estimation, parallel processing, and Open\+CL acceleration.\hypertarget{i_hyper_smac_i_hyper_smac_features}{}\doxysection{\texorpdfstring{Key Features}{Key Features}}\label{i_hyper_smac_i_hyper_smac_features}
+
+\begin{DoxyItemize}
+\item {\bfseries{Full lib\+Radtran DISORT Integration}}\+: Multiple scattering atmospheric correction
+\item {\bfseries{Automatic AOD Estimation}}\+: Dark Target retrieval algorithm
+\item {\bfseries{Water Vapor Retrieval}}\+: Joint optimal estimation and band ratio methods
+\item {\bfseries{Smart LUT System}}\+: Scene-\/specific Look-\/\+Up Table optimization (77\% speedup)
+\item {\bfseries{Parallel Processing}}\+: Multi-\/core LUT generation with automatic resource detection
+\item {\bfseries{Open\+CL Acceleration}}\+: GPU/\+CPU acceleration for atmospheric correction
+\item {\bfseries{Uncertainty Quantification}}\+: Per-\/band uncertainty propagation
+\item {\bfseries{Adjacency Correction}}\+: Point Spread Function based correction
+\item {\bfseries{Spectral Polishing}}\+: ISOFIT-\/inspired spectral smoothing
+\end{DoxyItemize}\hypertarget{i_hyper_smac_i_hyper_smac_architecture}{}\doxysection{\texorpdfstring{Architecture}{Architecture}}\label{i_hyper_smac_i_hyper_smac_architecture}
+\hypertarget{i_hyper_smac_i_hyper_smac_arch_overview}{}\doxysubsection{\texorpdfstring{System Architecture}{System Architecture}}\label{i_hyper_smac_i_hyper_smac_arch_overview}
+The module follows a modular architecture with clear separation of concerns\+:
+
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{i.hyper.smac\ (main\ module)}
+\DoxyCodeLine{├──\ Atmospheric\ Parameter\ Estimation}
+\DoxyCodeLine{│\ \ \ ├──\ Dark\ Target\ AOD\ Retrieval}
+\DoxyCodeLine{│\ \ \ ├──\ Water\ Vapor\ Content\ Retrieval}
+\DoxyCodeLine{│\ \ \ └──\ Pressure\ Estimation\ from\ DEM}
+\DoxyCodeLine{├──\ LUT\ Generation\ and\ Management}
+\DoxyCodeLine{│\ \ \ ├──\ Smart\ LUT\ System\ (smart\_lut.py)}
+\DoxyCodeLine{│\ \ \ ├──\ Parallel\ LUT\ Generator\ (parallel\_lut.py)}
+\DoxyCodeLine{│\ \ \ └──\ Standard\ LUT\ (lut.py)}
+\DoxyCodeLine{├──\ Atmospheric\ Correction\ Engine}
+\DoxyCodeLine{│\ \ \ ├──\ OpenCL\ Accelerator\ (opencl\_accelerator.py)}
+\DoxyCodeLine{│\ \ \ ├──\ Spectral\ Polishing}
+\DoxyCodeLine{│\ \ \ └──\ Adjacency\ Correction}
+\DoxyCodeLine{└──\ Uncertainty\ Quantification}
+\DoxyCodeLine{\ \ \ \ ├──\ Error\ Propagation}
+\DoxyCodeLine{\ \ \ \ └──\ MAP\ Inversion}
+
+\end{DoxyCode}
+\hypertarget{i_hyper_smac_i_hyper_smac_data_flow}{}\doxysubsection{\texorpdfstring{Data Flow}{Data Flow}}\label{i_hyper_smac_i_hyper_smac_data_flow}
+
+\begin{DoxyEnumerate}
+\item {\bfseries{Input Processing}}\+: Read hyperspectral 3D raster and metadata
+\item {\bfseries{Atmospheric Estimation}}\+: Estimate AOD, water vapor, and pressure
+\item {\bfseries{LUT Generation}}\+: Create or load optimized Look-\/\+Up Tables
+\item {\bfseries{Atmospheric Correction}}\+: Apply correction using Open\+CL acceleration
+\item {\bfseries{Post-\/\+Processing}}\+: Apply spectral polishing and adjacency correction
+\item {\bfseries{Output Generation}}\+: Write corrected data and uncertainty maps
+\end{DoxyEnumerate}\hypertarget{i_hyper_smac_i_hyper_smac_algorithms}{}\doxysection{\texorpdfstring{Algorithms}{Algorithms}}\label{i_hyper_smac_i_hyper_smac_algorithms}
+\hypertarget{i_hyper_smac_i_hyper_smac_aod_estimation}{}\doxysubsection{\texorpdfstring{Aerosol Optical Depth Estimation}{Aerosol Optical Depth Estimation}}\label{i_hyper_smac_i_hyper_smac_aod_estimation}
+The Dark Target algorithm implements the MODIS Dark Target approach\+:
+
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{keyword}{def\ }estimate\_aod\_dark\_target(blue\_reflectance,\ red\_reflectance,\ }
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ nir\_reflectance,\ swir\_reflectance,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ geometry,\ aerosol\_model):}
+\DoxyCodeLine{\ \ \ \ \textcolor{stringliteral}{"{}"{}"{}}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ Estimate\ AOD\ using\ Dark\ Target\ retrieval\ algorithm}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ }}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ Algorithm\ steps:}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ 1.\ Identify\ dark\ pixels\ using\ SWIR\ threshold}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ 2.\ Filter\ by\ NDVI\ and\ reflectance\ ranges}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ 3.\ Apply\ lookup\ table\ relationship}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ 4.\ Estimate\ Angstrom\ exponent}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ 5.\ Quality\ assessment}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ "{}"{}"{}}}
+
+\end{DoxyCode}
+
+
+Key parameters\+:
+\begin{DoxyItemize}
+\item {\bfseries{SWIR threshold}}\+: 0.\+01-\/0.\+25 reflectance for dark pixel selection
+\item {\bfseries{NDVI range}}\+: 0.\+7-\/1.\+0 for vegetation masking
+\item {\bfseries{Blue/\+Red ratio}}\+: Used for aerosol model selection
+\end{DoxyItemize}\hypertarget{i_hyper_smac_i_hyper_smac_wv_retrieval}{}\doxysubsection{\texorpdfstring{Water Vapor Retrieval}{Water Vapor Retrieval}}\label{i_hyper_smac_i_hyper_smac_wv_retrieval}
+Multiple retrieval methods are implemented\+:
+
+
+\begin{DoxyEnumerate}
+\item {\bfseries{Joint Optimal Estimation}}\+: \mbox{[} \textbackslash{}hat\{w\} = \begin{DoxyItemize}
+\item \textbackslash{}min\+\_\+w \textbackslash{}left\mbox{[} $|$L\+\_\+\{obs\} -\/ L\+\_\+\{model\}(w)$|$\texorpdfstring{$^\wedge$}{\string^}2\+\_\+\{\{\textbackslash{}\+Sigma\}\texorpdfstring{$^\wedge$}{\string^}\{-\/1\}\} + $|$w -\/ w\+\_\+\{prior\}$|$\texorpdfstring{$^\wedge$}{\string^}2\+\_\+\{\{\textbackslash{}\+Sigma\+\_\+w\}\texorpdfstring{$^\wedge$}{\string^}\{-\/1\}\} \textbackslash{}right\mbox{]} \mbox{]}\end{DoxyItemize}
+
+\item {\bfseries{940nm Band Ratio}}\+: \mbox{[} WVC = k \textbackslash{}cdot \textbackslash{}ln\textbackslash{}left(\textbackslash{}frac\{\textbackslash{}rho\+\_\+\{ref\}\}\{\textbackslash{}rho\+\_\+\{940\}\}\textbackslash{}right) \mbox{]}
+\item {\bfseries{1130nm Band Ratio}}\+: Similar to 940nm method
+\end{DoxyEnumerate}\hypertarget{i_hyper_smac_i_hyper_smac_smart_lut}{}\doxysubsection{\texorpdfstring{Smart LUT System}{Smart LUT System}}\label{i_hyper_smac_i_hyper_smac_smart_lut}
+The Smart LUT system optimizes LUT generation based on scene characteristics\+:
+
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{keyword}{def\ }get\_smart\_lut\_config(scene\_aod,\ precision\_threshold=0.1):}
+\DoxyCodeLine{\ \ \ \ \textcolor{stringliteral}{"{}"{}"{}}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ Generate\ scene-\/specific\ AOD\ grid}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ }}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ Algorithm:}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ 1.\ Determine\ AOD\ range\ based\ on\ scene\ value\ ±\ uncertainty}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ 2.\ Calculate\ optimal\ grid\ points\ (3-\/5\ points\ vs\ 13\ standard)}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ 3.\ Ensure\ scene\ AOD\ is\ included\ in\ grid}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ 4.\ Optimize\ for\ coverage\ vs\ computational\ cost}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ "{}"{}"{}}}
+
+\end{DoxyCode}
+
+
+Performance improvement\+:
+\begin{DoxyItemize}
+\item {\bfseries{Standard LUT}}\+: 96 runs (13 AOD × 8 H2O × 2 albedo)
+\item {\bfseries{Smart LUT}}\+: 36 runs (3-\/5 AOD × 6 H2O × 2 albedo)
+\item {\bfseries{Speedup}}\+: \texorpdfstring{$\sim$}{\string~}77\% reduction in computation time
+\end{DoxyItemize}\hypertarget{i_hyper_smac_i_hyper_smac_opencl}{}\doxysubsection{\texorpdfstring{Open\+CL Acceleration}{OpenCL Acceleration}}\label{i_hyper_smac_i_hyper_smac_opencl}
+The Open\+CL accelerator implements atmospheric correction on GPU/\+CPU\+:
+
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{keyword}{class\ }OpenCLAtmosphericCorrection:}
+\DoxyCodeLine{\ \ \ \ \textcolor{stringliteral}{"{}"{}"{}}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ OpenCL\ kernel\ for\ atmospheric\ correction}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ }}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ Kernel\ operations:}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ 1.\ Load\ atmospheric\ coefficients\ from\ LUT}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ 2.\ Interpolate\ for\ each\ pixel\ and\ wavelength}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ 3.\ Apply\ atmospheric\ correction\ equation}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ 4.\ Account\ for\ adjacency\ effects}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ 5.\ Compute\ uncertainty\ propagation}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ "{}"{}"{}}}
+
+\end{DoxyCode}
+
+
+Supported devices\+:
+\begin{DoxyItemize}
+\item {\bfseries{GPU}}\+: NVIDIA, AMD, Intel GPUs
+\item {\bfseries{CPU}}\+: Multi-\/core CPU acceleration
+\item {\bfseries{Memory management}}\+: Automatic memory optimization
+\end{DoxyItemize}\hypertarget{i_hyper_smac_i_hyper_smac_api}{}\doxysection{\texorpdfstring{API Reference}{API Reference}}\label{i_hyper_smac_i_hyper_smac_api}
+\hypertarget{i_hyper_smac_i_hyper_smac_main_functions}{}\doxysubsection{\texorpdfstring{Main Functions}{Main Functions}}\label{i_hyper_smac_i_hyper_smac_main_functions}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{keyword}{def\ }apply\_lut\_correction(input\_raster,\ output\_raster,\ bands,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ aod,\ water\_vapor,\ ozone,\ pressure,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ solar\_zenith,\ solar\_azimuth,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ view\_zenith,\ view\_azimuth,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ aerosol\_model='continental',\ }
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ smart\_lut='auto',}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ parallel\_lut='auto',}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ opencl\_device='auto',}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ *kwargs):}
+\DoxyCodeLine{\ \ \ \ \textcolor{stringliteral}{"{}"{}"{}}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ Main\ atmospheric\ correction\ function}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ }}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ Parameters:}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ -\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ input\_raster\ :\ str}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Input\ hyperspectral\ 3D\ raster\ name}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ output\_raster\ :\ str\ \ }}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Output\ corrected\ 3D\ raster\ name}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ bands\ :\ list}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ List\ of\ band\ wavelength\ dictionaries}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ aod\ :\ float}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Aerosol\ Optical\ Depth\ at\ 550nm}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ water\_vapor\ :\ float\ or\ str}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Water\ vapor\ content\ (g/cm²)\ or\ retrieval\ method}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ ozone\ :\ float}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Ozone\ content\ (cm-\/atm)}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ pressure\ :\ float}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Atmospheric\ pressure\ (hPa)}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ solar\_zenith\ :\ float}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Solar\ zenith\ angle\ (degrees)}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ solar\_azimuth\ :\ float}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Solar\ azimuth\ angle\ (degrees)}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ view\_zenith\ :\ float}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ View\ zenith\ angle\ (degrees)}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ view\_azimuth\ :\ float}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ View\ azimuth\ angle\ (degrees)}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ aerosol\_model\ :\ str}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Aerosol\ model\ type}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ smart\_lut\ :\ str}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Smart\ LUT\ mode\ ('auto',\ 'yes',\ 'no')}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ parallel\_lut\ :\ str}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Parallel\ LUT\ mode\ ('auto',\ 'enabled',\ 'disabled')}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ opencl\_device\ :\ str}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ OpenCL\ device\ type\ ('auto',\ 'gpu',\ 'cpu')}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ }}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ Returns:}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ -\/-\/-\/-\/-\/-\/-\/-\/}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ AtmosphericLUT\ object}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Generated\ or\ loaded\ atmospheric\ LUT}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ "{}"{}"{}}}
+
+\end{DoxyCode}
+\hypertarget{i_hyper_smac_i_hyper_smac_lut_classes}{}\doxysubsection{\texorpdfstring{LUT Classes}{LUT Classes}}\label{i_hyper_smac_i_hyper_smac_lut_classes}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{keyword}{class\ }AtmosphericLUT:}
+\DoxyCodeLine{\ \ \ \ \textcolor{stringliteral}{"{}"{}"{}}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ Atmospheric\ Look-\/Up\ Table\ for\ hyperspectral\ correction}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ }}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ Attributes:}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ -\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ wavelengths\ :\ array}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Wavelength\ array\ (nm)}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ aod\_grid\ :\ array}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Aerosol\ Optical\ Depth\ grid}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ h2o\_grid\ :\ array}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Water\ vapor\ grid\ (g/cm²)}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ r\_atm\ :\ array}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Atmospheric\ reflectance\ (wavelength\ ×\ AOD\ ×\ H2O)}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ t\_down\ :\ array}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Downward\ transmittance}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ t\_up\ :\ array}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Upward\ transmittance}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ s\ :\ array}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Spherical\ albedo}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ "{}"{}"{}}}
+\DoxyCodeLine{\ \ \ \ }
+\DoxyCodeLine{\ \ \ \ \textcolor{preprocessor}{@classmethod}}
+\DoxyCodeLine{\ \ \ \ \textcolor{keyword}{def\ }get\_or\_generate(cls,\ sza,\ vza,\ phi,\ pressure,\ aerosol\_model,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ wl\_min,\ wl\_max,\ wl\_step,\ h2o=None,\ o3=None,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ *kwargs):}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \textcolor{stringliteral}{"{}"{}"{}}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Get\ cached\ LUT\ or\ generate\ new\ one}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ }}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Implements\ intelligent\ caching\ with\ scene-\/aware\ keys}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ "{}"{}"{}}}
+
+\end{DoxyCode}
+\hypertarget{i_hyper_smac_i_hyper_smac_smart_lut_classes}{}\doxysubsection{\texorpdfstring{Smart LUT Classes}{Smart LUT Classes}}\label{i_hyper_smac_i_hyper_smac_smart_lut_classes}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{keyword}{class\ }SmartLUTManager:}
+\DoxyCodeLine{\ \ \ \ \textcolor{stringliteral}{"{}"{}"{}}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ Smart\ LUT\ management\ system}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ }}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ Methods:}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ -\/-\/-\/-\/-\/-\/-\/-\/}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ get\_smart\_lut\_config(scene\_aod,\ precision\_threshold)}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Generate\ scene-\/specific\ AOD\ grid\ configuration}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ }}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ should\_regenerate\_lut(scene\_aod,\ cache\_path,\ precision\_threshold)}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Check\ if\ LUT\ regeneration\ is\ needed}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ }}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ generate\_cache\_key(scene\_parameters)}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ Generate\ cache\ key\ for\ LUT\ storage}}
+\DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ "{}"{}"{}}}
+
+\end{DoxyCode}
+\hypertarget{i_hyper_smac_i_hyper_smac_configuration}{}\doxysection{\texorpdfstring{Configuration}{Configuration}}\label{i_hyper_smac_i_hyper_smac_configuration}
+\hypertarget{i_hyper_smac_i_hyper_smac_environment}{}\doxysubsection{\texorpdfstring{Environment Variables}{Environment Variables}}\label{i_hyper_smac_i_hyper_smac_environment}
+
+\begin{DoxyItemize}
+\item {\bfseries{GRASS\+\_\+\+VERBOSE}}\+: Control verbosity level (0-\/3)
+\item {\bfseries{LIBRADTRAN\+\_\+\+PATH}}\+: Path to lib\+Radtran installation
+\item {\bfseries{OPENCL\+\_\+\+DEVICE\+\_\+\+TYPE}}\+: Preferred Open\+CL device type
+\item {\bfseries{SMART\+\_\+\+LUT\+\_\+\+CACHE\+\_\+\+DIR}}\+: Custom cache directory for smart LUTs
+\end{DoxyItemize}\hypertarget{i_hyper_smac_i_hyper_smac_performance}{}\doxysubsection{\texorpdfstring{Performance Tuning}{Performance Tuning}}\label{i_hyper_smac_i_hyper_smac_performance}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{comment}{\#\ Optimize\ for\ performance}}
+\DoxyCodeLine{performance\_config\ =\ \{}
+\DoxyCodeLine{\ \ \ \ \textcolor{stringliteral}{'opencl\_device'}:\ \textcolor{stringliteral}{'gpu'},\ \ \ \ \ \ \ \ \ \ \ \textcolor{comment}{\#\ Use\ GPU\ acceleration}}
+\DoxyCodeLine{\ \ \ \ \textcolor{stringliteral}{'opencl\_memory'}:\ 2048,\ \ \ \ \ \ \ \ \ \ \ \ \textcolor{comment}{\#\ 2GB\ GPU\ memory}}
+\DoxyCodeLine{\ \ \ \ \textcolor{stringliteral}{'parallel\_lut'}:\ \textcolor{stringliteral}{'enabled'},\ \ \ \ \ \ \ \ \textcolor{comment}{\#\ Enable\ parallel\ LUT}}
+\DoxyCodeLine{\ \ \ \ \textcolor{stringliteral}{'smart\_lut'}:\ \textcolor{stringliteral}{'yes'},\ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{comment}{\#\ Use\ smart\ LUT}}
+\DoxyCodeLine{\ \ \ \ \textcolor{stringliteral}{'max\_workers'}:\ \textcolor{stringliteral}{'auto'},\ \ \ \ \ \ \ \ \ \ \ \ \textcolor{comment}{\#\ Auto-\/detect\ CPU\ cores}}
+\DoxyCodeLine{\ \ \ \ \textcolor{stringliteral}{'resource\_usage'}:\ 0.75\ \ \ \ \ \ \ \ \ \ \ \ \textcolor{comment}{\#\ Use\ 75\%\ of\ resources}}
+\DoxyCodeLine{\}}
+
+\end{DoxyCode}
+\hypertarget{i_hyper_smac_i_hyper_smac_quality}{}\doxysubsection{\texorpdfstring{Quality Control}{Quality Control}}\label{i_hyper_smac_i_hyper_smac_quality}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{comment}{\#\ Quality\ assessment\ parameters}}
+\DoxyCodeLine{quality\_config\ =\ \{}
+\DoxyCodeLine{\ \ \ \ \textcolor{stringliteral}{'aod\_uncertainty\_threshold'}:\ 0.1,\ \ \ \textcolor{comment}{\#\ AOD\ uncertainty\ threshold}}
+\DoxyCodeLine{\ \ \ \ \textcolor{stringliteral}{'wvc\_uncertainty\_threshold'}:\ 0.2,\ \ \ \textcolor{comment}{\#\ Water\ vapor\ uncertainty}}
+\DoxyCodeLine{\ \ \ \ \textcolor{stringliteral}{'min\_dark\_pixels'}:\ 1000,\ \ \ \ \ \ \ \ \ \ \ \textcolor{comment}{\#\ Minimum\ dark\ pixels\ for\ AOD}}
+\DoxyCodeLine{\ \ \ \ \textcolor{stringliteral}{'spectral\_polishing'}:\ \textcolor{keyword}{True},\ \ \ \ \ \ \ \ \ \textcolor{comment}{\#\ Enable\ spectral\ polishing}}
+\DoxyCodeLine{\ \ \ \ \textcolor{stringliteral}{'uncertainty\_propagation'}:\ \textcolor{keyword}{True}\ \ \ \ \ \ \textcolor{comment}{\#\ Enable\ uncertainty\ estimation}}
+\DoxyCodeLine{\}}
+
+\end{DoxyCode}
+\hypertarget{i_hyper_smac_i_hyper_smac_examples}{}\doxysection{\texorpdfstring{Usage Examples}{Usage Examples}}\label{i_hyper_smac_i_hyper_smac_examples}
+\hypertarget{i_hyper_smac_i_hyper_smac_basic_example}{}\doxysubsection{\texorpdfstring{Basic Usage}{Basic Usage}}\label{i_hyper_smac_i_hyper_smac_basic_example}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{comment}{\#\ Basic\ atmospheric\ correction}}
+\DoxyCodeLine{gs.run\_command(\textcolor{stringliteral}{'i.hyper.smac'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ input=\textcolor{stringliteral}{'hyperspectral\_raw'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ output=\textcolor{stringliteral}{'hyperspectral\_corrected'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ dem=\textcolor{stringliteral}{'elevation'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ solar\_zenith=45.0,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ solar\_azimuth=180.0,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ view\_zenith=0.0,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ view\_azimuth=0.0)}
+
+\end{DoxyCode}
+\hypertarget{i_hyper_smac_i_hyper_smac_advanced_example}{}\doxysubsection{\texorpdfstring{Advanced Usage}{Advanced Usage}}\label{i_hyper_smac_i_hyper_smac_advanced_example}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{comment}{\#\ Advanced\ usage\ with\ all\ options}}
+\DoxyCodeLine{gs.run\_command(\textcolor{stringliteral}{'i.hyper.smac'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ input=\textcolor{stringliteral}{'hyperspectral\_raw'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ output=\textcolor{stringliteral}{'hyperspectral\_corrected'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ dem=\textcolor{stringliteral}{'elevation'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ solar\_zenith=45.0,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ solar\_azimuth=180.0,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ view\_zenith=0.0,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ view\_azimuth=0.0,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ aod=0.2,\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{comment}{\#\ Manual\ AOD}}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ water\_vapor=\textcolor{stringliteral}{'joint'},\ \ \ \ \ \ \ \ \ \textcolor{comment}{\#\ Auto\ water\ vapor}}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ ozone=0.3,\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{comment}{\#\ Ozone\ content}}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ aerosol\_model=\textcolor{stringliteral}{'continental'},\ \ \textcolor{comment}{\#\ Aerosol\ model}}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ smart\_lut=\textcolor{stringliteral}{'yes'},\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{comment}{\#\ Smart\ LUT}}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ parallel\_lut=\textcolor{stringliteral}{'enabled'},\ \ \ \ \ \ \textcolor{comment}{\#\ Parallel\ processing}}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ opencl\_device=\textcolor{stringliteral}{'gpu'},\ \ \ \ \ \ \ \ \ \textcolor{comment}{\#\ GPU\ acceleration}}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ opencl\_memory=2048,\ \ \ \ \ \ \ \ \ \ \textcolor{comment}{\#\ GPU\ memory\ limit}}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ adjacency\_psf=1.0,\ \ \ \ \ \ \ \ \ \ \ \textcolor{comment}{\#\ Adjacency\ correction}}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ compute\_uncertainty=\textcolor{keyword}{True},\ \ \ \ \textcolor{comment}{\#\ Uncertainty\ estimation}}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ output\_uncertainty=\textcolor{stringliteral}{'uncertainty\_map'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ clear\_lut\_cache=\textcolor{keyword}{False})\ \ \ \ \ \ \ \textcolor{comment}{\#\ Keep\ cache}}
+
+\end{DoxyCode}
+\hypertarget{i_hyper_smac_i_hyper_smac_programmatic_example}{}\doxysubsection{\texorpdfstring{Programmatic Usage}{Programmatic Usage}}\label{i_hyper_smac_i_hyper_smac_programmatic_example}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{keyword}{import}\ grass.script\ \textcolor{keyword}{as}\ gs}
+\DoxyCodeLine{\textcolor{keyword}{from}\ i\_hyper\_lib\ \textcolor{keyword}{import}\ lut,\ smart\_lut}
+\DoxyCodeLine{}
+\DoxyCodeLine{\textcolor{comment}{\#\ Direct\ API\ usage}}
+\DoxyCodeLine{atm\_lut\ =\ smart\_lut.get\_smart\_lut\_or\_generate(}
+\DoxyCodeLine{\ \ \ \ scene\_aod=0.15,}
+\DoxyCodeLine{\ \ \ \ precision\_threshold=0.05,}
+\DoxyCodeLine{\ \ \ \ sza=45.0,\ vza=0.0,\ phi=180.0,}
+\DoxyCodeLine{\ \ \ \ pressure=1013.25,}
+\DoxyCodeLine{\ \ \ \ aerosol\_model=\textcolor{stringliteral}{'continental'},}
+\DoxyCodeLine{\ \ \ \ wl\_min=400,\ wl\_max=2500,\ wl\_step=2,}
+\DoxyCodeLine{\ \ \ \ h2o=1.5,\ o3=0.3,}
+\DoxyCodeLine{\ \ \ \ parallel=\textcolor{keyword}{True},}
+\DoxyCodeLine{\ \ \ \ max\_workers=8}
+\DoxyCodeLine{)}
+\DoxyCodeLine{}
+\DoxyCodeLine{\textcolor{comment}{\#\ Apply\ correction\ manually}}
+\DoxyCodeLine{corrected\_data\ =\ apply\_atmospheric\_correction(}
+\DoxyCodeLine{\ \ \ \ radiance\_data,\ atm\_lut,\ geometry}
+\DoxyCodeLine{)}
+
+\end{DoxyCode}
+\hypertarget{i_hyper_smac_i_hyper_smac_troubleshooting}{}\doxysection{\texorpdfstring{Troubleshooting}{Troubleshooting}}\label{i_hyper_smac_i_hyper_smac_troubleshooting}
+\hypertarget{i_hyper_smac_i_hyper_smac_common_issues}{}\doxysubsection{\texorpdfstring{Common Issues}{Common Issues}}\label{i_hyper_smac_i_hyper_smac_common_issues}
+
+\begin{DoxyEnumerate}
+\item {\bfseries{lib\+Radtran not found}}\+:
+\begin{DoxyItemize}
+\item Install lib\+Radtran\+: {\ttfamily sudo apt-\/get install libradtran-\/dev}
+\item Set LIBRADTRAN\+\_\+\+PATH environment variable
+\end{DoxyItemize}
+\item {\bfseries{Open\+CL initialization fails}}\+:
+\begin{DoxyItemize}
+\item Install Open\+CL drivers for GPU
+\item Fall back to CPU\+: {\ttfamily opencl\+\_\+device=cpu}
+\end{DoxyItemize}
+\item {\bfseries{Memory errors}}\+:
+\begin{DoxyItemize}
+\item Reduce Open\+CL memory\+: {\ttfamily opencl\+\_\+memory=512}
+\item Use smaller LUT\+: {\ttfamily smart\+\_\+lut=yes}
+\end{DoxyItemize}
+\item {\bfseries{Slow performance}}\+:
+\begin{DoxyItemize}
+\item Enable smart LUT\+: {\ttfamily smart\+\_\+lut=yes}
+\item Enable parallel processing\+: {\ttfamily parallel\+\_\+lut=enabled}
+\item Use GPU acceleration\+: {\ttfamily opencl\+\_\+device=gpu}
+\end{DoxyItemize}
+\end{DoxyEnumerate}\hypertarget{i_hyper_smac_i_hyper_smac_debug_mode}{}\doxysubsection{\texorpdfstring{Debug Mode}{Debug Mode}}\label{i_hyper_smac_i_hyper_smac_debug_mode}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\textcolor{comment}{\#\ Enable\ verbose\ output}}
+\DoxyCodeLine{gs.run\_command(\textcolor{stringliteral}{'i.hyper.smac'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ input=\textcolor{stringliteral}{'hyperspectral'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ output=\textcolor{stringliteral}{'corrected'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ dem=\textcolor{stringliteral}{'elevation'},}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ solar\_zenith=45,}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ flags=\textcolor{stringliteral}{'v'})\ \ \textcolor{comment}{\#\ Verbose\ mode}}
+\DoxyCodeLine{}
+\DoxyCodeLine{\textcolor{comment}{\#\ Set\ environment\ variable\ for\ debugging}}
+\DoxyCodeLine{os.environ[\textcolor{stringliteral}{'GRASS\_VERBOSE'}]\ =\ \textcolor{stringliteral}{'3'}\ \ \textcolor{comment}{\#\ Maximum\ verbosity}}
+
+\end{DoxyCode}
+\hypertarget{i_hyper_smac_i_hyper_smac_references}{}\doxysection{\texorpdfstring{References}{References}}\label{i_hyper_smac_i_hyper_smac_references}
+
+\begin{DoxyItemize}
+\item Vermote, E., Tanre, D., Deuze, J.\+L., Herman, M., \& Morcrette, J.\+J. (1997). Second simulation of the satellite signal in the solar spectrum (6S). IEEE Transactions on Geoscience and Remote Sensing, 35(3), 675-\/686.
+\item Levy, R.\+C., Remer, L.\+A., \& Dubovik, O. (2007). Global aerosol optical properties and application to MODIS aerosol retrieval over land. Journal of Geophysical Research, 112(D13).
+\item Thompson, D.\+R., Cawse-\/\+Nicholson, K., Erickson, Z., Fichot, C., Frankenberg, C., Gao, B.\+C., et al. (2018). ISOFIT\+: A full-\/physics, optimal estimation retrieval package for remote sensing. Journal of Quantitative Spectroscopy and Radiative Transfer, 213, 1-\/14.
+\item Mayer, B., \& Kylling, A. (2005). Technical note\+: The lib\+Radtran software package for radiative transfer calculations -\/ description and examples of use. Atmospheric Chemistry and Physics, 5, 1855-\/1877.
+\end{DoxyItemize}\hypertarget{i_hyper_smac_i_hyper_smac_credits}{}\doxysection{\texorpdfstring{Credits}{Credits}}\label{i_hyper_smac_i_hyper_smac_credits}
+
+\begin{DoxyItemize}
+\item {\bfseries{Yann Chemin}}\+: Module development and maintenance
+\item {\bfseries{GRASS Development Team}}\+: Framework and testing infrastructure
+\item {\bfseries{lib\+Radtran Team}}\+: Radiative transfer modeling
+\item {\bfseries{ISOFIT Team}}\+: Algorithm inspiration and validation
+\end{DoxyItemize}\hypertarget{i_hyper_smac_i_hyper_smac_license}{}\doxysection{\texorpdfstring{License}{License}}\label{i_hyper_smac_i_hyper_smac_license}
+This program is free software under the GNU General Public License (\texorpdfstring{$>$}{>}=v2). Read the file COPYING that comes with GRASS for details. 

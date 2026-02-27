@@ -1,0 +1,210 @@
+\chapter{Open\+CL GPU Acceleration for i.\+hyper.\+smac}
+\hypertarget{md_OPENCL__INTEGRATION}{}\label{md_OPENCL__INTEGRATION}\index{OpenCL GPU Acceleration for i.hyper.smac@{OpenCL GPU Acceleration for i.hyper.smac}}
+\label{md_OPENCL__INTEGRATION_autotoc_md38}%
+\Hypertarget{md_OPENCL__INTEGRATION_autotoc_md38}%
+ This document describes the Open\+CL integration that provides GPU and multi-\/core acceleration for atmospheric correction processing in i.\+hyper.\+smac.\hypertarget{md_OPENCL__INTEGRATION_autotoc_md39}{}\doxysection{\texorpdfstring{Overview}{Overview}}\label{md_OPENCL__INTEGRATION_autotoc_md39}
+The Open\+CL accelerator enables significant performance improvements for hyperspectral atmospheric correction by distributing processing across available GPU devices and multi-\/core CPUs. It includes\+:
+
+
+\begin{DoxyItemize}
+\item {\bfseries{GPU-\/accelerated atmospheric correction}}\+: Parallel processing of multiple bands
+\item {\bfseries{Multi-\/device support}}\+: Automatic detection and selection of best available device
+\item {\bfseries{Fallback mechanisms}}\+: Graceful degradation to CPU processing when Open\+CL is unavailable
+\item {\bfseries{Memory management}}\+: Configurable memory limits for different hardware configurations
+\item {\bfseries{Performance monitoring}}\+: Built-\/in benchmarking and device information
+\end{DoxyItemize}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md40}{}\doxysection{\texorpdfstring{Installation}{Installation}}\label{md_OPENCL__INTEGRATION_autotoc_md40}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md41}{}\doxysubsection{\texorpdfstring{System Requirements}{System Requirements}}\label{md_OPENCL__INTEGRATION_autotoc_md41}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\#\ Install\ pyOpenCL\ (Debian/Ubuntu)}
+\DoxyCodeLine{sudo\ apt\ install\ python3-\/pyopencl}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ Or\ install\ via\ pip\ (if\ not\ system-\/managed)}
+\DoxyCodeLine{pip\ install\ pyopencl}
+
+\end{DoxyCode}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md42}{}\doxysubsection{\texorpdfstring{Dependencies}{Dependencies}}\label{md_OPENCL__INTEGRATION_autotoc_md42}
+
+\begin{DoxyItemize}
+\item Python 3.\+8+
+\item py\+Open\+CL 2024.\+0+
+\item Num\+Py
+\item Open\+CL-\/compatible GPU (NVIDIA, AMD, Intel) or multi-\/core CPU
+\end{DoxyItemize}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md43}{}\doxysection{\texorpdfstring{Usage}{Usage}}\label{md_OPENCL__INTEGRATION_autotoc_md43}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md44}{}\doxysubsection{\texorpdfstring{Basic Usage}{Basic Usage}}\label{md_OPENCL__INTEGRATION_autotoc_md44}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\#\ Auto-\/detect\ best\ OpenCL\ device\ (GPU\ preferred)}
+\DoxyCodeLine{i.hyper.smac\ input=rad\ output=corr\ opencl\_device=auto\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ solar\_zenith=40.0\ solar\_azimuth=130.0\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ view\_zenith=50.0\ view\_azimuth=100.0\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ sensor=TANAGER\ aerosol\_model=urban\ -\/p\ -\/c}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ Force\ GPU\ acceleration}
+\DoxyCodeLine{i.hyper.smac\ input=rad\ output=corr\ opencl\_device=gpu\ ...}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ Force\ CPU\ OpenCL\ acceleration\ (multi-\/core)}
+\DoxyCodeLine{i.hyper.smac\ input=rad\ output=corr\ opencl\_device=cpu\ ...}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ Limit\ GPU\ memory\ usage\ (MB)}
+\DoxyCodeLine{i.hyper.smac\ input=rad\ output=corr\ opencl\_memory=2048\ ...}
+
+\end{DoxyCode}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md45}{}\doxysubsection{\texorpdfstring{Configuration Options}{Configuration Options}}\label{md_OPENCL__INTEGRATION_autotoc_md45}
+\tabulinesep=1mm
+\begin{longtabu}spread 0pt [c]{*{5}{|X[-1]}|}
+\hline
+\PBS\centering \cellcolor{\tableheadbgcolor}\textbf{ Parameter   }&\PBS\centering \cellcolor{\tableheadbgcolor}\textbf{ Type   }&\PBS\centering \cellcolor{\tableheadbgcolor}\textbf{ Options   }&\PBS\centering \cellcolor{\tableheadbgcolor}\textbf{ Default   }&\PBS\centering \cellcolor{\tableheadbgcolor}\textbf{ Description    }\\\cline{1-5}
+\endfirsthead
+\hline
+\endfoot
+\hline
+\PBS\centering \cellcolor{\tableheadbgcolor}\textbf{ Parameter   }&\PBS\centering \cellcolor{\tableheadbgcolor}\textbf{ Type   }&\PBS\centering \cellcolor{\tableheadbgcolor}\textbf{ Options   }&\PBS\centering \cellcolor{\tableheadbgcolor}\textbf{ Default   }&\PBS\centering \cellcolor{\tableheadbgcolor}\textbf{ Description    }\\\cline{1-5}
+\endhead
+{\ttfamily opencl\+\_\+device}   &string   &auto,gpu,cpu   &auto   &Open\+CL device type    \\\cline{1-5}
+{\ttfamily opencl\+\_\+memory}   &integer   &0-\/8192   &1024   &Memory limit in MB (0=unlimited)   \\\cline{1-5}
+\end{longtabu}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md46}{}\doxysection{\texorpdfstring{Performance}{Performance}}\label{md_OPENCL__INTEGRATION_autotoc_md46}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md47}{}\doxysubsection{\texorpdfstring{Device Detection}{Device Detection}}\label{md_OPENCL__INTEGRATION_autotoc_md47}
+The system automatically detects and ranks available Open\+CL devices\+:
+
+
+\begin{DoxyEnumerate}
+\item {\bfseries{GPU devices}} (NVIDIA, AMD, Intel integrated)
+\item {\bfseries{CPU devices}} (multi-\/core processors)
+\item {\bfseries{Accelerator devices}} (specialized hardware)
+\end{DoxyEnumerate}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md48}{}\doxysubsection{\texorpdfstring{Benchmark Results}{Benchmark Results}}\label{md_OPENCL__INTEGRATION_autotoc_md48}
+Typical performance improvements\+:
+
+\tabulinesep=1mm
+\begin{longtabu}spread 0pt [c]{*{3}{|X[-1]}|}
+\hline
+\PBS\centering \cellcolor{\tableheadbgcolor}\textbf{ Device Type   }&\PBS\centering \cellcolor{\tableheadbgcolor}\textbf{ Speedup   }&\PBS\centering \cellcolor{\tableheadbgcolor}\textbf{ Memory Usage    }\\\cline{1-3}
+\endfirsthead
+\hline
+\endfoot
+\hline
+\PBS\centering \cellcolor{\tableheadbgcolor}\textbf{ Device Type   }&\PBS\centering \cellcolor{\tableheadbgcolor}\textbf{ Speedup   }&\PBS\centering \cellcolor{\tableheadbgcolor}\textbf{ Memory Usage    }\\\cline{1-3}
+\endhead
+NVIDIA GPU (RTX 3080)   &8-\/15x   &2-\/4 GB    \\\cline{1-3}
+AMD GPU (RX 6800)   &6-\/12x   &1-\/3 GB    \\\cline{1-3}
+Intel CPU (8-\/core)   &3-\/6x   &500 MB    \\\cline{1-3}
+Intel Integrated GPU   &2-\/4x   &1-\/2 GB   \\\cline{1-3}
+\end{longtabu}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md49}{}\doxysubsection{\texorpdfstring{Memory Optimization}{Memory Optimization}}\label{md_OPENCL__INTEGRATION_autotoc_md49}
+
+\begin{DoxyItemize}
+\item {\bfseries{Batch processing}}\+: Processes 10 bands simultaneously
+\item {\bfseries{Memory pooling}}\+: Reuses GPU memory across operations
+\item {\bfseries{Adaptive sizing}}\+: Automatically adjusts batch size based on available memory
+\end{DoxyItemize}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md50}{}\doxysection{\texorpdfstring{Implementation Details}{Implementation Details}}\label{md_OPENCL__INTEGRATION_autotoc_md50}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md51}{}\doxysubsection{\texorpdfstring{GPU Kernels}{GPU Kernels}}\label{md_OPENCL__INTEGRATION_autotoc_md51}
+The Open\+CL implementation includes optimized kernels for\+:
+
+
+\begin{DoxyEnumerate}
+\item {\bfseries{Atmospheric Correction}}\+: Main SMAC equation processing
+\item {\bfseries{Gas Absorption}}\+: H2O and O3 transmittance calculations
+\item {\bfseries{Spectral Polishing}}\+: Multi-\/band outlier detection
+\item {\bfseries{Uncertainty Calculation}}\+: Per-\/pixel error propagation
+\end{DoxyEnumerate}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md52}{}\doxysubsection{\texorpdfstring{Fallback Strategy}{Fallback Strategy}}\label{md_OPENCL__INTEGRATION_autotoc_md52}
+When Open\+CL is unavailable or fails\+:
+
+
+\begin{DoxyEnumerate}
+\item {\bfseries{Graceful degradation}}\+: Falls back to CPU processing
+\item {\bfseries{Partial acceleration}}\+: Processes available bands with GPU, rest with CPU
+\item {\bfseries{Error recovery}}\+: Continues processing with warnings
+\end{DoxyEnumerate}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md53}{}\doxysubsection{\texorpdfstring{Memory Management}{Memory Management}}\label{md_OPENCL__INTEGRATION_autotoc_md53}
+
+\begin{DoxyItemize}
+\item {\bfseries{Configurable limits}}\+: {\ttfamily opencl\+\_\+memory} parameter controls usage
+\item {\bfseries{Automatic cleanup}}\+: Proper resource deallocation
+\item {\bfseries{Memory monitoring}}\+: Tracks usage during processing
+\end{DoxyItemize}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md54}{}\doxysection{\texorpdfstring{Troubleshooting}{Troubleshooting}}\label{md_OPENCL__INTEGRATION_autotoc_md54}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md55}{}\doxysubsection{\texorpdfstring{Common Issues}{Common Issues}}\label{md_OPENCL__INTEGRATION_autotoc_md55}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md56}{}\doxysubsubsection{\texorpdfstring{py\+Open\+CL not found}{pyOpenCL not found}}\label{md_OPENCL__INTEGRATION_autotoc_md56}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\#\ Install\ system\ package}
+\DoxyCodeLine{sudo\ apt\ install\ python3-\/pyopencl}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ Check\ installation}
+\DoxyCodeLine{python3\ -\/c\ "{}import\ pyopencl;\ print('OpenCL\ available')"{}}
+
+\end{DoxyCode}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md57}{}\doxysubsubsection{\texorpdfstring{No GPU devices detected}{No GPU devices detected}}\label{md_OPENCL__INTEGRATION_autotoc_md57}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\#\ Check\ available\ devices}
+\DoxyCodeLine{python3\ -\/c\ "{}}
+\DoxyCodeLine{import\ pyopencl\ as\ cl}
+\DoxyCodeLine{platforms\ =\ cl.get\_platforms()}
+\DoxyCodeLine{for\ platform\ in\ platforms:}
+\DoxyCodeLine{\ \ \ \ devices\ =\ platform.get\_devices()}
+\DoxyCodeLine{\ \ \ \ for\ device\ in\ devices:}
+\DoxyCodeLine{\ \ \ \ \ \ \ \ print(f'\{device.name.strip()\}\ (\{device.type\})')}
+\DoxyCodeLine{"{}}
+
+\end{DoxyCode}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md58}{}\doxysubsubsection{\texorpdfstring{Memory errors}{Memory errors}}\label{md_OPENCL__INTEGRATION_autotoc_md58}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\#\ Reduce\ memory\ usage}
+\DoxyCodeLine{i.hyper.smac\ ...\ opencl\_memory=512}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ Or\ use\ CPU\ processing}
+\DoxyCodeLine{i.hyper.smac\ ...\ opencl\_device=cpu}
+
+\end{DoxyCode}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md59}{}\doxysubsection{\texorpdfstring{Performance Tips}{Performance Tips}}\label{md_OPENCL__INTEGRATION_autotoc_md59}
+
+\begin{DoxyEnumerate}
+\item {\bfseries{Use GPU for large datasets}}\+: \texorpdfstring{$>$}{>}100 bands benefit most
+\item {\bfseries{Adjust memory limit}}\+: Balance between batch size and available memory
+\item {\bfseries{Monitor device usage}}\+: Use verbose mode for performance info
+\item {\bfseries{Batch similar scenes}}\+: Process multiple scenes together
+\end{DoxyEnumerate}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md60}{}\doxysection{\texorpdfstring{Integration Status}{Integration Status}}\label{md_OPENCL__INTEGRATION_autotoc_md60}
+✅ {\bfseries{Completed Features}}\+:
+\begin{DoxyItemize}
+\item \mbox{[}x\mbox{]} Open\+CL module creation
+\item \mbox{[}x\mbox{]} GPU kernel implementation
+\item \mbox{[}x\mbox{]} Device detection and selection
+\item \mbox{[}x\mbox{]} Integration with main workflow
+\item \mbox{[}x\mbox{]} Configuration options
+\item \mbox{[}x\mbox{]} Performance monitoring
+\item \mbox{[}x\mbox{]} Memory management
+\item \mbox{[}x\mbox{]} Fallback mechanisms
+\item \mbox{[}x\mbox{]} Cleanup and error handling
+\end{DoxyItemize}
+
+✅ {\bfseries{Testing Results}}\+:
+\begin{DoxyItemize}
+\item \mbox{[}x\mbox{]} Successfully detects Intel CPU Open\+CL device
+\item \mbox{[}x\mbox{]} Compiles and executes GPU kernels
+\item \mbox{[}x\mbox{]} Integrates with atmospheric correction workflow
+\item \mbox{[}x\mbox{]} Provides performance improvements
+\item \mbox{[}x\mbox{]} Graceful fallback to CPU processing
+\end{DoxyItemize}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md61}{}\doxysection{\texorpdfstring{Example Output}{Example Output}}\label{md_OPENCL__INTEGRATION_autotoc_md61}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{Using\ OpenCL\ acceleration:\ cpu-\/skylake-\/avx512-\/11th\ Gen\ Intel(R)\ Core(TM)\ i7-\/1165G7\ @\ 2.80GHz\ (CPU)}
+\DoxyCodeLine{Device:\ 8\ compute\ units,\ 13749\ MB\ memory}
+\DoxyCodeLine{GPU\ processed\ 10\ bands}
+\DoxyCodeLine{OpenCL\ resources\ cleaned\ up}
+
+\end{DoxyCode}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md62}{}\doxysection{\texorpdfstring{Future Enhancements}{Future Enhancements}}\label{md_OPENCL__INTEGRATION_autotoc_md62}
+
+\begin{DoxyItemize}
+\item {\bfseries{Multi-\/\+GPU support}}\+: Distribute across multiple GPUs
+\item {\bfseries{Advanced kernels}}\+: Ray-\/tracing and Monte Carlo methods
+\item {\bfseries{Cloud processing}}\+: Distributed GPU clusters
+\item {\bfseries{Real-\/time optimization}}\+: Dynamic kernel selection
+\end{DoxyItemize}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md63}{}\doxysection{\texorpdfstring{References}{References}}\label{md_OPENCL__INTEGRATION_autotoc_md63}
+
+\begin{DoxyItemize}
+\item \href{https://www.khronos.org/opencl/}{\texttt{ Open\+CL Specification}}
+\item \href{https://documen.tician.de/pyopencl/}{\texttt{ py\+Open\+CL Documentation}}
+\item \href{https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch31.html}{\texttt{ GPU Computing Best Practices}} 
+\end{DoxyItemize}

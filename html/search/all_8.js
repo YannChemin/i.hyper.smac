@@ -1,0 +1,27 @@
+var searchData=
+[
+  ['dark_20target_20algorithm_0',['AOD Estimation (Dark Target Algorithm)',['../md_README.html#autotoc_md293',1,'']]],
+  ['data_1',['i.hyper.smac - SMAC Atmospheric Correction for Hyperspectral Data',['../md_README.html',1,'']]],
+  ['data_20flow_2',['data flow',['../md_PROGRAMMER__MANUAL.html#autotoc_md213',1,'Data Flow'],['../i_hyper_smac.html#i_hyper_smac_data_flow',1,'Data Flow']]],
+  ['debug_20mode_3',['debug mode',['../md_PROGRAMMER__MANUAL.html#autotoc_md236',1,'Debug Mode'],['../i_hyper_smac.html#i_hyper_smac_debug_mode',1,'Debug Mode']]],
+  ['delivered_4',['Key Features Delivered',['../md_PARALLEL__LUT__SUCCESS.html#autotoc_md174',1,'']]],
+  ['delivered_20strong_5',['delivered strong',['../md_PARALLEL__LUT__SUCCESS.html#autotoc_md153',1,'✅ &lt;strong&gt;What Was Delivered&lt;/strong&gt;'],['../md_PARALLEL__LUT__COMPLETE.html#autotoc_md117',1,'🎉 &lt;strong&gt;User Benefits Delivered&lt;/strong&gt;'],['../md_PARALLEL__LUT__FINAL.html#autotoc_md139',1,'🎯 &lt;strong&gt;User Benefits Delivered&lt;/strong&gt;'],['../md_PARALLEL__LUT__COMPLETE.html#autotoc_md114',1,'🚀 &lt;strong&gt;Complete Solution Delivered&lt;/strong&gt;'],['../md_PARALLEL__LUT__FINAL.html#autotoc_md135',1,'🚀 &lt;strong&gt;Core Features Delivered&lt;/strong&gt;']]],
+  ['dependencies_6',['dependencies',['../md_OPENCL__INTEGRATION.html#autotoc_md42',1,'Dependencies'],['../md_PROGRAMMER__MANUAL.html#autotoc_md209',1,'Dependencies']]],
+  ['depth_7',['WVC Estimation (Continuum-Removal Band Depth)',['../md_README.html#autotoc_md294',1,'']]],
+  ['depth_20estimation_8',['Aerosol Optical Depth Estimation',['../i_hyper_smac.html#i_hyper_smac_aod_estimation',1,'']]],
+  ['description_9',['DESCRIPTION',['../md_i_8hyper_8smac.html#autotoc_md1',1,'']]],
+  ['desert_20arid_20land_20sahara_20arabian_20peninsula_10',['Desert / arid land (Sahara, Arabian Peninsula)',['../md_README.html#autotoc_md256',1,'']]],
+  ['details_11',['details',['../md_README.html#autotoc_md285',1,'Algorithm Details'],['../md_OPENCL__INTEGRATION.html#autotoc_md50',1,'Implementation Details'],['../md_PARALLEL__LUT.html#autotoc_md98',1,'Technical Details']]],
+  ['detected_12',['No GPU devices detected',['../md_OPENCL__INTEGRATION.html#autotoc_md57',1,'']]],
+  ['detection_13',['detection',['../md_i_8hyper_8smac.html#autotoc_md24',1,'Basic Usage with Auto-Detection'],['../md_OPENCL__INTEGRATION.html#autotoc_md47',1,'Device Detection']]],
+  ['detection_20logic_14',['Auto-Detection Logic',['../md_PARALLEL__LUT.html#autotoc_md97',1,'']]],
+  ['development_20setup_15',['Development Setup',['../md_PROGRAMMER__MANUAL.html#autotoc_md238',1,'']]],
+  ['device_20detection_16',['Device Detection',['../md_OPENCL__INTEGRATION.html#autotoc_md47',1,'']]],
+  ['devices_17',['Supported Devices',['../md_README.html#autotoc_md271',1,'']]],
+  ['devices_20detected_18',['No GPU devices detected',['../md_OPENCL__INTEGRATION.html#autotoc_md57',1,'']]],
+  ['documentation_19',['📚 Documentation',['../md_OPENCL__SUMMARY.html#autotoc_md85',1,'']]],
+  ['documentation_20and_20testing_20strong_20',['4. &lt;strong&gt;Documentation and Testing&lt;/strong&gt;',['../md_PARALLEL__LUT__SUCCESS.html#autotoc_md157',1,'']]],
+  ['documentation_20created_20strong_21',['documentation created strong',['../md_PARALLEL__LUT__COMPLETE.html#autotoc_md123',1,'📚 &lt;strong&gt;Documentation Created&lt;/strong&gt;'],['../md_PARALLEL__LUT__FINAL.html#autotoc_md145',1,'📚 &lt;strong&gt;Documentation Created&lt;/strong&gt;']]],
+  ['documentation_20strong_22',['📚 &lt;strong&gt;Documentation&lt;/strong&gt;',['../md_PARALLEL__LUT__SUMMARY.html#autotoc_md198',1,'']]],
+  ['dynamic_20lut_20coverage_20checking_20and_20regeneration_23',['Dynamic LUT Coverage Checking and Regeneration',['../md_SMART__LUT__INTEGRATION.html#autotoc_md300',1,'']]]
+];
