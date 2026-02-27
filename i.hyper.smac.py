@@ -2048,9 +2048,9 @@ def apply_lut_correction(input_raster, output_raster, bands,
                        f"FWHM: {fwhm:.2f} nm")
 
             # Try GPU processing for batches of bands (reduced batch size to prevent file handle issues)
-            if accelerator and accelerator.is_available() and i % 5 == 0:
+            if accelerator and accelerator.is_available() and i % 3 == 0:
                 # Process this band and next few bands with GPU
-                batch_size = min(5, len(bands) - i)  # Reduced from 10 to 5
+                batch_size = min(3, len(bands) - i)  # Reduced from 5 to 3
                 batch_bands = bands[i:i+batch_size]
                 
                 # Force garbage collection to free up file handles
@@ -2303,7 +2303,17 @@ def apply_lut_correction(input_raster, output_raster, bands,
                 band_data_list.append((band, refl_boa_band))
                 uncertainty_list.append((band, sigma_rfl_band))
 
+                # Clean up input band immediately to prevent file handle accumulation
+                if gs.find_file(input_band, element='cell')['file']:
+                    gs.run_command('g.remove', flags='f', type='raster',
+                                  name=input_band, quiet=True)
+
                 gs.percent(i, len(bands), 1)
+
+                # Force garbage collection every 5 bands to free up file handles
+                if i % 5 == 0:
+                    import gc
+                    gc.collect()
 
             except Exception as e:
                 gs.fatal(f"Error processing band {band_num}: {str(e)}")
