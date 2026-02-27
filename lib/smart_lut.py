@@ -146,7 +146,7 @@ class SmartLUTManager:
         
         try:
             # Load existing LUT and check coverage
-            from . import lut
+            import lut
             existing_lut = lut.AtmosphericLUT.load(existing_lut_path)
             
             coverage_ok, reason = self.check_aod_coverage(
@@ -238,7 +238,7 @@ def get_smart_lut_or_generate(scene_aod: float, precision_threshold: float = 0.1
         if not should_regenerate:
             gs.message(f"Using existing smart LUT: {cache_path}")
             gs.message(f"LUT coverage: {smart_config['coverage_range'][0]:.3f} - {smart_config['coverage_range'][1]:.3f}")
-            from . import lut
+            import lut
             return lut.AtmosphericLUT.load(cache_path)
         else:
             gs.message(f"Regenerating LUT: {reason}")
