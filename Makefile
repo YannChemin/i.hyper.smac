@@ -127,4 +127,34 @@ test: install
 		echo "❌ MD docs not found: $(HTMLDIR)/$(PGM).md"; \
 	fi
 
-.PHONY: default install clean uninstall install-all show-config test
+# Run unit tests
+test-unit: install
+	@echo "Running unit tests..."
+	@cd testsuite && python run_tests.py --unit-only
+
+# Run integration tests
+test-integration: install
+	@echo "Running integration tests..."
+	@cd testsuite && python run_tests.py --integration-only
+
+# Run performance tests
+test-performance: install
+	@echo "Running performance tests..."
+	@cd testsuite && python run_tests.py --performance-only
+
+# Run all tests
+test-all: install
+	@echo "Running complete test suite..."
+	@cd testsuite && python run_tests.py --verbose
+
+# Generate test coverage
+test-coverage: install
+	@echo "Generating test coverage..."
+	@cd testsuite && python -m coverage run run_tests.py && python -m coverage report
+
+# Continuous integration test suite
+test-ci: install
+	@echo "Running CI test suite..."
+	@cd testsuite && python run_tests.py --unit-only --integration-only
+
+.PHONY: default install clean uninstall install-all show-config test test-unit test-integration test-performance test-all test-coverage test-ci
