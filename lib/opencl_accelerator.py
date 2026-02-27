@@ -352,11 +352,20 @@ class OpenCLAccelerator:
             return None
         
         try:
-            num_pixels, num_bands = input_data.shape
+            # Handle 3D hyperspectral data (bands, rows, cols)
+            if len(input_data.shape) == 3:
+                num_bands, num_rows, num_cols = input_data.shape
+                num_pixels = num_rows * num_cols
+                # Reshape to 2D for GPU processing
+                input_data_2d = input_data.reshape(num_bands, -1).T
+            else:
+                # 2D data (pixels, bands)
+                num_pixels, num_bands = input_data.shape
+                input_data_2d = input_data
             
             # Prepare data for GPU
             input_buffer = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                                   hostbuf=input_data.astype(np.float32))
+                                   hostbuf=input_data_2d.astype(np.float32))
             output_buffer = cl.Buffer(self.ctx, cl.mem_flags.WRITE_ONLY,
                                     size=input_data.nbytes)
             
@@ -427,8 +436,14 @@ class OpenCLAccelerator:
             )
             
             # Read results
-            output_data = np.empty_like(input_data, dtype=np.float32)
-            cl.enqueue_copy(self.queue, output_data, output_buffer)
+            output_data_2d = np.empty_like(input_data_2d, dtype=np.float32)
+            cl.enqueue_copy(self.queue, output_data_2d, output_buffer)
+            
+            # Reshape back to original format
+            if len(input_data.shape) == 3:
+                output_data = output_data_2d.T.reshape(num_bands, num_rows, num_cols)
+            else:
+                output_data = output_data_2d
             
             return output_data
             
@@ -453,11 +468,20 @@ class OpenCLAccelerator:
             return None
         
         try:
-            num_pixels, num_bands = reflectance_data.shape
+            # Handle 3D hyperspectral data (bands, rows, cols)
+            if len(reflectance_data.shape) == 3:
+                num_bands, num_rows, num_cols = reflectance_data.shape
+                num_pixels = num_rows * num_cols
+                # Reshape to 2D for GPU processing
+                reflectance_data_2d = reflectance_data.reshape(num_bands, -1).T
+            else:
+                # 2D data (pixels, bands)
+                num_pixels, num_bands = reflectance_data.shape
+                reflectance_data_2d = reflectance_data
             
             # Prepare buffers
             reflectance_buffer = cl.Buffer(self.ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
-                                         hostbuf=reflectance_data.astype(np.float32))
+                                         hostbuf=reflectance_data_2d.astype(np.float32))
             transmittance_buffer = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
                                            hostbuf=gas_transmittance.astype(np.float32))
             
@@ -497,11 +521,20 @@ class OpenCLAccelerator:
             return None
         
         try:
-            num_pixels, num_bands = reflectance_data.shape
+            # Handle 3D hyperspectral data (bands, rows, cols)
+            if len(reflectance_data.shape) == 3:
+                num_bands, num_rows, num_cols = reflectance_data.shape
+                num_pixels = num_rows * num_cols
+                # Reshape to 2D for GPU processing
+                reflectance_data_2d = reflectance_data.reshape(num_bands, -1).T
+            else:
+                # 2D data (pixels, bands)
+                num_pixels, num_bands = reflectance_data.shape
+                reflectance_data_2d = reflectance_data
             
             # Prepare buffers
             reflectance_buffer = cl.Buffer(self.ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR,
-                                         hostbuf=reflectance_data.astype(np.float32))
+                                         hostbuf=reflectance_data_2d.astype(np.float32))
             weights_buffer = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
                                       hostbuf=band_weights.astype(np.float32))
             
@@ -542,13 +575,22 @@ class OpenCLAccelerator:
             return None
         
         try:
-            num_pixels, num_bands = input_data.shape
+            # Handle 3D hyperspectral data (bands, rows, cols)
+            if len(input_data.shape) == 3:
+                num_bands, num_rows, num_cols = input_data.shape
+                num_pixels = num_rows * num_cols
+                # Reshape to 2D for GPU processing
+                input_data_2d = input_data.reshape(num_bands, -1).T
+            else:
+                # 2D data (pixels, bands)
+                num_pixels, num_bands = input_data.shape
+                input_data_2d = input_data
             
             # Prepare buffers
             input_buffer = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                                    hostbuf=input_data.astype(np.float32))
-            output_buffer = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                                    hostbuf=output_data.astype(np.float32))
+                                   hostbuf=input_data_2d.astype(np.float32))
+            output_buffer = cl.Buffer(self.ctx, cl.mem_flags.WRITE_ONLY,
+                                    size=input_data.nbytes)
             uncertainty_buffer = cl.Buffer(self.ctx, cl.mem_flags.WRITE_ONLY,
                                           size=input_data.nbytes)
             lut_unc_buffer = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
