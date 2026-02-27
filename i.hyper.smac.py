@@ -1608,7 +1608,7 @@ def apply_lut_correction(input_raster, output_raster, bands,
                          compute_uncertainty=False,
                          output_uncertainty=None,
                          opencl_device='auto', opencl_memory=1024,
-                         parallel_lut='auto'):
+                         parallel_lut='auto', smart_lut='auto'):
     """Apply atmospheric correction using libRadtran LUT.
 
     Uses full multiple-scattering from libRadtran DISORT via a precomputed
@@ -1650,6 +1650,7 @@ def apply_lut_correction(input_raster, output_raster, bands,
         opencl_device (str): OpenCL device type ('auto', 'gpu', 'cpu')
         opencl_memory (int): OpenCL memory limit in MB (0 = unlimited)
         parallel_lut (str): Parallel LUT generation ('auto', 'enabled', 'disabled')
+        smart_lut (str): Smart LUT generation with scene-specific AOD ('auto', 'yes', 'no')
     """
     import lut as lut_module
     import opencl_accelerator
@@ -2918,7 +2919,8 @@ def main():
         output_uncertainty=unc_output if unc_output else None,
         opencl_device=options.get('opencl_device', 'auto'),
         opencl_memory=int(options.get('opencl_memory', 1024)),
-        parallel_lut=options.get('parallel_lut', 'auto')
+        parallel_lut=options.get('parallel_lut', 'auto'),
+        smart_lut=options.get('smart_lut', 'auto')
     )
 
     return 0
