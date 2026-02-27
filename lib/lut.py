@@ -843,7 +843,7 @@ class AtmosphericLUT:
         
         gs.message(f"Loaded parallel LUT: {n_wl} wavelengths, {len(aod_grid)} AOD, {len(h2o_grid)} H2O")
         
-        return cls(
+        return AtmosphericLUT(
             wavelengths=wavelengths,
             aod_grid=aod_grid,
             R_atm=R_atm_3d,

@@ -257,7 +257,7 @@ def get_smart_lut_or_generate(scene_aod: float, precision_threshold: float = 0.1
     gs.message(f"  Using {time_estimates['n_workers']} workers")
     
     # Generate new LUT with optimal AOD grid
-    from . import lut
+    import lut
     new_lut = lut.AtmosphericLUT.generate(
         aod_grid=smart_config['aod_grid'],
         **lut_kwargs
