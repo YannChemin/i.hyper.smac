@@ -2060,25 +2060,18 @@ def apply_lut_correction(input_raster, output_raster, bands,
                 
                 if gpu_results:
                     # GPU processing succeeded, use results and skip CPU processing
-                    for j, result in enumerate(gpu_results):
-                        band_data_list.append((
-                            batch_bands[j],
-                            result['refl_boa']
-                        ))
-                        uncertainty_list.append((
-                            batch_bands[j],
-                            np.full_like(result['refl_boa'], 0.01)  # Placeholder uncertainty
-                        ))
-                        temp_bands.append(result['input_band'])
-                    
-                    gs.message(f"GPU processed {len(gpu_results)} bands")
+                    processing_method = "GPU" if accelerator and accelerator.is_available() else "CPU"
+                    gs.message(f"{processing_method} processed {len(gpu_results)} bands")
                     
                     # Skip ahead for the processed bands
                     i += len(gpu_results) - 1
                     continue
                 else:
                     # GPU processing failed, fall back to CPU
-                    gs.verbose("GPU processing failed, using CPU for this band")
+                    if accelerator and accelerator.is_available():
+                        gs.verbose(f"GPU processing failed, using CPU for {len(batch_bands)} bands")
+                    else:
+                        gs.verbose(f"OpenCL not available, using CPU for {len(batch_bands)} bands")
 
             # Extract band from 3D raster
             input_band = f"tmp_input_{os.getpid()}_{band_num}"
