@@ -1724,7 +1724,7 @@ def apply_lut_correction(input_raster, output_raster, bands,
                 max_workers = mp.cpu_count() - 1
     
     # Generate or load atmospheric LUT
-    smart_lut_option = options.get('smart_lut', 'auto')
+    smart_lut_option = smart_lut
     
     if smart_lut_option in ['yes', 'auto'] and aod is not None:
         # Try to use smart LUT system
