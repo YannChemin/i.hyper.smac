@@ -370,20 +370,40 @@ class OpenCLAccelerator:
                                     size=input_data.nbytes)
             
             # Prepare LUT data (simplified - would need proper LUT structure)
-            lut_r_atm = lut_data.get('r_atm', np.zeros((1, num_bands)))
-            lut_t_down = lut_data.get('t_down', np.zeros((1, num_bands)))
-            lut_t_up = lut_data.get('t_up', np.zeros((1, num_bands)))
-            lut_s = lut_data.get('s', np.zeros((1, num_bands)))
+            lut_r_atm = lut_data.get('r_atm', np.zeros(num_bands))
+            lut_t_down = lut_data.get('t_down', np.zeros(num_bands))
+            lut_t_up = lut_data.get('t_up', np.zeros(num_bands))
+            lut_s = lut_data.get('s', np.zeros(num_bands))
             
             # Create LUT buffers
             lut_r_atm_buffer = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                                        hostbuf=lut_r_atm.astype(np.float32))
+                                       hostbuf=lut_r_atm.astype(np.float32))
             lut_t_down_buffer = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                                         hostbuf=lut_t_down.astype(np.float32))
+                                       hostbuf=lut_t_down.astype(np.float32))
             lut_t_up_buffer = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                                       hostbuf=lut_t_up.astype(np.float32))
+                                     hostbuf=lut_t_up.astype(np.float32))
             lut_s_buffer = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
                                    hostbuf=lut_s.astype(np.float32))
+            
+            # Create additional LUT parameter buffers
+            lut_wavelengths_buffer = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                                             hostbuf=np.array([500.0], dtype=np.float32))
+            lut_aod_buffer = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                                     hostbuf=np.array([0.2], dtype=np.float32))
+            lut_wvc_buffer = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                                     hostbuf=np.array([2.0], dtype=np.float32))
+            lut_o3_buffer = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                                   hostbuf=np.array([0.3], dtype=np.float32))
+            lut_pressure_buffer = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                                          hostbuf=np.array([1013.0], dtype=np.float32))
+            lut_sza_buffer = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                                    hostbuf=np.array([45.0], dtype=np.float32))
+            lut_vza_buffer = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                                    hostbuf=np.array([0.0], dtype=np.float32))
+            lut_saa_buffer = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                                    hostbuf=np.array([0.0], dtype=np.float32))
+            lut_vaa_buffer = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                                    hostbuf=np.array([0.0], dtype=np.float32))
             
             # Prepare atmospheric maps
             aod_map = atmospheric_maps.get('aod', np.array([0.15]))
@@ -405,6 +425,10 @@ class OpenCLAccelerator:
             band_wavelengths_buffer = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
                                               hostbuf=band_wavelengths)
             
+            # Create band indices buffer
+            band_indices_buffer = cl.Buffer(self.ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                                          hostbuf=np.arange(num_bands, dtype=np.int32))
+            
             # Execute kernel
             global_size = (num_pixels, num_bands)
             local_size = None  # Let OpenCL decide
@@ -413,16 +437,9 @@ class OpenCLAccelerator:
                 self.queue, global_size, local_size,
                 input_buffer, output_buffer,
                 lut_r_atm_buffer, lut_t_down_buffer, lut_t_up_buffer, lut_s_buffer,
-                np.zeros(1, dtype=np.float32),  # Dummy lut_wavelengths
-                np.zeros(1, dtype=np.float32),  # Dummy lut_aod
-                np.zeros(1, dtype=np.float32),  # Dummy lut_wvc
-                np.zeros(1, dtype=np.float32),  # Dummy lut_o3
-                np.zeros(1, dtype=np.float32),  # Dummy lut_pressure
-                np.zeros(1, dtype=np.float32),  # Dummy lut_sza
-                np.zeros(1, dtype=np.float32),  # Dummy lut_vza
-                np.zeros(1, dtype=np.float32),  # Dummy lut_saa
-                np.zeros(1, dtype=np.float32),  # Dummy lut_vaa
-                np.arange(num_bands, dtype=np.int32),  # band_indices
+                lut_wavelengths_buffer, lut_aod_buffer, lut_wvc_buffer, lut_o3_buffer,
+                lut_pressure_buffer, lut_sza_buffer, lut_vza_buffer, lut_saa_buffer, lut_vaa_buffer,
+                band_indices_buffer,  # band_indices as buffer
                 band_wavelengths_buffer,
                 aod_buffer, wvc_buffer, o3_buffer, pressure_buffer,
                 np.float32(geometry.get('solar_zenith', 40.0)),
@@ -431,7 +448,7 @@ class OpenCLAccelerator:
                 np.float32(geometry.get('view_azimuth', 0.0)),
                 np.int32(num_bands),
                 np.int32(num_pixels),
-                np.int32(1),  # lut_size (simplified)
+                np.int32(1),  # lut_size (use 1 for single values)
                 np.int32(1 if use_maps else 0)
             )
             
