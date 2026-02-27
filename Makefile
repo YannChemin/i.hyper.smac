@@ -26,7 +26,7 @@ include $(MODULE_TOPDIR)/include/Make/Other.make
 include $(MODULE_TOPDIR)/include/Make/Python.make
 
 # Module components
-MODULES = smac aod wvc radtran o3 utils smac_coef_generator lut spectral_polish adjacency gas_absorption parallel_lut opencl_accelerator
+MODULES = smac aod wvc radtran o3 utils smac_coef_generator lut spectral_polish adjacency gas_absorption parallel_lut smart_lut opencl_accelerator
 ETCDIR = $(ETC)/i_hyper_lib
 COEFDIR = $(ETCDIR)/COEFS
 PYFILES := $(patsubst %,$(ETCDIR)/%.py,$(MODULES))

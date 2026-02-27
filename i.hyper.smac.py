@@ -170,6 +170,16 @@
 # % guisection: Performance
 # %end
 
+# %option
+# % key: smart_lut
+# % type: string
+# % required: no
+# % options: auto,yes,no
+# % answer: auto
+# % description: Use smart LUT generation with scene-specific AOD optimization
+# % guisection: Performance
+# %end
+
 # %flag
 # % key: k
 # % description: Keep temporary bands
@@ -1713,16 +1723,58 @@ def apply_lut_correction(input_raster, output_raster, bands,
                 max_workers = mp.cpu_count() - 1
     
     # Generate or load atmospheric LUT
-    atm_lut = lut_module.AtmosphericLUT.get_or_generate(
-        sza=solar_zenith, vza=view_zenith, phi=phi,
-        pressure=pressure, aerosol_model=aerosol_model,
-        wl_min=wl_min, wl_max=wl_max, wl_step=2,
-        h2o=water_vapor, o3=ozone,
-        angstrom_alpha=angstrom_alpha,
-        force_regenerate=force_regenerate,
-        parallel=parallel,
-        max_workers=max_workers
-    )
+    smart_lut_option = options.get('smart_lut', 'auto')
+    
+    if smart_lut_option in ['yes', 'auto'] and aod is not None:
+        # Try to use smart LUT system
+        try:
+            import smart_lut
+            gs.message("Using smart LUT generation with scene-specific AOD optimization")
+            
+            # Generate smart LUT optimized for scene AOD
+            atm_lut = smart_lut.get_smart_lut_or_generate(
+                scene_aod=aod,
+                precision_threshold=0.05,  # 5% precision requirement
+                sza=solar_zenith, vza=view_zenith, phi=phi,
+                pressure=pressure, aerosol_model=aerosol_model,
+                wl_min=wl_min, wl_max=wl_max, wl_step=2,
+                h2o=water_vapor, o3=ozone,
+                angstrom_alpha=angstrom_alpha,
+                force_regenerate=force_regenerate,
+                parallel=parallel,
+                max_workers=max_workers
+            )
+            gs.message(f"Smart LUT optimized for scene AOD {aod:.3f}")
+            
+        except ImportError:
+            if smart_lut_option == 'yes':
+                gs.warning("Smart LUT module not available, falling back to standard LUT generation")
+            # Fall back to standard LUT generation
+            atm_lut = lut_module.AtmosphericLUT.get_or_generate(
+                sza=solar_zenith, vza=view_zenith, phi=phi,
+                pressure=pressure, aerosol_model=aerosol_model,
+                wl_min=wl_min, wl_max=wl_max, wl_step=2,
+                h2o=water_vapor, o3=ozone,
+                angstrom_alpha=angstrom_alpha,
+                force_regenerate=force_regenerate,
+                parallel=parallel,
+                max_workers=max_workers
+            )
+    else:
+        # Use standard LUT generation
+        if smart_lut_option == 'yes':
+            gs.warning("Smart LUT disabled: AOD not available or explicitly disabled")
+        
+        atm_lut = lut_module.AtmosphericLUT.get_or_generate(
+            sza=solar_zenith, vza=view_zenith, phi=phi,
+            pressure=pressure, aerosol_model=aerosol_model,
+            wl_min=wl_min, wl_max=wl_max, wl_step=2,
+            h2o=water_vapor, o3=ozone,
+            angstrom_alpha=angstrom_alpha,
+            force_regenerate=force_regenerate,
+            parallel=parallel,
+            max_workers=max_workers
+        )
 
     # Get wavelength information from input raster
     input_info = gs.read_command('r3.info', flags='h', map=input_raster)
