@@ -210,8 +210,22 @@ def get_smart_lut_or_generate(scene_aod: float, precision_threshold: float = 0.1
     smart_config = manager.get_smart_lut_config(scene_aod, precision_threshold)
     
     # Generate cache key
+    # Extract wavelength parameters and convert to range string
+    wl_min = lut_kwargs.get('wl_min', 400)
+    wl_max = lut_kwargs.get('wl_max', 2500)
+    wl_step = lut_kwargs.get('wl_step', 2)
+    wl_range = f"{wl_min}-{wl_max}-{wl_step}"
+    
     cache_key = manager.generate_cache_key(
-        scene_aod=scene_aod, precision_threshold=precision_threshold, **lut_kwargs
+        sza=lut_kwargs.get('sza'),
+        vza=lut_kwargs.get('vza'), 
+        phi=lut_kwargs.get('phi'),
+        pressure=lut_kwargs.get('pressure'),
+        aerosol_model=lut_kwargs.get('aerosol_model'),
+        scene_aod=scene_aod,
+        h2o=lut_kwargs.get('h2o'),
+        wl_range=wl_range,
+        precision_threshold=precision_threshold
     )
     cache_path = os.path.join(manager.base_cache_dir, cache_key)
     
