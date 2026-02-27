@@ -80,7 +80,7 @@ def calculate_gas_transmittance_hitran(wavelength, h2o, o3, pressure, sza, vza):
                 
                 # Simplified O3 absorption cross-section
                 sigma_o3 = band_info['strength'] * 1e-20  # cm²/molecule
-                tau_o3 = o3 * sigma_o3 * np.exp(-((delta_lambda / 100) ** 2)
+                tau_o3 = o3 * sigma_o3 * np.exp(-((delta_lambda / 100) ** 2))
                 transmittance_o3 = np.exp(-tau_o3 * air_mass)
                 
                 transmittance *= transmittance_o3

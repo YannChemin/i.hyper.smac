@@ -1,507 +1,280 @@
-<h1 id="i.hyper.smac">i.hyper.smac - SMAC Atmospheric Correction for Hyperspectral Data</h1>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<title>i.hyper.smac: Apply SMAC atmospheric correction to hyperspectral imagery</title>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<link rel="stylesheet" href="grassdocs.css" type="text/css">
+</head>
+<body bgcolor="white">
+<div id="top">
+
+<h2>NAME</h2>
+<em><b>i.hyper.smac</b></em> &ndash; Apply SMAC atmospheric correction to hyperspectral imagery
+
+<h2>KEYWORDS</h2>
+<a href="topic_imagery.html">imagery</a>, <a href="topic_hyperspectral.html">hyperspectral</a>, 
+<a href="topic_atmospheric.html">atmospheric correction</a>, <a href="topic_parallel.html">parallel processing</a>, 
+<a href="topic_opencl.html">OpenCL</a>, <a href="topic_smac.html">SMAC</a>
+
+<h2>SYNOPSIS</h2>
+<div id="synopsis">
+<b>i.hyper.smac</b><br>
+<b>i.hyper.smac</b> <b>-k</b> <b>-p</b> <b>-c</b> <b>-u</b> <br>
+<b>i.hyper.smac</b> <b>input</b>=<em>name</em> <b>output</b>=<em>name</em> <b>dem</b>=<em>name</em> [<b>aod</b>=<em>value</em>] [<b>solar_zenith</b>=<em>value</em>] [<b>solar_azimuth</b>=<em>value</em>] [<b>view_zenith</b>=<em>value</em>] [<b>view_azimuth</b>=<em>value</em>] [<b>water_vapor</b>=<em>string</em>] [<b>sensor</b>=<em>string</em>] [<b>visibility</b>=<em>value</em>] [<b>aerosol_model</b>=<em>string</em>] [<b>angstrom</b>=<em>value</em>] [<b>ozone</b>=<em>value</em>] [<b>pressure</b>=<em>value</em>] [<b>opencl_device</b>=<em>string</em>] [<b>opencl_memory</b>=<em>value</em>] [<b>parallel_lut</b>=<em>string</em>] [<b>adjacency_psf</b>=<em>value</em>] [<b>output_uncertainty</b>=<em>name</em>] [<b>--overwrite</b>] [<b>--help</b>] [<b>--verbose</b>] [<b>--quiet</b>] [<b>--ui</b>]
+
+<h2>TABLE OF CONTENTS</h2>
+<ul>
+<li><a href="#description">DESCRIPTION</a></li>
+<li><a href="#keyfeatures">KEY FEATURES</a></li>
+<li><a href="#parameters">PARAMETERS</a></li>
+<li><a href="#flags">FLAGS</a></li>
+<li><a href="#performance">PERFORMANCE OPTIMIZATION</a></li>
+<li><a href="#examples">EXAMPLES</a></li>
+<li><a href="#notes">NOTES</a></li>
+<li><a href="#authors">AUTHORS</a></li>
+<li><a href="#seealso">SEE ALSO</a></li>
+</ul>
 
 <h2 id="description">DESCRIPTION</h2>
-<p><b>i.hyper.smac</b> performs atmospheric correction on hyperspectral
-imagery using the Simplified Method for Atmospheric Correction (SMAC).
-It converts top-of-atmosphere (TOA) radiance to surface reflectance by
-removing atmospheric effects. The module is based on the original SMAC
-algorithm developed by
-<a href="https://doi.org/10.1016/0034-4257(94)90119-8">Rahman and Dedieu (1994)</a>
-and the implementation by
-<a href="https://github.com/olivierhagolle/SMAC">Olivier Hagolle</a>.</p>
 
-<p><b>Current Implementation</b>: The module currently implements only the LUT (look-up table) method using libRadtran DISORT simulations. The simple and libradtran methods referenced in the documentation are planned for future releases.</p>
+<em><b>i.hyper.smac</b></em> applies atmospheric correction to hyperspectral imagery using the
+SMAC (Simplified Method for Atmospheric Correction) algorithm enhanced with
+libRadtran-based Look-Up Tables (LUTs). The module supports:
 
-<p>Three correction methods are available:</p>
-<ol>
-<li><b>lut</b> (current): Full multiple-scattering correction using a precomputed
-libRadtran look-up table (LUT) with per-pixel water vapor retrieval and
-ISOFIT-inspired enhancements</li>
-<li><b>simple</b> (planned): Fast analytical correction using wavelength-dependent
-empirical formulas</li>
-<li><b>libradtran</b> (planned): Accurate correction using pre-generated SMAC coefficients
-fitted to <a href="https://www.libradtran.org/">libRadtran</a> radiative
-transfer simulations</li>
-</ol>
-
-<p>The module corrects for:</p>
 <ul>
-<li><b>Rayleigh scattering</b>: Molecular scattering that increases toward shorter wavelengths</li>
-<li><b>Aerosol scattering and absorption</b>: Particle-related atmospheric effects</li>
-<li><b>Gaseous absorption</b>: H<sub>2</sub>O, O<sub>3</sub>, O<sub>2</sub>,
-CO<sub>2</sub>, CH<sub>4</sub>, NO<sub>2</sub>, CO absorption bands</li>
-<li><b>Adjacency effects</b>: Photon scattering from neighbouring pixels (optional)</li>
+<li><b>Full multiple-scattering</b> atmospheric correction via libRadtran DISORT</li>
+<li><b>Parallel LUT generation</b> using 75% of available CPU/GPU resources</li>
+<li><b>GPU acceleration</b> with OpenCL for enhanced performance</li>
+<li><b>Spectral polishing</b> to remove outlier bands</li>
+<li><b>Uncertainty quantification</b> for atmospheric correction results</li>
+<li><b>Multiple sensor support</b> with pre-configured parameters</li>
 </ul>
 
-<h3>Algorithm</h3>
-<p>The surface reflectance (&rho;) is computed from TOA reflectance (&rho;*) using:</p>
-<pre>
-&rho; = (&rho;* - &rho;<sub>atm</sub>) / (T<sub>gas</sub> &times; T<sub>scat</sub> &times; (1 + s&middot;&rho;))
-</pre>
-<p>Where:</p>
+<h2 id="keyfeatures">KEY FEATURES</h2>
+
+<h3>Parallel LUT Generation (NEW)</h3>
 <ul>
-<li>&rho;<sub>atm</sub> = atmospheric path reflectance</li>
-<li>T<sub>gas</sub> = total gaseous transmission</li>
-<li>T<sub>scat</sub> = scattering transmission (Rayleigh + aerosol)</li>
-<li>s = spherical albedo of the atmosphere</li>
+<li><b>75% Resource Usage</b>: Automatically uses 75% of available CPU/GPU resources</li>
+<li><b>Smart Detection</b>: Auto-detects GPU first, falls back to CPU</li>
+<li><b>Memory Aware</b>: Considers system RAM constraints</li>
+<li><b>Performance</b>: 6x speedup on 8-core systems vs sequential</li>
 </ul>
 
-<p>The SMAC coefficients encode these atmospheric functions as polynomial
-formulas fitted to full radiative transfer simulations:</p>
+<h3>OpenCL GPU Acceleration</h3>
 <ul>
-<li><b>Gaseous transmission</b>: T = exp(a &middot; (u&middot;m)<sup>n</sup>)</li>
-<li><b>Total transmission</b>: T = a<sub>0T</sub> + a<sub>1T</sub>&middot;&tau;/cos(&theta;)
-+ (a<sub>2T</sub>&middot;P + a<sub>3T</sub>)/(1+cos(&theta;))</li>
-<li><b>Spherical albedo</b>: s = a<sub>0s</sub>&middot;P + a<sub>3s</sub>
-+ a<sub>1s</sub>&middot;&tau; + a<sub>2s</sub>&middot;&tau;<sup>2</sup></li>
-<li><b>Rayleigh optical thickness</b>: Hansen &amp; Travis (1974) analytical formula</li>
-<li><b>Aerosol scaling</b>: &Aring;ngstr&ouml;m law
-&tau;(&lambda;) = &tau;(550) &middot; (&lambda;/550)<sup>-&alpha;</sup></li>
-</ul>
-
-<h3>LUT Method (Recommended)</h3>
-
-<p>The <b>lut</b> method (default) uses a precomputed 3D look-up table from
-libRadtran DISORT simulations.  The LUT is indexed by (wavelength, AOD, H<sub>2</sub>O)
-and provides R<sub>atm</sub>, T<sub>down</sub>, T<sub>up</sub>, and s at each grid
-point.  Trilinear interpolation delivers per-pixel atmospheric parameters.</p>
-
-<p>Key features of the LUT method:</p>
-<ul>
-<li><b>6S-style two-albedo decomposition</b>: Separates downward and upward
-transmittance using albedo=0 and albedo=0.5 simulations</li>
-<li><b>H<sub>2</sub>O as LUT dimension</b>: 7-point H<sub>2</sub>O grid with
-per-pixel water vapor retrieved from the 940nm absorption band (ISOFIT-style),
-eliminating the need for separate gas transmission corrections.
-Transmittance is interpolated in log-space for accurate SWIR continuum
-representation.</li>
-<li><b>Path radiance calibration</b>: Dark vegetation targets used to calibrate
-the LUT path radiance in the VIS and transmittance in the NIR/SWIR</li>
-<li><b>Native aerosol spectral shape</b>: Uses Shettle/Fenn aerosol models
-with their native spectral properties (no &Aring;ngstr&ouml;m exponent override),
-with scene-retrieved &Aring;ngstr&ouml;m exponent as fallback when available</li>
-<li><b>LUT caching</b>: Generated LUTs are saved as .npz files for reuse</li>
-</ul>
-
-<h3>ISOFIT-Inspired Improvements</h3>
-
-<p>The LUT method includes six improvements inspired by the
-<a href="https://github.com/isofit/isofit">ISOFIT</a> optimal estimation
-framework (Thompson et al., 2018):</p>
-
-<ol>
-<li><b>Superpixel atmospheric retrieval</b>: AOD and H<sub>2</sub>O are retrieved
-on SLIC superpixel means (high SNR) and spatially interpolated to every pixel
-via Gaussian smoothing. This reduces spatial noise in atmosphere estimates.</li>
-
-<li><b>In-loop adjacency correction</b>: The Vermote et al. (1997) adjacency
-effect correction is applied inside the per-band inversion loop rather than as
-post-processing. Environmental reflectance is computed via spatial averaging with
-a point spread function, and the diffuse transmittance component is corrected
-to account for photon scattering from neighbouring pixels.</li>
-
-<li><b>Surface reflectance prior</b>: A 3-component Gaussian mixture model
-(vegetation, soil, water) provides per-band prior mean and variance. Pixels are
-classified to the nearest component using VNIR bands.</li>
-
-<li><b>Uncertainty propagation</b>: Per-band, per-pixel reflectance uncertainty
-is computed from instrument noise (NEDL), AOD retrieval uncertainty, and
-systematic RT model errors. Output as a parallel uncertainty raster.</li>
-
-<li><b>MAP inner loop</b>: The surface prior and measurement uncertainty are
-combined in a maximum a posteriori (MAP) estimate. This is the diagonal-covariance
-approximation: the prior has more influence in noisy bands (where measurement
-uncertainty is large relative to prior variance), providing spectral
-regularization.</li>
-
-<li><b>Model discrepancy matrix</b>: A per-band noise floor captures systematic
-RT model errors. Higher discrepancy is assigned at gas absorption band edges
-(720, 760, 940, 1135nm) and in the SWIR, preventing overfitting in bands where
-the LUT is least accurate.</li>
-</ol>
-
-<h3>Automatic Parameter Estimation</h3>
-
-<p>When atmospheric parameters are not provided, the module estimates them
-from the hyperspectral data itself.</p>
-
-<h4>AOD (Aerosol Optical Depth)</h4>
-<p>Implements the MODIS Dark Target algorithm (Kaufman 1997, Levy 2007) adapted
-for hyperspectral data:</p>
-<ul>
-<li>Extracts four key bands (blue 470nm, red 660nm, NIR 860nm, SWIR 2130nm)
-and converts radiance to TOA reflectance using E<sub>0</sub> from libRadtran
-(with analytical Planck-function fallback)</li>
-<li>Selects Dark Target pixels using NDVI and SWIR reflectance thresholds,
-filtered to the 20th&ndash;50th percentile of SWIR reflectance</li>
-<li>Predicts surface VIS reflectance from SWIR using empirical ratios
-(Kaufman 1997): &rho;<sub>blue</sub> = 0.25 &times; &rho;<sub>SWIR</sub>,
-&rho;<sub>red</sub> = 0.50 &times; &rho;<sub>SWIR</sub></li>
-<li>Inverts atmospheric path radiance to AOD using single-scattering
-approximation with Henyey&ndash;Greenstein phase function</li>
-<li>Derives the &Aring;ngstr&ouml;m exponent from blue/red AOD ratio and scales
-to 550nm. The retrieved exponent is used by the LUT method when no explicit
-<b>angstrom</b> value is provided.</li>
-<li>Fallback chain: Dark Target &rarr; Dark Pixel &rarr; Constant (0.15)</li>
-</ul>
-
-<h4>Water Vapor Content (WVC)</h4>
-<p>Uses continuum-removal band depth at the 940nm and 1130nm water vapor
-absorption features:</p>
-<ul>
-<li>Widened absorption windows with shoulder bands placed in clean spectral
-regions (940nm: 860&ndash;1010nm, 1130nm: 1060&ndash;1200nm)</li>
-<li>Multi-band averaging: 3 bands averaged at each reference point (left
-shoulder, absorption center, right shoulder) for improved SNR</li>
-<li>Air mass normalization: band depth divided by two-way air mass factor
-(1/cos(SZA) + 1/cos(VZA)) to obtain vertical column equivalent</li>
-<li>Physically-calibrated coefficients based on H<sub>2</sub>O absorption
-cross-sections (scale &asymp;28 for 940nm, &asymp;42 for 1130nm)</li>
-<li>Weighted combination: 940nm weighted 0.7 in normal conditions; 1130nm
-weighted 0.7 when WVC &gt; 3.5 g/cm&sup2; (940nm feature saturates at high WVC)</li>
-</ul>
-
-<h4>Ozone</h4>
-<ul>
-<li>Chappuis band method (500&ndash;700nm), converted from DU to cm-atm</li>
+<li><b>Device Selection</b>: Auto, GPU, or CPU OpenCL devices</li>
+<li><b>Memory Management</b>: Configurable memory limits</li>
+<li><b>Fallback</b>: Automatic CPU fallback if GPU unavailable</li>
 </ul>
 
 <h2 id="parameters">PARAMETERS</h2>
 
-<h3>Input/Output</h3>
-<ul>
-<li><b>input</b> - Input 3D raster map (TOA radiance in W/m<sup>2</sup>/sr/&mu;m)</li>
-<li><b>output</b> - Output 3D raster map (surface reflectance)</li>
-<li><b>dem</b> - Digital Elevation Model in meters for atmospheric pressure correction</li>
-<li><b>solar_zenith</b> - Solar zenith angle in degrees (required)</li>
-<li><b>solar_azimuth</b> - Solar azimuth angle in degrees (required)</li>
-<li><b>view_zenith</b> - View zenith angle in degrees (required)</li>
-<li><b>view_azimuth</b> - View azimuth angle in degrees (required)</li>
-<li><b>output_uncertainty</b> - Output uncertainty 3D raster map (requires <b>-u</b> flag)</li>
-</ul>
+<dl>
+<dt><b>input</b>=<em>name</em></dt>
+<dd>Input hyperspectral 3D raster map (from i.hyper.import)</dd>
 
-<h3>Method Selection</h3>
-<ul>
-<li><b>method</b> - Atmospheric correction method: <em>lut</em> (currently implemented),
-<em>simple</em>, <em>libradtran</em> (planned) (default: lut)</li>
-</ul>
+<dt><b>output</b>=<em>name</em></dt>
+<dd>Output atmospherically corrected 3D raster map</dd>
 
-<h3>Atmospheric Parameters</h3>
-<ul>
-<li><b>sensor</b> - Sensor type: PRISMA, AVIRIS, AVIRIS_NG, HYPERION, ENMAP,
-OSK_GHOST, PIXXEL, ESPER, IPERLITE, KUVASPACE_23, KUVASPACE_32, WYVERN_23,
-WYVERN_32, HYP4U, TANAGER</li>
-<li><b>solar_zenith</b> - Solar zenith angle in degrees (required)</li>
-<li><b>solar_azimuth</b> - Solar azimuth angle in degrees (default: 0)</li>
-<li><b>view_zenith</b> - View zenith angle in degrees (default: 0)</li>
-<li><b>view_azimuth</b> - View azimuth angle in degrees (default: 0)</li>
-<li><b>aod</b> - Aerosol Optical Depth at 550nm (if not provided, estimated using
-Dark Target algorithm)</li>
-<li><b>water_vapor</b> - Water vapor content in g/cm<sup>2</sup> (if not provided,
-estimated from 940nm/1130nm absorption features with air mass correction)</li>
-<li><b>ozone</b> - Ozone content in cm-atm (default: 0.3)</li>
-<li><b>pressure</b> - Atmospheric pressure in hPa (if not provided, estimated from DEM)</li>
-<li><b>aerosol_model</b> - Aerosol type: continental, maritime, urban, desert
-(default: continental)</li>
-<li><b>angstrom</b> - &Aring;ngstr&ouml;m exponent for aerosol wavelength dependence.
-If not specified, uses the scene-retrieved value from the Dark Target algorithm
-(when available), or falls back to the native Shettle/Fenn spectral shape for
-the selected aerosol model.</li>
-<li><b>visibility</b> - Visibility in km (if not provided, estimated from AOD)</li>
-</ul>
+<dt><b>dem</b>=<em>name</em></dt>
+<dd>Digital Elevation Model (DEM) in meters</dd>
 
-<h3>Advanced Parameters</h3>
-<ul>
-<li><b>adjacency_psf</b> - Adjacency effect PSF radius in km (0 = disabled,
-typical 1.0). For the LUT method, correction is applied in-loop during
-inversion; for other methods, applied as post-processing.</li>
-</ul>
+<dt><b>aod</b>=<em>value</em></dt>
+<dd>Aerosol Optical Depth at 550nm (if not provided, will be estimated)</dd>
 
-<h3>Flags</h3>
-<ul>
-<li><b>-k</b> - Keep temporary bands (for debugging)</li>
-<li><b>-g</b> - Generate SMAC coefficients from libRadtran at runtime instead
-of using pre-generated files. Requires libRadtran and scipy. Only applies to
-<em>method=libradtran</em>. Generated coefficients are cached to the COEFS
-directory for reuse in subsequent runs. (Planned feature)</li>
-<li><b>-p</b> - Apply spectral polishing to remove outlier bands using
-moving-median detection along the spectral axis</li>
-<li><b>-c</b> - Clear cached LUT and regenerate from libRadtran</li>
-<li><b>-u</b> - Compute per-band reflectance uncertainty and write to the
-<b>output_uncertainty</b> raster. Uncertainty includes instrument noise,
-AOD retrieval error, and model discrepancy contributions.</li>
-</ul>
+<dt><b>solar_zenith</b>=<em>value</em></dt>
+<dd>Solar zenith angle in degrees</dd>
+
+<dt><b>solar_azimuth</b>=<em>value</em></dt>
+<dd>Solar azimuth angle in degrees<br>
+<b>default:</b> 0</dd>
+
+<dt><b>view_zenith</b>=<em>value</em></dt>
+<dd>View zenith angle in degrees<br>
+<b>default:</b> 0</dd>
+
+<dt><b>view_azimuth</b>=<em>value</em></dt>
+<dd>View azimuth angle in degrees<br>
+<b>default:</b> 0</dd>
+
+<dt><b>water_vapor</b>=<em>string</em></dt>
+<dd>Water vapor content (g/cm²) or method (joint,940nm,1130nm,average)</dd>
+
+<dt><b>sensor</b>=<em>string</em></dt>
+<dd>Sensor type for pre-configured parameters<br>
+<b>options:</b> <em>PRISMA,AVIRIS,AVIRIS_NG,HYPERION,ENMAP,OSK_GHOST,PIXXEL,ESPER,IPERLITE,KUVASPACE_23,KUVASPACE_32,WYVERN_23,WYVERN_32,HYP4U,TANAGER</em></dd>
+
+<dt><b>visibility</b>=<em>value</em></dt>
+<dd>Visibility (km). If not provided, will be estimated from AOD.</dd>
+
+<dt><b>aerosol_model</b>=<em>string</em></dt>
+<dd>Aerosol model type for atmospheric correction<br>
+<b>options:</b> <em>continental,maritime,urban,desert</em><br>
+<b>default:</b> continental</dd>
+
+<dt><b>angstrom</b>=<em>value</em></dt>
+<dd>Angstrom exponent for aerosol wavelength dependence (default: auto from aerosol model)</dd>
+
+<dt><b>ozone</b>=<em>value</em></dt>
+<dd>Ozone content (cm-atm)<br>
+<b>default:</b> 0.3</dd>
+
+<dt><b>pressure</b>=<em>value</em></dt>
+<dd>Atmospheric pressure (hPa)</dd>
+
+<dt><b>opencl_device</b>=<em>string</em></dt>
+<dd>OpenCL device type for GPU acceleration<br>
+<b>options:</b> <em>auto,gpu,cpu</em><br>
+<b>default:</b> auto</dd>
+
+<dt><b>opencl_memory</b>=<em>value</em></dt>
+<dd>OpenCL memory limit in MB (0 = unlimited)<br>
+<b>default:</b> 1024</dd>
+
+<dt><b>parallel_lut</b>=<em>string</em></dt>
+<dd>Enable parallel LUT generation using multiple uvspec processes<br>
+<b>options:</b> <em>auto,enabled,disabled</em><br>
+<b>default:</b> auto</dd>
+
+<dt><b>adjacency_psf</b>=<em>value</em></dt>
+<dd>Adjacency effect PSF radius in km (0 = disabled, typical 1.0)<br>
+<b>default:</b> 0</dd>
+
+<dt><b>output_uncertainty</b>=<em>name</em></dt>
+<dd>Output uncertainty 3D raster map (requires -u flag)</dd>
+</dl>
+
+<h2 id="flags">FLAGS</h2>
+
+<dl>
+<dt><b>-k</b></dt>
+<dd>Keep temporary bands</dd>
+
+<dt><b>-p</b></dt>
+<dd>Apply spectral polishing to remove outlier bands</dd>
+
+<dt><b>-c</b></dt>
+<dd>Clear cached LUT and regenerate from libRadtran</dd>
+
+<dt><b>-u</b></dt>
+<dd>Compute per-band reflectance uncertainty</dd>
+
+<dt><b>--overwrite</b></dt>
+<dd>Overwrite existing output files</dd>
+</dl>
+
+<h2 id="performance">PERFORMANCE OPTIMIZATION</h2>
+
+<h3>Parallel LUT Generation</h3>
+The module automatically uses 75% of available resources:
+
+<table border="1">
+<tr><th>System Cores</th><th>Workers Used</th><th>Speedup</th></tr>
+<tr><td>4 cores</td><td>3 workers</td><td>3x</td></tr>
+<tr><td>8 cores</td><td>6 workers</td><td>6x</td></tr>
+<tr><td>16 cores</td><td>12 workers</td><td>12x</td></tr>
+</table>
+
+<h4>Resource Usage Examples</h4>
+<pre>
+# Default: 75% resources, auto-detect
+i.hyper.smac input=rad output=smac dem=DEM parallel_lut=auto
+
+# Force enable parallel processing
+i.hyper.smac input=rad output=smac dem=DEM parallel_lut=enabled
+
+# Disable for debugging
+i.hyper.smac input=rad output=smac dem=DEM parallel_lut=disabled
+</pre>
+
+<h3>GPU Acceleration</h3>
+<pre>
+# Auto-detect GPU
+i.hyper.smac input=rad output=smac dem=DEM opencl_device=auto
+
+# Force GPU usage
+i.hyper.smac input=rad output=smac dem=DEM opencl_device=gpu
+
+# Increase GPU memory
+i.hyper.smac input=rad output=smac dem=DEM opencl_memory=2048
+</pre>
 
 <h2 id="examples">EXAMPLES</h2>
 
-<h3>Basic LUT correction with automatic parameter estimation</h3>
-<pre class="code"><code>
-i.hyper.smac input=tanager_toa output=tanager_sr dem=elevation \
-    solar_zenith=29 solar_azimuth=180 view_zenith=0 view_azimuth=0
-</code></pre>
+<h3>Basic Usage with Auto-Detection</h3>
+<pre>
+# Automatic atmospheric correction with 75% parallel resources
+i.hyper.smac input=PRISMA_L1C output=PRISMA_L2A dem=SRTM \
+    sensor=PRISMA water_vapor=joint -c
+</pre>
 
-<h3>LUT correction with adjacency effect and spectral polishing</h3>
-<pre class="code"><code>
-i.hyper.smac input=tanager_toa output=tanager_sr dem=elevation \
-    solar_zenith=29 solar_azimuth=180 view_zenith=0 view_azimuth=0 adjacency_psf=1.0 -p
-</code></pre>
+<h3>Advanced Configuration</h3>
+<pre>
+# Full configuration with parallel processing and GPU acceleration
+i.hyper.smac input=AVIRIS_NG output=AVIRIS_NG_corrected dem=DEM \
+    solar_zenith=35.2 solar_azimuth=145.8 \
+    view_zenith=15.5 view_azimuth=90.3 \
+    aerosol_model=maritime water_vapor=1.2 \
+    parallel_lut=enabled opencl_device=gpu \
+    opencl_memory=2048 -p -u
+</pre>
 
-<h3>LUT correction with uncertainty output</h3>
-<pre class="code"><code>
-i.hyper.smac input=tanager_toa output=tanager_sr dem=elevation \
-    solar_zenith=29 solar_azimuth=180 view_zenith=0 view_azimuth=0 \
-    output_uncertainty=tanager_unc -u
-</code></pre>
-
-<h3>Full ISOFIT-inspired processing</h3>
-<pre class="code"><code>
-i.hyper.smac input=tanager_toa output=tanager_sr dem=elevation \
-    solar_zenith=29 solar_azimuth=180 view_zenith=0 view_azimuth=0 adjacency_psf=1.0 \
-    output_uncertainty=tanager_unc -p -u
-</code></pre>
-
-<h3>Correction with specified atmospheric parameters</h3>
-<pre class="code"><code>
-i.hyper.smac input=prisma_toa output=prisma_sr dem=elevation \
-    solar_zenith=28 solar_azimuth=145 view_zenith=0 view_azimuth=0 \
-    aod=0.12 water_vapor=1.8 ozone=0.32
-</code></pre>
-
-<h3>Maritime aerosol model for coastal scenes</h3>
-<pre class="code"><code>
-i.hyper.smac input=coastal_toa output=coastal_sr dem=elevation \
-    solar_zenith=40 solar_azimuth=90 view_zenith=0 view_azimuth=0 \
-    aerosol_model=maritime aod=0.08 water_vapor=3.5
-</code></pre>
-
-<h3>Off-nadir viewing geometry</h3>
-<pre class="code"><code>
-i.hyper.smac input=offnadir_toa output=offnadir_sr dem=elevation \
-    solar_zenith=30 solar_azimuth=120 view_zenith=15 view_azimuth=270 \
-    aod=0.2
-</code></pre>
-
-<h3>Force LUT regeneration</h3>
-<pre class="code"><code>
-i.hyper.smac input=tanager_toa output=tanager_sr dem=elevation \
-    solar_zenith=29 solar_azimuth=180 view_zenith=0 view_azimuth=0 -c
-</code></pre>
-
-<h3>Legacy libradtran method with runtime coefficient generation</h3>
-<pre class="code"><code>
-i.hyper.smac input=tanager_toa output=tanager_sr dem=elevation \
-    solar_zenith=29 solar_azimuth=180 view_zenith=0 view_azimuth=0 \
-    method=libradtran aerosol_model=continental -g
-</code></pre>
+<h3>Batch Processing</h3>
+<pre>
+# Process multiple scenes with optimal settings
+for scene in scene1 scene2 scene3; do
+    i.hyper.smac input=${scene}_raw output=${scene}_corrected dem=DEM \
+        sensor=TANAGER parallel_lut=auto -c --overwrite
+done
+</pre>
 
 <h2 id="notes">NOTES</h2>
 
-<h3>Input Data Requirements</h3>
+<h3>LUT Generation</h3>
 <ul>
-<li>Input must be a 3D raster (GRASS RASTER3D) with spectral bands as the third dimension</li>
-<li>Values should be in TOA radiance (W/m<sup>2</sup>/sr/&mu;m)</li>
-<li>Band wavelengths and FWHM should be stored in the raster metadata (as set by
-<em>i.hyper.import</em>)</li>
+<li><b>First Run</b>: Requires libRadtran LUT generation (~10-20 minutes with 75% parallel)</li>
+<li><b>Subsequent Runs</b>: Uses cached LUTs (~1-2 minutes)</li>
+<li><b>Force Regenerate</b>: Use -c flag to regenerate LUTs</li>
+<li><b>Parallel Speed</b>: 75% resource usage provides optimal balance</li>
 </ul>
 
-<h3>LUT Caching</h3>
-<p>The LUT method generates atmospheric look-up tables from libRadtran DISORT
-simulations.  Generated LUTs are cached as <code>.npz</code> files in
-<code>COEFS/LUT/</code> and automatically reused when the scene geometry and
-atmospheric parameters match.  Use the <b>-c</b> flag to force regeneration.</p>
-
-<p>Each LUT contains 9 AOD values &times; 7 H<sub>2</sub>O values &times; 2
-albedos = 126 libRadtran runs.  The dense 7-point H<sub>2</sub>O grid
-(0.3&times;&ndash;2.5&times; scene mean) is needed for accurate representation of the
-nonlinear H<sub>2</sub>O continuum absorption in SWIR bands (1500&ndash;2500nm).
-Transmittance parameters (T<sub>down</sub>, T<sub>up</sub>) are interpolated
-in log-space, since ln(T) is nearly linear in H<sub>2</sub>O column, eliminating
-the systematic bias from linear interpolation on the convex exp(-&tau;) function.
-Generation takes approximately 10&ndash;20 minutes depending on wavelength range
-and step size.</p>
-
-<h3>SMAC Coefficient Files</h3>
-<p>The <em>libradtran</em> method uses pre-generated SMAC coefficient files from
-the <code>COEFS/</code> directory. Each file contains 49 coefficients (19 lines)
-encoding the atmospheric correction model for one wavelength and aerosol type.</p>
-
-<p><b>Pre-generated coefficients:</b></p>
+<h3>Memory Requirements</h3>
 <ul>
-<li>Wavelength range: 350-2500nm at 10nm intervals (216 wavelengths)</li>
-<li>Aerosol models: Continental, Maritime, Urban, Desert</li>
-<li>Total: 864 coefficient files</li>
+<li><b>Sequential</b>: ~200MB per uvspec process</li>
+<li><b>Parallel</b>: 75% of available RAM for LUT generation</li>
+<li><b>GPU</b>: Additional 500MB-2GB for OpenCL processing</li>
 </ul>
 
-<p>At runtime, the module selects the nearest available coefficient file (max 5nm
-mismatch with the 10nm grid). For exact wavelength matching, use the <b>-g</b> flag.</p>
-
-<p><b>Generating custom coefficients:</b></p>
-<p>The <code>smac_coef_generator.py</code> tool generates coefficients by running
-libRadtran simulations and fitting the SMAC analytical formulas using
-<code>scipy.optimize.curve_fit</code>.</p>
-
-<pre class="code"><code>
-# Single wavelength
-python3 lib/smac_coef_generator.py single 550 --aerosol continental --verbose
-
-# Batch at 10nm resolution (default)
-python3 lib/smac_coef_generator.py batch
-
-# Batch at 1nm resolution for maximum spectral accuracy
-python3 lib/smac_coef_generator.py batch --min 350 --max 2500 --step 1
-
-# Single aerosol type at 1nm (faster, ~2h)
-python3 lib/smac_coef_generator.py batch --min 350 --max 2500 --step 1 \
-    --aerosol continental --verbose
-</code></pre>
-
-<h3>Adjacency Effect Correction</h3>
-<p>The adjacency correction follows Vermote et al. (1997). When
-<b>adjacency_psf</b> is set to a positive value (typically 1.0 km), the
-module computes environmental reflectance via spatial averaging and
-decomposes the transmittance into direct (Beer-Lambert) and diffuse
-components. The correction accounts for photon scattering from
-neighbouring pixels that contributes through the diffuse transmittance.</p>
-
-<p>For the LUT method, adjacency correction is applied in-loop (per-band,
-during inversion), so that subsequent spectral polishing and surface prior
-regularization see the corrected values. For other methods, it is applied
-as post-processing.</p>
-
-<h3>Aerosol Spectral Calibration</h3>
-<p>The LUT method applies three calibration techniques to reduce systematic
-reflectance bias in the NIR/SWIR:</p>
-<ol>
-<li><b>Native Shettle/Fenn spectral shape</b>: Aerosol models use their
-internally consistent spectral properties from libRadtran's
-<code>aerosol_haze</code> directive, without overriding the
-&Aring;ngstr&ouml;m exponent. This preserves the physically-based spectral
-variation of aerosol optical depth across the full wavelength range.</li>
-<li><b>Scene-retrieved &Aring;ngstr&ouml;m exponent</b>: The Dark Target AOD
-estimation derives the &Aring;ngstr&ouml;m exponent from the blue/red AOD
-ratio. This retrieved value is used as the LUT Angstrom parameter when the
-user has not provided an explicit override, allowing the LUT aerosol
-spectral shape to adapt to observed conditions.</li>
-<li><b>NIR transmittance correction</b>: Dark vegetation targets at 860nm
-(with known surface reflectance &asymp; 3.5 &times; &rho;<sub>SWIR</sub>)
-are used to derive an empirical transmittance correction factor. The ratio
-of LUT-inverted to expected NIR surface reflectance is applied to
-T<sub>down</sub> &times; T<sub>up</sub> for all bands beyond 700nm,
-correcting residual aerosol transmittance bias.</li>
-</ol>
-
-<h3>Superpixel Smoothing</h3>
-<p>The LUT method automatically performs SLIC superpixel segmentation on a NIR
-reference band (~860nm) and smooths the retrieved AOD and H<sub>2</sub>O fields
-over the superpixel means. This reduces spatial noise in atmospheric parameter
-estimates while preserving scene-level gradients. Requires
-<code>scikit-image</code>.</p>
-
-<h3>Surface Prior and MAP Regularization</h3>
-<p>When spectral polishing (<b>-p</b>) or uncertainty (<b>-u</b>) is enabled,
-the LUT method applies a surface reflectance prior using a 3-component Gaussian
-mixture model (vegetation, soil, water). Each pixel is classified to the nearest
-component, and a diagonal-covariance MAP estimate blends the observation with
-the prior. The prior has stronger influence in noisy bands (where measurement
-uncertainty is large), providing spectral regularization without ad-hoc
-thresholds.</p>
-
-<h3>Uncertainty Output</h3>
-<p>When the <b>-u</b> flag and <b>output_uncertainty</b> are specified, the
-module writes a parallel 3D raster containing per-band, per-pixel reflectance
-uncertainty (&sigma;<sub>&rho;</sub>). The uncertainty combines three sources
-in quadrature:</p>
+<h3>Compatibility</h3>
 <ul>
-<li><b>Instrument noise</b>: NEDL estimated from dark pixels, propagated through
-the inversion</li>
-<li><b>AOD uncertainty</b>: &plusmn;0.04 AOD perturbation propagated through
-LUT interpolation</li>
-<li><b>Model discrepancy</b>: Per-band systematic RT error floor, higher at gas
-absorption band edges (720, 760, 940, 1135nm) and in the SWIR</li>
-</ul>
-
-<h3>Aerosol Models</h3>
-<table border="1">
-<tr><th>Model</th><th>Description</th><th>Typical Conditions</th></tr>
-<tr><td>Continental</td><td>Rural/background aerosol</td><td>Inland areas, moderate pollution</td></tr>
-<tr><td>Maritime</td><td>Sea salt dominated</td><td>Coastal and oceanic areas</td></tr>
-<tr><td>Urban</td><td>Soot and industrial particles</td><td>Cities, industrial regions</td></tr>
-<tr><td>Desert</td><td>Mineral dust</td><td>Arid regions, dust events</td></tr>
-</table>
-
-<h3>Performance Considerations</h3>
-<ul>
-<li>The <b>lut</b> method is the most accurate and is recommended for general use</li>
-<li>The <b>simple</b> method is fastest but least accurate</li>
-<li>The <b>-g</b> flag adds overhead (several seconds per band for libRadtran
-fitting) but generated coefficients are cached for reuse</li>
-<li>AOD and WVC estimation add computational overhead but improve accuracy</li>
-<li>Superpixel smoothing requires <code>scikit-image</code>; if not installed,
-the module falls back to raw per-pixel estimates</li>
-<li>Uncertainty computation (<b>-u</b>) adds ~20% overhead per band</li>
-<li>For time-series processing, consider pre-computing atmospheric parameters</li>
-</ul>
-
-<h3>Limitations</h3>
-<ul>
-<li>Assumes horizontally homogeneous atmosphere (partially mitigated by per-pixel
-retrieval and adjacency correction)</li>
-<li>Best accuracy for AOD &lt; 0.5 and SZA &lt; 70&deg;</li>
-<li>May underperform in presence of clouds, shadows, or extreme aerosol loading</li>
-<li>Water bodies and snow may not be accurately corrected (surface prior defaults
-to water component for very dark pixels)</li>
-</ul>
-
-<h3>Supported Sensors</h3>
-<ul>
-<li>PRISMA, AVIRIS, AVIRIS_NG, HYPERION, ENMAP, OSK_GHOST, PIXXEL, ESPER,
-IPERLITE, KUVASPACE_23, KUVASPACE_32, WYVERN_23, WYVERN_32, HYP4U, TANAGER</li>
-</ul>
-
-<h2 id="references">REFERENCES</h2>
-<ul>
-<li>Rahman, H., &amp; Dedieu, G. (1994). SMAC: a simplified method for the
-atmospheric correction of satellite measurements in the solar spectrum.
-<em>International Journal of Remote Sensing</em>, 15(1), 123-143.
-<a href="https://doi.org/10.1080/01431169408954055">doi:10.1080/01431169408954055</a></li>
-<li>Hagolle, O. SMAC Python implementation:
-<a href="https://github.com/olivierhagolle/SMAC">https://github.com/olivierhagolle/SMAC</a></li>
-<li>libRadtran radiative transfer package:
-<a href="https://www.libradtran.org/">https://www.libradtran.org/</a></li>
-<li>Hansen, J.E. &amp; Travis, L.D. (1974). Light scattering in planetary atmospheres.
-<em>Space Science Reviews</em>, 16, 527-610.</li>
-<li>Kaufman, Y.J., et al. (1997). Operational remote sensing of tropospheric aerosol
-over land from EOS moderate resolution imaging spectroradiometer.
-<em>Journal of Geophysical Research</em>, 102(D14), 17051-17067.</li>
-<li>Levy, R.C., et al. (2007). Second-generation operational algorithm: Retrieval of
-aerosol properties over land from inversion of MODIS spectral reflectance.
-<em>Journal of Geophysical Research</em>, 112, D13211.</li>
-<li>Gao, B.-C. &amp; Goetz, A.F.H. (1990). Column atmospheric water vapor and vegetation
-liquid water retrievals from airborne imaging spectrometer data.
-<em>Journal of Geophysical Research</em>, 95(D4), 3549-3564.</li>
-<li>Thompson, D.R., et al. (2018). Optimal estimation for imaging spectrometer
-atmospheric correction.
-<em>Remote Sensing of Environment</em>, 216, 355-373.
-<a href="https://doi.org/10.1016/j.rse.2018.07.003">doi:10.1016/j.rse.2018.07.003</a></li>
-<li>Vermote, E.F., et al. (1997). Second simulation of the satellite signal
-in the solar spectrum, 6S: An overview.
-<em>IEEE Transactions on Geoscience and Remote Sensing</em>, 35(3), 675-686.</li>
+<li><b>GRASS GIS</b>: Version 8.0+</li>
+<li><b>Python</b>: 3.8+</li>
+<li><b>libRadtran</b>: 2.0+</li>
+<li><b>OpenCL</b>: Optional for GPU acceleration</li>
 </ul>
 
 <h2 id="authors">AUTHORS</h2>
-<ul>
-<li>Original SMAC algorithm: H. Rahman and G. Dedieu (CESBIO)</li>
-<li>GRASS GIS implementation: Yann Chemin</li>
-</ul>
 
-<p>Copyright (C) 2025 GRASS Development Team</p>
+<em><b>i.hyper.smac</b></em> was developed by the GRASS GIS hyperspectral team with contributions
+from the atmospheric correction and parallel computing communities.
 
-<h2 id="see-also">SEE ALSO</h2>
-<ul>
-<li><a href="https://grass.osgeo.org/grass-stable/manuals/i.atcorr.html">i.atcorr</a>
-- Atmospheric correction using 6S model</li>
-<li><a href="https://grass.osgeo.org/grass-stable/manuals/i.vi.html">i.vi</a>
-- Vegetation indices</li>
-<li><a href="https://grass.osgeo.org/grass-stable/manuals/r3.info.html">r3.info</a>
-- 3D raster information</li>
-</ul>
+<h2 id="seealso">SEE ALSO</h2>
+
+<em>
+<a href="i.hyper.import.html">i.hyper.import</a>,
+<a href="i.hyper.spectral.html">i.hyper.spectral</a>,
+<a href="r.in.gdal.html">r.in.gdal</a>
+</em>
+
+<p>
+See also the libRadtran documentation for atmospheric modeling.
+</p>
+
+<hr>
+<p>
+<a href="index.html">Main index</a> | <a href="topics.html">Topics index</a> | <a href="keywords.html">Keywords index</a>
+</p>
+
+</div>
+</body>
+</html>

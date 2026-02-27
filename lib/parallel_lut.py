@@ -32,7 +32,7 @@ class ParallelLUTGenerator:
     """
     
     def __init__(self, max_workers: Optional[int] = None, uvspec_path: Optional[str] = None, 
-                 resource_usage: float = 0.75, device_type: str = 'auto'):
+                 resource_usage: float = 0.75, device_type: str = 'auto', timeout: Optional[int] = None):
         """
         Initialize parallel LUT generator with smart resource management.
         
@@ -41,9 +41,11 @@ class ParallelLUTGenerator:
             uvspec_path: Path to uvspec executable
             resource_usage: Fraction of device resources to use (0.1-1.0, default: 0.75)
             device_type: Device type ('cpu', 'gpu', 'auto')
+            timeout: Custom timeout in seconds (default: adaptive based on wavelength range)
         """
         self.resource_usage = max(0.1, min(1.0, resource_usage))  # Clamp between 0.1-1.0
         self.device_type = device_type.lower()
+        self.custom_timeout = timeout
         
         # Auto-detect optimal worker count based on resources
         if max_workers is None:
@@ -223,16 +225,24 @@ class ParallelLUTGenerator:
         data_path = self._find_libradtran_data_path()
         
         # Convert wavelengths to uvspec format
-        if wavelengths.startswith("wl "):
-            parts = wavelengths.split()
-            wl_min, wl_max = int(parts[1]), int(parts[2])
-        else:
-            # Convert range like "356-2500" to uvspec format
-            if "-" in wavelengths:
-                start, end = wavelengths.split("-")
-                wl_min, wl_max = int(start), int(end)
+        if isinstance(wavelengths, str):
+            if wavelengths.startswith("wl "):
+                parts = wavelengths.split()
+                wl_min, wl_max = int(parts[1]), int(parts[2])
             else:
-                wl_min, wl_max = 400, 500  # Default
+                # Convert range like "356-2500" to uvspec format
+                if "-" in wavelengths:
+                    start, end = wavelengths.split("-")
+                    wl_min, wl_max = int(start), int(end)
+                else:
+                    # Single wavelength
+                    wl_min = wl_max = int(wavelengths)
+        elif isinstance(wavelengths, (list, tuple)):
+            # Convert list to min/max range
+            wl_min, wl_max = int(wavelengths[0]), int(wavelengths[-1])
+        else:
+            # Default range
+            wl_min, wl_max = 400, 500  # Default
         
         # Calculate derived parameters
         import math
@@ -275,6 +285,7 @@ aerosol_modify tau550 set {aod:.6f}
 
 output_file {output_file}
 output_user lambda edir uu
+zout toa
 
 # Advanced options for speed
 rte_solver disort
@@ -306,18 +317,47 @@ quiet
                 aerosol_model, output_file, wavelengths
             )
             
-            # Write input file
-            input_file = output_file.replace('.out', '.inp')
+            # Write input file with absolute path
+            input_file = os.path.abspath(output_file.replace('.out', '.inp'))
             with open(input_file, 'w') as f:
                 f.write(input_content)
             
-            # Run uvspec
-            cmd = [self.uvspec_path, input_file]
+            # Ensure output file path is absolute
+            abs_output_file = os.path.abspath(output_file)
+            
+            # Update input content with absolute output file path
+            input_content = input_content.replace(output_file, abs_output_file)
+            with open(input_file, 'w') as f:
+                f.write(input_content)
+            
+            # Calculate timeout (custom or adaptive)
+            if self.custom_timeout:
+                timeout_value = self.custom_timeout
+                logger.debug(f"Using custom timeout: {timeout_value}s")
+            else:
+                # Calculate wavelength range from string
+                if isinstance(wavelengths, str):
+                    if "-" in wavelengths:
+                        start, end = wavelengths.split("-")
+                        wavelength_range = int(end) - int(start)
+                    else:
+                        wavelength_range = 2000  # Default
+                else:
+                    wavelength_range = 2000  # Default
+                base_timeout = 300  # 5 minutes base
+                # Add 30 seconds per 100nm of wavelength range
+                timeout_value = base_timeout + int((wavelength_range / 100) * 30)
+                timeout_value = min(timeout_value, 1800)  # Cap at 30 minutes
+                logger.debug(f"Using adaptive timeout: {timeout_value}s for {wavelength_range:.0f}nm range")
+            
+            # Run uvspec with shell redirection (like original lut.py)
+            cmd = f"{self.uvspec_path} < {input_file}"
             result = subprocess.run(
                 cmd,
+                shell=True,
                 capture_output=True,
                 text=True,
-                timeout=300  # 5 minute timeout per run
+                timeout=timeout_value
             )
             
             execution_time = time.time() - start_time
@@ -337,14 +377,14 @@ quiet
             except:
                 pass
             
-            return success, output_file, execution_time
+            return success, abs_output_file, execution_time
             
         except subprocess.TimeoutExpired:
-            logger.error(f"Timeout: AOD={aod:.3f}, H2O={h2o:.2f}, Albedo={albedo:.1f}")
-            return False, output_file, 300.0
+            logger.error(f"Timeout: AOD={aod:.3f}, H2O={h2o:.2f}, Albedo={albedo:.1f} after {timeout_value}s")
+            return False, abs_output_file, timeout_value
         except Exception as e:
             logger.error(f"Error: AOD={aod:.3f}, H2O={h2o:.2f}, Albedo={albedo:.1f} - {e}")
-            return False, output_file, 0.0
+            return False, abs_output_file, 0.0
     
     def generate_lut_parallel(self, lut_config: Dict) -> bool:
         """
@@ -533,7 +573,8 @@ def create_parallel_lut_config(sza: float, vza: float, phi: float,
 
 def create_optimal_parallel_generator(resource_usage: float = 0.75, 
                                   device_type: str = 'auto',
-                                  max_workers: Optional[int] = None) -> ParallelLUTGenerator:
+                                  max_workers: Optional[int] = None,
+                                  timeout: Optional[int] = None) -> ParallelLUTGenerator:
     """
     Create an optimally configured parallel LUT generator.
     
@@ -541,6 +582,7 @@ def create_optimal_parallel_generator(resource_usage: float = 0.75,
         resource_usage: Fraction of device resources to use (default: 0.75 for 75%)
         device_type: Device type ('cpu', 'gpu', 'auto')
         max_workers: Override automatic worker detection
+        timeout: Custom timeout in seconds (default: adaptive based on wavelength range)
         
     Returns:
         Configured ParallelLUTGenerator instance
@@ -549,19 +591,20 @@ def create_optimal_parallel_generator(resource_usage: float = 0.75,
         # Use 75% of available resources (default)
         generator = create_optimal_parallel_generator()
         
-        # Use 50% of CPU resources
-        generator = create_optimal_parallel_generator(resource_usage=0.5, device_type='cpu')
+        # Use 50% of CPU resources with custom timeout
+        generator = create_optimal_parallel_generator(resource_usage=0.5, device_type='cpu', timeout=1200)
         
         # Use 90% of GPU resources
         generator = create_optimal_parallel_generator(resource_usage=0.9, device_type='gpu')
         
-        # Use specific number of workers
-        generator = create_optimal_parallel_generator(max_workers=6)
+        # Use specific number of workers with longer timeout
+        generator = create_optimal_parallel_generator(max_workers=6, timeout=1800)
     """
     return ParallelLUTGenerator(
         max_workers=max_workers,
         resource_usage=resource_usage,
-        device_type=device_type
+        device_type=device_type,
+        timeout=timeout
     )
 
 
