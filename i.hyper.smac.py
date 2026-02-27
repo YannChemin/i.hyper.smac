@@ -2047,11 +2047,15 @@ def apply_lut_correction(input_raster, output_raster, bands,
             gs.message(f"Processing band {band_num}: {wavelength:.2f} nm, "
                        f"FWHM: {fwhm:.2f} nm")
 
-            # Try GPU processing for batches of bands
-            if accelerator and accelerator.is_available() and i % 10 == 0:
+            # Try GPU processing for batches of bands (reduced batch size to prevent file handle issues)
+            if accelerator and accelerator.is_available() and i % 5 == 0:
                 # Process this band and next few bands with GPU
-                batch_size = min(10, len(bands) - i)
+                batch_size = min(5, len(bands) - i)  # Reduced from 10 to 5
                 batch_bands = bands[i:i+batch_size]
+                
+                # Force garbage collection to free up file handles
+                import gc
+                gc.collect()
                 
                 gpu_results = process_bands_gpu(
                     batch_bands, accelerator, atm_lut, aod_array, h2o_map,
@@ -2060,8 +2064,17 @@ def apply_lut_correction(input_raster, output_raster, bands,
                 
                 if gpu_results:
                     # GPU processing succeeded, use results and skip CPU processing
-                    processing_method = "GPU" if accelerator and accelerator.is_available() else "CPU"
+                    if accelerator and accelerator.is_available():
+                        # Check if actually using GPU vs CPU
+                        device_type = accelerator.get_device_info().get('type', 'Unknown')
+                        processing_method = "GPU" if device_type == "GPU" else "CPU"
+                    else:
+                        processing_method = "CPU"
                     gs.message(f"{processing_method} processed {len(gpu_results)} bands")
+                    
+                    # Force garbage collection to free up resources
+                    import gc
+                    gc.collect()
                     
                     # Skip ahead for the processed bands
                     i += len(gpu_results) - 1
@@ -2069,7 +2082,11 @@ def apply_lut_correction(input_raster, output_raster, bands,
                 else:
                     # GPU processing failed, fall back to CPU
                     if accelerator and accelerator.is_available():
-                        gs.verbose(f"GPU processing failed, using CPU for {len(batch_bands)} bands")
+                        device_type = accelerator.get_device_info().get('type', 'Unknown')
+                        if device_type == "GPU":
+                            gs.verbose(f"GPU processing failed, using CPU for {len(batch_bands)} bands")
+                        else:
+                            gs.verbose(f"CPU OpenCL processing failed, using CPU fallback for {len(batch_bands)} bands")
                     else:
                         gs.verbose(f"OpenCL not available, using CPU for {len(batch_bands)} bands")
 
