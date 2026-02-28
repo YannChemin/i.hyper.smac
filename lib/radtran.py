@@ -325,26 +325,35 @@ quiet
         cmd = f"{uvspec_bin} < {inp_path}"
 
         try:
-            result = subprocess.run(
+            # Use Popen for better file descriptor control
+            process = subprocess.Popen(
                 cmd,
-                capture_output=True,
-                text=True,
-                shell=True
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
             )
-
-            if result.stderr and verbose:
-                gs.warning("\nUVSPEC Warnings/Errors:")
-                for line in result.stderr.strip().split('\n'):
-                    if line.strip():
-                        gs.warning(f"  {line}")
-
-            if result.returncode != 0:
-                gs.error(f"uvspec failed with code {result.returncode}")
+            
+            # Get output and ensure process is properly closed
+            stdout, stderr = process.communicate()
+            
+            # Close file descriptors explicitly
+            process.stdout.close()
+            process.stderr.close()
+            
+            if process.returncode != 0:
+                gs.error(f"uvspec failed with code {process.returncode}")
                 return None
 
-            if not result.stdout.strip():
+            if not stdout.strip():
                 gs.error("Empty output from uvspec")
                 return None
+
+            if stderr and verbose:
+                gs.warning("\nUVSPEC Warnings/Errors:")
+                for line in stderr.strip().split('\n'):
+                    if line.strip():
+                        gs.warning(f"  {line}")
 
         except Exception as e:
             gs.error(f"Error running uvspec: {e}")
@@ -352,7 +361,7 @@ quiet
 
         # Parse output directly from stdout
         try:
-            lines = [l.strip() for l in result.stdout.strip().split('\n')
+            lines = [l.strip() for l in stdout.strip().split('\n')
                      if l.strip() and not l.startswith('#')]
 
             if not lines:

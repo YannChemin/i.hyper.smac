@@ -352,38 +352,80 @@ quiet
             
             # Run uvspec with shell redirection (like original lut.py)
             cmd = f"{self.uvspec_path} < {input_file}"
-            result = subprocess.run(
-                cmd,
-                shell=True,
-                capture_output=True,
-                text=True,
-                timeout=timeout_value
-            )
             
-            execution_time = time.time() - start_time
+            try:
+                # Use Popen for better file descriptor control
+                process = subprocess.Popen(
+                    cmd,
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+                
+                # Get output and ensure process is properly closed
+                stdout, stderr = process.communicate(timeout=timeout_value)
+                
+                # Close file descriptors explicitly
+                process.stdout.close()
+                process.stderr.close()
+                
+                execution_time = time.time() - start_time
+                
+                success = process.returncode == 0
+                
+                if success:
+                    logger.info(f"Completed: AOD={aod:.3f}, H2O={h2o:.2f}, "
+                               f"Albedo={albedo:.1f} in {execution_time:.1f}s")
+                else:
+                    logger.error(f"Failed: AOD={aod:.3f}, H2O={h2o:.2f}, "
+                                f"Albedo={albedo:.1f} - {stderr}")
+                
+            except subprocess.TimeoutExpired:
+                logger.error(f"Timeout: AOD={aod:.3f}, H2O={h2o:.2f}, Albedo={albedo:.1f} after {timeout_value}s")
+                # Kill the process and clean up
+                try:
+                    process.kill()
+                    process.communicate()
+                    process.stdout.close()
+                    process.stderr.close()
+                except:
+                    pass
+                return False, abs_output_file, timeout_value
+            except Exception as e:
+                logger.error(f"Exception: AOD={aod:.3f}, H2O={h2o:.2f}, "
+                            f"Albedo={albedo:.1f} - {e}")
+                return False, abs_output_file, execution_time
             
-            success = result.returncode == 0
-            
-            if success:
-                logger.info(f"Completed: AOD={aod:.3f}, H2O={h2o:.2f}, "
-                           f"Albedo={albedo:.1f} in {execution_time:.1f}s")
-            else:
-                logger.error(f"Failed: AOD={aod:.3f}, H2O={h2o:.2f}, "
-                            f"Albedo={albedo:.1f} - {result.stderr}")
-            
-            # Cleanup input file
+            # Cleanup input file immediately
             try:
                 os.remove(input_file)
             except:
                 pass
             
+            # Cleanup output file if it exists
+            if os.path.exists(abs_output_file):
+                try:
+                    os.remove(abs_output_file)
+                except:
+                    pass
+            
             return success, abs_output_file, execution_time
             
-        except subprocess.TimeoutExpired:
-            logger.error(f"Timeout: AOD={aod:.3f}, H2O={h2o:.2f}, Albedo={albedo:.1f} after {timeout_value}s")
-            return False, abs_output_file, timeout_value
         except Exception as e:
             logger.error(f"Error: AOD={aod:.3f}, H2O={h2o:.2f}, Albedo={albedo:.1f} - {e}")
+            # Cleanup input file on error
+            try:
+                if 'input_file' in locals():
+                    os.remove(input_file)
+            except:
+                pass
+            # Cleanup output file on error
+            try:
+                if os.path.exists(abs_output_file):
+                    os.remove(abs_output_file)
+            except:
+                pass
             return False, abs_output_file, 0.0
     
     def generate_lut_parallel(self, lut_config: Dict) -> bool:
