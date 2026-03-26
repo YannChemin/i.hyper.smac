@@ -1,8 +1,8 @@
 \chapter{i.\+hyper.\+smac Programmer Manual}
 \hypertarget{md_PROGRAMMER__MANUAL}{}\label{md_PROGRAMMER__MANUAL}\index{i.hyper.smac Programmer Manual@{i.hyper.smac Programmer Manual}}
-\label{md_PROGRAMMER__MANUAL_autotoc_md203}%
-\Hypertarget{md_PROGRAMMER__MANUAL_autotoc_md203}%
- \hypertarget{md_PROGRAMMER__MANUAL_autotoc_md204}{}\doxysection{\texorpdfstring{Table of Contents}{Table of Contents}}\label{md_PROGRAMMER__MANUAL_autotoc_md204}
+\label{md_PROGRAMMER__MANUAL_autotoc_md199}%
+\Hypertarget{md_PROGRAMMER__MANUAL_autotoc_md199}%
+ \hypertarget{md_PROGRAMMER__MANUAL_autotoc_md200}{}\doxysection{\texorpdfstring{Table of Contents}{Table of Contents}}\label{md_PROGRAMMER__MANUAL_autotoc_md200}
 
 \begin{DoxyEnumerate}
 \item Overview
@@ -13,8 +13,8 @@
 \item Performance Optimization
 \item Troubleshooting
 \item Contributing
-\end{DoxyEnumerate}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md205}{}\doxysection{\texorpdfstring{Overview}{Overview}}\label{md_PROGRAMMER__MANUAL_autotoc_md205}
-The {\ttfamily i.\+hyper.\+smac} module provides advanced atmospheric correction capabilities for hyperspectral imagery using the Simplified Method for Atmospheric Correction (SMAC) enhanced with lib\+Radtran DISORT calculations. This module implements state-\/of-\/the-\/art atmospheric correction algorithms including automatic aerosol and water vapor estimation, parallel processing, and Open\+CL acceleration.\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md206}{}\doxysubsection{\texorpdfstring{Key Features}{Key Features}}\label{md_PROGRAMMER__MANUAL_autotoc_md206}
+\end{DoxyEnumerate}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md201}{}\doxysection{\texorpdfstring{Overview}{Overview}}\label{md_PROGRAMMER__MANUAL_autotoc_md201}
+The {\ttfamily i.\+hyper.\+smac} module provides advanced atmospheric correction capabilities for hyperspectral imagery using the Simplified Method for Atmospheric Correction (SMAC) enhanced with lib\+Radtran DISORT calculations. This module implements state-\/of-\/the-\/art atmospheric correction algorithms including automatic aerosol and water vapor estimation, parallel processing, and Open\+CL acceleration.\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md202}{}\doxysubsection{\texorpdfstring{Key Features}{Key Features}}\label{md_PROGRAMMER__MANUAL_autotoc_md202}
 
 \begin{DoxyItemize}
 \item {\bfseries{Full lib\+Radtran DISORT Integration}}\+: Multiple scattering atmospheric correction
@@ -26,15 +26,15 @@ The {\ttfamily i.\+hyper.\+smac} module provides advanced atmospheric correction
 \item {\bfseries{Uncertainty Quantification}}\+: Per-\/band uncertainty propagation
 \item {\bfseries{Adjacency Correction}}\+: Point Spread Function based correction
 \item {\bfseries{Spectral Polishing}}\+: ISOFIT-\/inspired spectral smoothing
-\end{DoxyItemize}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md207}{}\doxysection{\texorpdfstring{Installation}{Installation}}\label{md_PROGRAMMER__MANUAL_autotoc_md207}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md208}{}\doxysubsection{\texorpdfstring{System Requirements}{System Requirements}}\label{md_PROGRAMMER__MANUAL_autotoc_md208}
+\end{DoxyItemize}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md203}{}\doxysection{\texorpdfstring{Installation}{Installation}}\label{md_PROGRAMMER__MANUAL_autotoc_md203}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md204}{}\doxysubsection{\texorpdfstring{System Requirements}{System Requirements}}\label{md_PROGRAMMER__MANUAL_autotoc_md204}
 
 \begin{DoxyItemize}
 \item {\bfseries{GRASS GIS}}\+: Version 8.\+0 or higher
 \item {\bfseries{Python}}\+: 3.\+7 or higher
 \item {\bfseries{lib\+Radtran}}\+: For atmospheric modeling
 \item {\bfseries{Open\+CL}}\+: For GPU acceleration (optional)
-\end{DoxyItemize}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md209}{}\doxysubsection{\texorpdfstring{Dependencies}{Dependencies}}\label{md_PROGRAMMER__MANUAL_autotoc_md209}
+\end{DoxyItemize}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md205}{}\doxysubsection{\texorpdfstring{Dependencies}{Dependencies}}\label{md_PROGRAMMER__MANUAL_autotoc_md205}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{\#\ Ubuntu/Debian}
@@ -44,7 +44,7 @@ The {\ttfamily i.\+hyper.\+smac} module provides advanced atmospheric correction
 \DoxyCodeLine{pip\ install\ numpy\ scipy\ pyopencl\ netcdf4\ h5py}
 
 \end{DoxyCode}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md210}{}\doxysubsection{\texorpdfstring{Module Installation}{Module Installation}}\label{md_PROGRAMMER__MANUAL_autotoc_md210}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md206}{}\doxysubsection{\texorpdfstring{Module Installation}{Module Installation}}\label{md_PROGRAMMER__MANUAL_autotoc_md206}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{\#\ Clone\ repository}
@@ -58,8 +58,8 @@ The {\ttfamily i.\+hyper.\+smac} module provides advanced atmospheric correction
 \DoxyCodeLine{make\ test}
 
 \end{DoxyCode}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md211}{}\doxysection{\texorpdfstring{Architecture}{Architecture}}\label{md_PROGRAMMER__MANUAL_autotoc_md211}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md212}{}\doxysubsection{\texorpdfstring{System Architecture}{System Architecture}}\label{md_PROGRAMMER__MANUAL_autotoc_md212}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md207}{}\doxysection{\texorpdfstring{Architecture}{Architecture}}\label{md_PROGRAMMER__MANUAL_autotoc_md207}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md208}{}\doxysubsection{\texorpdfstring{System Architecture}{System Architecture}}\label{md_PROGRAMMER__MANUAL_autotoc_md208}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{i.hyper.smac\ (main\ module)}
@@ -80,7 +80,7 @@ The {\ttfamily i.\+hyper.\+smac} module provides advanced atmospheric correction
 \DoxyCodeLine{\ \ \ \ └──\ MAP\ Inversion}
 
 \end{DoxyCode}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md213}{}\doxysubsection{\texorpdfstring{Data Flow}{Data Flow}}\label{md_PROGRAMMER__MANUAL_autotoc_md213}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md209}{}\doxysubsection{\texorpdfstring{Data Flow}{Data Flow}}\label{md_PROGRAMMER__MANUAL_autotoc_md209}
 
 \begin{DoxyEnumerate}
 \item {\bfseries{Input Processing}}\+: Read hyperspectral 3D raster and metadata
@@ -89,9 +89,9 @@ The {\ttfamily i.\+hyper.\+smac} module provides advanced atmospheric correction
 \item {\bfseries{Atmospheric Correction}}\+: Apply correction using Open\+CL acceleration
 \item {\bfseries{Post-\/\+Processing}}\+: Apply spectral polishing and adjacency correction
 \item {\bfseries{Output Generation}}\+: Write corrected data and uncertainty maps
-\end{DoxyEnumerate}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md214}{}\doxysection{\texorpdfstring{API Reference}{API Reference}}\label{md_PROGRAMMER__MANUAL_autotoc_md214}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md215}{}\doxysubsection{\texorpdfstring{Main Functions}{Main Functions}}\label{md_PROGRAMMER__MANUAL_autotoc_md215}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md216}{}\doxysubsubsection{\texorpdfstring{$<$tt$>$apply\+\_\+lut\+\_\+correction()$<$/tt$>$}{<tt>apply\_lut\_correction()</tt>}}\label{md_PROGRAMMER__MANUAL_autotoc_md216}
+\end{DoxyEnumerate}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md210}{}\doxysection{\texorpdfstring{API Reference}{API Reference}}\label{md_PROGRAMMER__MANUAL_autotoc_md210}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md211}{}\doxysubsection{\texorpdfstring{Main Functions}{Main Functions}}\label{md_PROGRAMMER__MANUAL_autotoc_md211}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md212}{}\doxysubsubsection{\texorpdfstring{$<$tt$>$apply\+\_\+lut\+\_\+correction()$<$/tt$>$}{<tt>apply\_lut\_correction()</tt>}}\label{md_PROGRAMMER__MANUAL_autotoc_md212}
 Main atmospheric correction function.
 
 
@@ -148,8 +148,8 @@ Main atmospheric correction function.
 \DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ "{}"{}"{}}}
 
 \end{DoxyCode}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md217}{}\doxysubsection{\texorpdfstring{LUT Classes}{LUT Classes}}\label{md_PROGRAMMER__MANUAL_autotoc_md217}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md218}{}\doxysubsubsection{\texorpdfstring{$<$tt$>$\+Atmospheric\+LUT$<$/tt$>$}{<tt>AtmosphericLUT</tt>}}\label{md_PROGRAMMER__MANUAL_autotoc_md218}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md213}{}\doxysubsection{\texorpdfstring{LUT Classes}{LUT Classes}}\label{md_PROGRAMMER__MANUAL_autotoc_md213}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md214}{}\doxysubsubsection{\texorpdfstring{$<$tt$>$\+Atmospheric\+LUT$<$/tt$>$}{<tt>AtmosphericLUT</tt>}}\label{md_PROGRAMMER__MANUAL_autotoc_md214}
 Atmospheric Look-\/\+Up Table for hyperspectral correction.
 
 
@@ -187,7 +187,7 @@ Atmospheric Look-\/\+Up Table for hyperspectral correction.
 \DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ \ \ \ \ "{}"{}"{}}}
 
 \end{DoxyCode}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md219}{}\doxysubsubsection{\texorpdfstring{$<$tt$>$\+Smart\+LUTManager$<$/tt$>$}{<tt>SmartLUTManager</tt>}}\label{md_PROGRAMMER__MANUAL_autotoc_md219}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md215}{}\doxysubsubsection{\texorpdfstring{$<$tt$>$\+Smart\+LUTManager$<$/tt$>$}{<tt>SmartLUTManager</tt>}}\label{md_PROGRAMMER__MANUAL_autotoc_md215}
 Smart LUT management system.
 
 
@@ -209,8 +209,8 @@ Smart LUT management system.
 \DoxyCodeLine{\textcolor{stringliteral}{\ \ \ \ "{}"{}"{}}}
 
 \end{DoxyCode}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md220}{}\doxysection{\texorpdfstring{Testing}{Testing}}\label{md_PROGRAMMER__MANUAL_autotoc_md220}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md221}{}\doxysubsection{\texorpdfstring{Test Suite Structure}{Test Suite Structure}}\label{md_PROGRAMMER__MANUAL_autotoc_md221}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md216}{}\doxysection{\texorpdfstring{Testing}{Testing}}\label{md_PROGRAMMER__MANUAL_autotoc_md216}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md217}{}\doxysubsection{\texorpdfstring{Test Suite Structure}{Test Suite Structure}}\label{md_PROGRAMMER__MANUAL_autotoc_md217}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{testsuite/}
@@ -221,7 +221,7 @@ Smart LUT management system.
 \DoxyCodeLine{└──\ README.md\ \ \ \ \ \ \ \ \ \ \ \ \ \ \#\ Test\ documentation}
 
 \end{DoxyCode}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md222}{}\doxysubsection{\texorpdfstring{Running Tests}{Running Tests}}\label{md_PROGRAMMER__MANUAL_autotoc_md222}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md218}{}\doxysubsection{\texorpdfstring{Running Tests}{Running Tests}}\label{md_PROGRAMMER__MANUAL_autotoc_md218}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{\#\ Run\ all\ tests}
@@ -240,8 +240,8 @@ Smart LUT management system.
 \DoxyCodeLine{python\ run\_tests.py\ -\/-\/test-\/data\ /path/to/test/data}
 
 \end{DoxyCode}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md223}{}\doxysubsection{\texorpdfstring{Test Categories}{Test Categories}}\label{md_PROGRAMMER__MANUAL_autotoc_md223}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md224}{}\doxysubsubsection{\texorpdfstring{Unit Tests}{Unit Tests}}\label{md_PROGRAMMER__MANUAL_autotoc_md224}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md219}{}\doxysubsection{\texorpdfstring{Test Categories}{Test Categories}}\label{md_PROGRAMMER__MANUAL_autotoc_md219}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md220}{}\doxysubsubsection{\texorpdfstring{Unit Tests}{Unit Tests}}\label{md_PROGRAMMER__MANUAL_autotoc_md220}
 
 \begin{DoxyItemize}
 \item {\bfseries{Basic Functionality}}\+: Module existence and basic operations
@@ -250,20 +250,20 @@ Smart LUT management system.
 \item {\bfseries{Water Vapor Retrieval}}\+: Multiple retrieval methods
 \item {\bfseries{Smart LUT System}}\+: Performance optimization validation
 \item {\bfseries{Open\+CL Acceleration}}\+: GPU/\+CPU acceleration testing
-\end{DoxyItemize}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md225}{}\doxysubsubsection{\texorpdfstring{Integration Tests}{Integration Tests}}\label{md_PROGRAMMER__MANUAL_autotoc_md225}
+\end{DoxyItemize}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md221}{}\doxysubsubsection{\texorpdfstring{Integration Tests}{Integration Tests}}\label{md_PROGRAMMER__MANUAL_autotoc_md221}
 
 \begin{DoxyItemize}
 \item {\bfseries{End-\/to-\/\+End Workflows}}\+: Complete atmospheric correction pipelines
 \item {\bfseries{Output Generation}}\+: File creation and verification
 \item {\bfseries{Error Handling}}\+: Graceful failure and recovery
-\end{DoxyItemize}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md226}{}\doxysubsubsection{\texorpdfstring{Performance Tests}{Performance Tests}}\label{md_PROGRAMMER__MANUAL_autotoc_md226}
+\end{DoxyItemize}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md222}{}\doxysubsubsection{\texorpdfstring{Performance Tests}{Performance Tests}}\label{md_PROGRAMMER__MANUAL_autotoc_md222}
 
 \begin{DoxyItemize}
 \item {\bfseries{Smart LUT vs Standard LUT}}\+: \texorpdfstring{$\sim$}{\string~}77\% speedup validation
 \item {\bfseries{Parallel vs Serial Processing}}\+: Multi-\/core acceleration
 \item {\bfseries{Open\+CL vs CPU}}\+: GPU acceleration benchmarks
-\end{DoxyItemize}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md227}{}\doxysection{\texorpdfstring{Performance Optimization}{Performance Optimization}}\label{md_PROGRAMMER__MANUAL_autotoc_md227}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md228}{}\doxysubsection{\texorpdfstring{Smart LUT System}{Smart LUT System}}\label{md_PROGRAMMER__MANUAL_autotoc_md228}
+\end{DoxyItemize}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md223}{}\doxysection{\texorpdfstring{Performance Optimization}{Performance Optimization}}\label{md_PROGRAMMER__MANUAL_autotoc_md223}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md224}{}\doxysubsection{\texorpdfstring{Smart LUT System}{Smart LUT System}}\label{md_PROGRAMMER__MANUAL_autotoc_md224}
 The Smart LUT system optimizes LUT generation based on scene characteristics\+:
 
 
@@ -273,7 +273,7 @@ The Smart LUT system optimizes LUT generation based on scene characteristics\+:
 \DoxyCodeLine{\textcolor{comment}{\#\ Speedup:\ \string~77\%\ reduction\ in\ computation\ time}}
 
 \end{DoxyCode}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md229}{}\doxysubsection{\texorpdfstring{Parallel Processing}{Parallel Processing}}\label{md_PROGRAMMER__MANUAL_autotoc_md229}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md225}{}\doxysubsection{\texorpdfstring{Parallel Processing}{Parallel Processing}}\label{md_PROGRAMMER__MANUAL_autotoc_md225}
 Multi-\/core LUT generation with automatic resource detection\+:
 
 
@@ -286,7 +286,7 @@ Multi-\/core LUT generation with automatic resource detection\+:
 \DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ max\_workers=\textcolor{stringliteral}{'auto'})}
 
 \end{DoxyCode}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md230}{}\doxysubsection{\texorpdfstring{Open\+CL Acceleration}{OpenCL Acceleration}}\label{md_PROGRAMMER__MANUAL_autotoc_md230}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md226}{}\doxysubsection{\texorpdfstring{Open\+CL Acceleration}{OpenCL Acceleration}}\label{md_PROGRAMMER__MANUAL_autotoc_md226}
 GPU/\+CPU acceleration for atmospheric correction\+:
 
 
@@ -299,9 +299,9 @@ GPU/\+CPU acceleration for atmospheric correction\+:
 \DoxyCodeLine{\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ opencl\_memory=2048)}
 
 \end{DoxyCode}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md231}{}\doxysection{\texorpdfstring{Troubleshooting}{Troubleshooting}}\label{md_PROGRAMMER__MANUAL_autotoc_md231}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md232}{}\doxysubsection{\texorpdfstring{Common Issues}{Common Issues}}\label{md_PROGRAMMER__MANUAL_autotoc_md232}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md233}{}\doxysubsubsection{\texorpdfstring{lib\+Radtran not found}{libRadtran not found}}\label{md_PROGRAMMER__MANUAL_autotoc_md233}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md227}{}\doxysection{\texorpdfstring{Troubleshooting}{Troubleshooting}}\label{md_PROGRAMMER__MANUAL_autotoc_md227}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md228}{}\doxysubsection{\texorpdfstring{Common Issues}{Common Issues}}\label{md_PROGRAMMER__MANUAL_autotoc_md228}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md229}{}\doxysubsubsection{\texorpdfstring{lib\+Radtran not found}{libRadtran not found}}\label{md_PROGRAMMER__MANUAL_autotoc_md229}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{\#\ Install\ libRadtran}
@@ -311,7 +311,7 @@ GPU/\+CPU acceleration for atmospheric correction\+:
 \DoxyCodeLine{export\ LIBRADTRAN\_PATH=/usr/local/lib}
 
 \end{DoxyCode}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md234}{}\doxysubsubsection{\texorpdfstring{Open\+CL initialization fails}{OpenCL initialization fails}}\label{md_PROGRAMMER__MANUAL_autotoc_md234}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md230}{}\doxysubsubsection{\texorpdfstring{Open\+CL initialization fails}{OpenCL initialization fails}}\label{md_PROGRAMMER__MANUAL_autotoc_md230}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{\#\ Install\ OpenCL\ drivers}
@@ -321,14 +321,14 @@ GPU/\+CPU acceleration for atmospheric correction\+:
 \DoxyCodeLine{gs.run\_command('i.hyper.smac',\ opencl\_device='cpu')}
 
 \end{DoxyCode}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md235}{}\doxysubsubsection{\texorpdfstring{Memory errors}{Memory errors}}\label{md_PROGRAMMER__MANUAL_autotoc_md235}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md231}{}\doxysubsubsection{\texorpdfstring{Memory errors}{Memory errors}}\label{md_PROGRAMMER__MANUAL_autotoc_md231}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{\#\ Reduce\ memory\ usage}
 \DoxyCodeLine{gs.run\_command('i.hyper.smac',\ opencl\_memory=512)}
 
 \end{DoxyCode}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md236}{}\doxysubsection{\texorpdfstring{Debug Mode}{Debug Mode}}\label{md_PROGRAMMER__MANUAL_autotoc_md236}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md232}{}\doxysubsection{\texorpdfstring{Debug Mode}{Debug Mode}}\label{md_PROGRAMMER__MANUAL_autotoc_md232}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{\#\ Enable\ verbose\ output}
@@ -338,8 +338,8 @@ GPU/\+CPU acceleration for atmospheric correction\+:
 \DoxyCodeLine{gs.run\_command('i.hyper.smac',\ flags='v')}
 
 \end{DoxyCode}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md237}{}\doxysection{\texorpdfstring{Contributing}{Contributing}}\label{md_PROGRAMMER__MANUAL_autotoc_md237}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md238}{}\doxysubsection{\texorpdfstring{Development Setup}{Development Setup}}\label{md_PROGRAMMER__MANUAL_autotoc_md238}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md233}{}\doxysection{\texorpdfstring{Contributing}{Contributing}}\label{md_PROGRAMMER__MANUAL_autotoc_md233}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md234}{}\doxysubsection{\texorpdfstring{Development Setup}{Development Setup}}\label{md_PROGRAMMER__MANUAL_autotoc_md234}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{\#\ Clone\ repository}
@@ -353,7 +353,7 @@ GPU/\+CPU acceleration for atmospheric correction\+:
 \DoxyCodeLine{make\ test-\/all}
 
 \end{DoxyCode}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md239}{}\doxysubsection{\texorpdfstring{Code Style}{Code Style}}\label{md_PROGRAMMER__MANUAL_autotoc_md239}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md235}{}\doxysubsection{\texorpdfstring{Code Style}{Code Style}}\label{md_PROGRAMMER__MANUAL_autotoc_md235}
 Follow GRASS GIS coding standards\+:
 
 
@@ -361,7 +361,7 @@ Follow GRASS GIS coding standards\+:
 \item {\bfseries{Python}}\+: PEP 8 with 4-\/space indentation
 \item {\bfseries{Documentation}}\+: Doxygen format for C/\+C++, docstrings for Python
 \item {\bfseries{Testing}}\+: Comprehensive test coverage required
-\end{DoxyItemize}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md240}{}\doxysubsection{\texorpdfstring{Submitting Changes}{Submitting Changes}}\label{md_PROGRAMMER__MANUAL_autotoc_md240}
+\end{DoxyItemize}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md236}{}\doxysubsection{\texorpdfstring{Submitting Changes}{Submitting Changes}}\label{md_PROGRAMMER__MANUAL_autotoc_md236}
 
 \begin{DoxyEnumerate}
 \item Fork repository
@@ -369,7 +369,7 @@ Follow GRASS GIS coding standards\+:
 \item Add tests for new functionality
 \item Ensure all tests pass
 \item Submit pull request
-\end{DoxyEnumerate}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md241}{}\doxysubsection{\texorpdfstring{Test Coverage}{Test Coverage}}\label{md_PROGRAMMER__MANUAL_autotoc_md241}
+\end{DoxyEnumerate}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md237}{}\doxysubsection{\texorpdfstring{Test Coverage}{Test Coverage}}\label{md_PROGRAMMER__MANUAL_autotoc_md237}
 Maintain high test coverage\+:
 
 
@@ -381,15 +381,15 @@ Maintain high test coverage\+:
 \DoxyCodeLine{open\ testsuite/htmlcov/index.html}
 
 \end{DoxyCode}
-\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md242}{}\doxysection{\texorpdfstring{References}{References}}\label{md_PROGRAMMER__MANUAL_autotoc_md242}
+\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md238}{}\doxysection{\texorpdfstring{References}{References}}\label{md_PROGRAMMER__MANUAL_autotoc_md238}
 
 \begin{DoxyItemize}
 \item Vermote, E., et al. (1997). Second simulation of the satellite signal in the solar spectrum (6S). IEEE TGRS.
 \item Levy, R.\+C., et al. (2007). Global aerosol optical properties and application to MODIS aerosol retrieval over land. JGR.
 \item Thompson, D.\+R., et al. (2018). ISOFIT\+: A full-\/physics, optimal estimation retrieval package for remote sensing. JQSRT.
 \item Mayer, B., \& Kylling, A. (2005). Technical note\+: The lib\+Radtran software package for radiative transfer calculations. ACP.
-\end{DoxyItemize}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md243}{}\doxysection{\texorpdfstring{License}{License}}\label{md_PROGRAMMER__MANUAL_autotoc_md243}
-This program is free software under GNU General Public License (\texorpdfstring{$>$}{>}=v2). Read the file COPYING that comes with GRASS for details.\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md244}{}\doxysection{\texorpdfstring{Support}{Support}}\label{md_PROGRAMMER__MANUAL_autotoc_md244}
+\end{DoxyItemize}\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md239}{}\doxysection{\texorpdfstring{License}{License}}\label{md_PROGRAMMER__MANUAL_autotoc_md239}
+This program is free software under GNU General Public License (\texorpdfstring{$>$}{>}=v2). Read the file COPYING that comes with GRASS for details.\hypertarget{md_PROGRAMMER__MANUAL_autotoc_md240}{}\doxysection{\texorpdfstring{Support}{Support}}\label{md_PROGRAMMER__MANUAL_autotoc_md240}
 
 \begin{DoxyItemize}
 \item {\bfseries{GRASS GIS Website}}\+: \href{https://grass.osgeo.org}{\texttt{ https\+://grass.\+osgeo.\+org}}

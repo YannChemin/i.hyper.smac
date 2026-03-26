@@ -72,8 +72,8 @@ $(function() {
   <div class="headertitle"><div class="title">i.hyper.smac Programmer Manual</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md203"></a> </p>
-<h1><a class="anchor" id="autotoc_md204"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md199"></a> </p>
+<h1><a class="anchor" id="autotoc_md200"></a>
 Table of Contents</h1>
 <ol type="1">
 <li>Overview</li>
@@ -85,10 +85,10 @@ Table of Contents</h1>
 <li>Troubleshooting</li>
 <li>Contributing</li>
 </ol>
-<h1><a class="anchor" id="autotoc_md205"></a>
+<h1><a class="anchor" id="autotoc_md201"></a>
 Overview</h1>
 <p>The <code>i.hyper.smac</code> module provides advanced atmospheric correction capabilities for hyperspectral imagery using the Simplified Method for Atmospheric Correction (SMAC) enhanced with libRadtran DISORT calculations. This module implements state-of-the-art atmospheric correction algorithms including automatic aerosol and water vapor estimation, parallel processing, and OpenCL acceleration.</p>
-<h2><a class="anchor" id="autotoc_md206"></a>
+<h2><a class="anchor" id="autotoc_md202"></a>
 Key Features</h2>
 <ul>
 <li><b>Full libRadtran DISORT Integration</b>: Multiple scattering atmospheric correction</li>
@@ -101,9 +101,9 @@ Key Features</h2>
 <li><b>Adjacency Correction</b>: Point Spread Function based correction</li>
 <li><b>Spectral Polishing</b>: ISOFIT-inspired spectral smoothing</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md207"></a>
+<h1><a class="anchor" id="autotoc_md203"></a>
 Installation</h1>
-<h2><a class="anchor" id="autotoc_md208"></a>
+<h2><a class="anchor" id="autotoc_md204"></a>
 System Requirements</h2>
 <ul>
 <li><b>GRASS GIS</b>: Version 8.0 or higher</li>
@@ -111,14 +111,14 @@ System Requirements</h2>
 <li><b>libRadtran</b>: For atmospheric modeling</li>
 <li><b>OpenCL</b>: For GPU acceleration (optional)</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md209"></a>
+<h2><a class="anchor" id="autotoc_md205"></a>
 Dependencies</h2>
 <div class="fragment"><div class="line"># Ubuntu/Debian</div>
 <div class="line">sudo apt-get install grass grass-dev libradtran-dev libopencl-dev</div>
 <div class="line"> </div>
 <div class="line"># Python dependencies</div>
 <div class="line">pip install numpy scipy pyopencl netcdf4 h5py</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md210"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md206"></a>
 Module Installation</h2>
 <div class="fragment"><div class="line"># Clone repository</div>
 <div class="line">git clone https://github.com/YannChemin/i.hyper.smac.git</div>
@@ -129,9 +129,9 @@ Module Installation</h2>
 <div class="line"> </div>
 <div class="line"># Test installation</div>
 <div class="line">make test</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md211"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md207"></a>
 Architecture</h1>
-<h2><a class="anchor" id="autotoc_md212"></a>
+<h2><a class="anchor" id="autotoc_md208"></a>
 System Architecture</h2>
 <div class="fragment"><div class="line">i.hyper.smac (main module)</div>
 <div class="line">├── Atmospheric Parameter Estimation</div>
@@ -149,7 +149,7 @@ System Architecture</h2>
 <div class="line">└── Uncertainty Quantification</div>
 <div class="line">    ├── Error Propagation</div>
 <div class="line">    └── MAP Inversion</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md213"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md209"></a>
 Data Flow</h2>
 <ol type="1">
 <li><b>Input Processing</b>: Read hyperspectral 3D raster and metadata</li>
@@ -159,11 +159,11 @@ Data Flow</h2>
 <li><b>Post-Processing</b>: Apply spectral polishing and adjacency correction</li>
 <li><b>Output Generation</b>: Write corrected data and uncertainty maps</li>
 </ol>
-<h1><a class="anchor" id="autotoc_md214"></a>
+<h1><a class="anchor" id="autotoc_md210"></a>
 API Reference</h1>
-<h2><a class="anchor" id="autotoc_md215"></a>
+<h2><a class="anchor" id="autotoc_md211"></a>
 Main Functions</h2>
-<h3><a class="anchor" id="autotoc_md216"></a>
+<h3><a class="anchor" id="autotoc_md212"></a>
 &lt;tt&gt;apply_lut_correction()&lt;/tt&gt;</h3>
 <p>Main atmospheric correction function.</p>
 <div class="fragment"><div class="line"><span class="keyword">def </span>apply_lut_correction(input_raster, output_raster, bands,</div>
@@ -216,9 +216,9 @@ Main Functions</h2>
 <div class="line"><span class="stringliteral">    AtmosphericLUT object</span></div>
 <div class="line"><span class="stringliteral">        Generated or loaded atmospheric LUT</span></div>
 <div class="line"><span class="stringliteral">    &quot;&quot;&quot;</span></div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md217"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md213"></a>
 LUT Classes</h2>
-<h3><a class="anchor" id="autotoc_md218"></a>
+<h3><a class="anchor" id="autotoc_md214"></a>
 &lt;tt&gt;AtmosphericLUT&lt;/tt&gt;</h3>
 <p>Atmospheric Look-Up Table for hyperspectral correction.</p>
 <div class="fragment"><div class="line"><span class="keyword">class </span>AtmosphericLUT:</div>
@@ -252,7 +252,7 @@ LUT Classes</h2>
 <div class="line"><span class="stringliteral">        </span></div>
 <div class="line"><span class="stringliteral">        Implements intelligent caching with scene-aware keys</span></div>
 <div class="line"><span class="stringliteral">        &quot;&quot;&quot;</span></div>
-</div><!-- fragment --><h3><a class="anchor" id="autotoc_md219"></a>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md215"></a>
 &lt;tt&gt;SmartLUTManager&lt;/tt&gt;</h3>
 <p>Smart LUT management system.</p>
 <div class="fragment"><div class="line"><span class="keyword">class </span>SmartLUTManager:</div>
@@ -270,9 +270,9 @@ LUT Classes</h2>
 <div class="line"><span class="stringliteral">    generate_cache_key(scene_parameters)</span></div>
 <div class="line"><span class="stringliteral">        Generate cache key for LUT storage</span></div>
 <div class="line"><span class="stringliteral">    &quot;&quot;&quot;</span></div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md220"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md216"></a>
 Testing</h1>
-<h2><a class="anchor" id="autotoc_md221"></a>
+<h2><a class="anchor" id="autotoc_md217"></a>
 Test Suite Structure</h2>
 <div class="fragment"><div class="line">testsuite/</div>
 <div class="line">├── test_i_hyper_smac.py    # Main unit test file</div>
@@ -280,7 +280,7 @@ Test Suite Structure</h2>
 <div class="line">├── generate_test_data.py   # Test data generator</div>
 <div class="line">├── Makefile               # GRASS make integration</div>
 <div class="line">└── README.md              # Test documentation</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md222"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md218"></a>
 Running Tests</h2>
 <div class="fragment"><div class="line"># Run all tests</div>
 <div class="line">make test-all</div>
@@ -296,9 +296,9 @@ Running Tests</h2>
 <div class="line"># Run with custom test data</div>
 <div class="line">cd testsuite</div>
 <div class="line">python run_tests.py --test-data /path/to/test/data</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md223"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md219"></a>
 Test Categories</h2>
-<h3><a class="anchor" id="autotoc_md224"></a>
+<h3><a class="anchor" id="autotoc_md220"></a>
 Unit Tests</h3>
 <ul>
 <li><b>Basic Functionality</b>: Module existence and basic operations</li>
@@ -308,29 +308,29 @@ Unit Tests</h3>
 <li><b>Smart LUT System</b>: Performance optimization validation</li>
 <li><b>OpenCL Acceleration</b>: GPU/CPU acceleration testing</li>
 </ul>
-<h3><a class="anchor" id="autotoc_md225"></a>
+<h3><a class="anchor" id="autotoc_md221"></a>
 Integration Tests</h3>
 <ul>
 <li><b>End-to-End Workflows</b>: Complete atmospheric correction pipelines</li>
 <li><b>Output Generation</b>: File creation and verification</li>
 <li><b>Error Handling</b>: Graceful failure and recovery</li>
 </ul>
-<h3><a class="anchor" id="autotoc_md226"></a>
+<h3><a class="anchor" id="autotoc_md222"></a>
 Performance Tests</h3>
 <ul>
 <li><b>Smart LUT vs Standard LUT</b>: ~77% speedup validation</li>
 <li><b>Parallel vs Serial Processing</b>: Multi-core acceleration</li>
 <li><b>OpenCL vs CPU</b>: GPU acceleration benchmarks</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md227"></a>
+<h1><a class="anchor" id="autotoc_md223"></a>
 Performance Optimization</h1>
-<h2><a class="anchor" id="autotoc_md228"></a>
+<h2><a class="anchor" id="autotoc_md224"></a>
 Smart LUT System</h2>
 <p>The Smart LUT system optimizes LUT generation based on scene characteristics:</p>
 <div class="fragment"><div class="line"><span class="comment"># Standard LUT: 96 runs (13 AOD × 8 H2O × 2 albedo)</span></div>
 <div class="line"><span class="comment"># Smart LUT: 36 runs (3-5 AOD × 6 H2O × 2 albedo)</span></div>
 <div class="line"><span class="comment"># Speedup: ~77% reduction in computation time</span></div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md229"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md225"></a>
 Parallel Processing</h2>
 <p>Multi-core LUT generation with automatic resource detection:</p>
 <div class="fragment"><div class="line"><span class="comment"># Enable parallel processing</span></div>
@@ -339,7 +339,7 @@ Parallel Processing</h2>
 <div class="line">               output=<span class="stringliteral">&#39;corrected&#39;</span>,</div>
 <div class="line">               parallel_lut=<span class="stringliteral">&#39;enabled&#39;</span>,</div>
 <div class="line">               max_workers=<span class="stringliteral">&#39;auto&#39;</span>)</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md230"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md226"></a>
 OpenCL Acceleration</h2>
 <p>GPU/CPU acceleration for atmospheric correction:</p>
 <div class="fragment"><div class="line"><span class="comment"># GPU acceleration</span></div>
@@ -348,38 +348,38 @@ OpenCL Acceleration</h2>
 <div class="line">               output=<span class="stringliteral">&#39;corrected&#39;</span>,</div>
 <div class="line">               opencl_device=<span class="stringliteral">&#39;gpu&#39;</span>,</div>
 <div class="line">               opencl_memory=2048)</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md231"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md227"></a>
 Troubleshooting</h1>
-<h2><a class="anchor" id="autotoc_md232"></a>
+<h2><a class="anchor" id="autotoc_md228"></a>
 Common Issues</h2>
-<h3><a class="anchor" id="autotoc_md233"></a>
+<h3><a class="anchor" id="autotoc_md229"></a>
 libRadtran not found</h3>
 <div class="fragment"><div class="line"># Install libRadtran</div>
 <div class="line">sudo apt-get install libradtran-dev</div>
 <div class="line"> </div>
 <div class="line"># Set environment variable</div>
 <div class="line">export LIBRADTRAN_PATH=/usr/local/lib</div>
-</div><!-- fragment --><h3><a class="anchor" id="autotoc_md234"></a>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md230"></a>
 OpenCL initialization fails</h3>
 <div class="fragment"><div class="line"># Install OpenCL drivers</div>
 <div class="line">sudo apt-get install opencl-headers ocl-icd-opencl-dev</div>
 <div class="line"> </div>
 <div class="line"># Use CPU fallback</div>
 <div class="line">gs.run_command(&#39;i.hyper.smac&#39;, opencl_device=&#39;cpu&#39;)</div>
-</div><!-- fragment --><h3><a class="anchor" id="autotoc_md235"></a>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md231"></a>
 Memory errors</h3>
 <div class="fragment"><div class="line"># Reduce memory usage</div>
 <div class="line">gs.run_command(&#39;i.hyper.smac&#39;, opencl_memory=512)</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md236"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md232"></a>
 Debug Mode</h2>
 <div class="fragment"><div class="line"># Enable verbose output</div>
 <div class="line">export GRASS_VERBOSE=3</div>
 <div class="line"> </div>
 <div class="line"># Run with debugging</div>
 <div class="line">gs.run_command(&#39;i.hyper.smac&#39;, flags=&#39;v&#39;)</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md237"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md233"></a>
 Contributing</h1>
-<h2><a class="anchor" id="autotoc_md238"></a>
+<h2><a class="anchor" id="autotoc_md234"></a>
 Development Setup</h2>
 <div class="fragment"><div class="line"># Clone repository</div>
 <div class="line">git clone https://github.com/YannChemin/i.hyper.smac.git</div>
@@ -390,7 +390,7 @@ Development Setup</h2>
 <div class="line"> </div>
 <div class="line"># Run tests</div>
 <div class="line">make test-all</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md239"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md235"></a>
 Code Style</h2>
 <p>Follow GRASS GIS coding standards:</p>
 <ul>
@@ -398,7 +398,7 @@ Code Style</h2>
 <li><b>Documentation</b>: Doxygen format for C/C++, docstrings for Python</li>
 <li><b>Testing</b>: Comprehensive test coverage required</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md240"></a>
+<h2><a class="anchor" id="autotoc_md236"></a>
 Submitting Changes</h2>
 <ol type="1">
 <li>Fork repository</li>
@@ -407,7 +407,7 @@ Submitting Changes</h2>
 <li>Ensure all tests pass</li>
 <li>Submit pull request</li>
 </ol>
-<h2><a class="anchor" id="autotoc_md241"></a>
+<h2><a class="anchor" id="autotoc_md237"></a>
 Test Coverage</h2>
 <p>Maintain high test coverage:</p>
 <div class="fragment"><div class="line"># Generate coverage report</div>
@@ -415,7 +415,7 @@ Test Coverage</h2>
 <div class="line"> </div>
 <div class="line"># View coverage report</div>
 <div class="line">open testsuite/htmlcov/index.html</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md242"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md238"></a>
 References</h1>
 <ul>
 <li>Vermote, E., et al. (1997). Second simulation of the satellite signal in the solar spectrum (6S). IEEE TGRS.</li>
@@ -423,10 +423,10 @@ References</h1>
 <li>Thompson, D.R., et al. (2018). ISOFIT: A full-physics, optimal estimation retrieval package for remote sensing. JQSRT.</li>
 <li>Mayer, B., &amp; Kylling, A. (2005). Technical note: The libRadtran software package for radiative transfer calculations. ACP.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md243"></a>
+<h1><a class="anchor" id="autotoc_md239"></a>
 License</h1>
 <p>This program is free software under GNU General Public License (&gt;=v2). Read the file COPYING that comes with GRASS for details.</p>
-<h1><a class="anchor" id="autotoc_md244"></a>
+<h1><a class="anchor" id="autotoc_md240"></a>
 Support</h1>
 <ul>
 <li><b>GRASS GIS Website</b>: <a href="https://grass.osgeo.org">https://grass.osgeo.org</a></li>

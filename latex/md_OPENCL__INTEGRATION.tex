@@ -1,8 +1,8 @@
 \chapter{Open\+CL GPU Acceleration for i.\+hyper.\+smac}
 \hypertarget{md_OPENCL__INTEGRATION}{}\label{md_OPENCL__INTEGRATION}\index{OpenCL GPU Acceleration for i.hyper.smac@{OpenCL GPU Acceleration for i.hyper.smac}}
-\label{md_OPENCL__INTEGRATION_autotoc_md38}%
-\Hypertarget{md_OPENCL__INTEGRATION_autotoc_md38}%
- This document describes the Open\+CL integration that provides GPU and multi-\/core acceleration for atmospheric correction processing in i.\+hyper.\+smac.\hypertarget{md_OPENCL__INTEGRATION_autotoc_md39}{}\doxysection{\texorpdfstring{Overview}{Overview}}\label{md_OPENCL__INTEGRATION_autotoc_md39}
+\label{md_OPENCL__INTEGRATION_autotoc_md34}%
+\Hypertarget{md_OPENCL__INTEGRATION_autotoc_md34}%
+ This document describes the Open\+CL integration that provides GPU and multi-\/core acceleration for atmospheric correction processing in i.\+hyper.\+smac.\hypertarget{md_OPENCL__INTEGRATION_autotoc_md35}{}\doxysection{\texorpdfstring{Overview}{Overview}}\label{md_OPENCL__INTEGRATION_autotoc_md35}
 The Open\+CL accelerator enables significant performance improvements for hyperspectral atmospheric correction by distributing processing across available GPU devices and multi-\/core CPUs. It includes\+:
 
 
@@ -12,8 +12,8 @@ The Open\+CL accelerator enables significant performance improvements for hypers
 \item {\bfseries{Fallback mechanisms}}\+: Graceful degradation to CPU processing when Open\+CL is unavailable
 \item {\bfseries{Memory management}}\+: Configurable memory limits for different hardware configurations
 \item {\bfseries{Performance monitoring}}\+: Built-\/in benchmarking and device information
-\end{DoxyItemize}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md40}{}\doxysection{\texorpdfstring{Installation}{Installation}}\label{md_OPENCL__INTEGRATION_autotoc_md40}
-\hypertarget{md_OPENCL__INTEGRATION_autotoc_md41}{}\doxysubsection{\texorpdfstring{System Requirements}{System Requirements}}\label{md_OPENCL__INTEGRATION_autotoc_md41}
+\end{DoxyItemize}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md36}{}\doxysection{\texorpdfstring{Installation}{Installation}}\label{md_OPENCL__INTEGRATION_autotoc_md36}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md37}{}\doxysubsection{\texorpdfstring{System Requirements}{System Requirements}}\label{md_OPENCL__INTEGRATION_autotoc_md37}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{\#\ Install\ pyOpenCL\ (Debian/Ubuntu)}
@@ -23,15 +23,15 @@ The Open\+CL accelerator enables significant performance improvements for hypers
 \DoxyCodeLine{pip\ install\ pyopencl}
 
 \end{DoxyCode}
-\hypertarget{md_OPENCL__INTEGRATION_autotoc_md42}{}\doxysubsection{\texorpdfstring{Dependencies}{Dependencies}}\label{md_OPENCL__INTEGRATION_autotoc_md42}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md38}{}\doxysubsection{\texorpdfstring{Dependencies}{Dependencies}}\label{md_OPENCL__INTEGRATION_autotoc_md38}
 
 \begin{DoxyItemize}
 \item Python 3.\+8+
 \item py\+Open\+CL 2024.\+0+
 \item Num\+Py
 \item Open\+CL-\/compatible GPU (NVIDIA, AMD, Intel) or multi-\/core CPU
-\end{DoxyItemize}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md43}{}\doxysection{\texorpdfstring{Usage}{Usage}}\label{md_OPENCL__INTEGRATION_autotoc_md43}
-\hypertarget{md_OPENCL__INTEGRATION_autotoc_md44}{}\doxysubsection{\texorpdfstring{Basic Usage}{Basic Usage}}\label{md_OPENCL__INTEGRATION_autotoc_md44}
+\end{DoxyItemize}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md39}{}\doxysection{\texorpdfstring{Usage}{Usage}}\label{md_OPENCL__INTEGRATION_autotoc_md39}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md40}{}\doxysubsection{\texorpdfstring{Basic Usage}{Basic Usage}}\label{md_OPENCL__INTEGRATION_autotoc_md40}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{\#\ Auto-\/detect\ best\ OpenCL\ device\ (GPU\ preferred)}
@@ -50,7 +50,7 @@ The Open\+CL accelerator enables significant performance improvements for hypers
 \DoxyCodeLine{i.hyper.smac\ input=rad\ output=corr\ opencl\_memory=2048\ ...}
 
 \end{DoxyCode}
-\hypertarget{md_OPENCL__INTEGRATION_autotoc_md45}{}\doxysubsection{\texorpdfstring{Configuration Options}{Configuration Options}}\label{md_OPENCL__INTEGRATION_autotoc_md45}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md41}{}\doxysubsection{\texorpdfstring{Configuration Options}{Configuration Options}}\label{md_OPENCL__INTEGRATION_autotoc_md41}
 \tabulinesep=1mm
 \begin{longtabu}spread 0pt [c]{*{5}{|X[-1]}|}
 \hline
@@ -64,8 +64,8 @@ The Open\+CL accelerator enables significant performance improvements for hypers
 {\ttfamily opencl\+\_\+device}   &string   &auto,gpu,cpu   &auto   &Open\+CL device type    \\\cline{1-5}
 {\ttfamily opencl\+\_\+memory}   &integer   &0-\/8192   &1024   &Memory limit in MB (0=unlimited)   \\\cline{1-5}
 \end{longtabu}
-\hypertarget{md_OPENCL__INTEGRATION_autotoc_md46}{}\doxysection{\texorpdfstring{Performance}{Performance}}\label{md_OPENCL__INTEGRATION_autotoc_md46}
-\hypertarget{md_OPENCL__INTEGRATION_autotoc_md47}{}\doxysubsection{\texorpdfstring{Device Detection}{Device Detection}}\label{md_OPENCL__INTEGRATION_autotoc_md47}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md42}{}\doxysection{\texorpdfstring{Performance}{Performance}}\label{md_OPENCL__INTEGRATION_autotoc_md42}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md43}{}\doxysubsection{\texorpdfstring{Device Detection}{Device Detection}}\label{md_OPENCL__INTEGRATION_autotoc_md43}
 The system automatically detects and ranks available Open\+CL devices\+:
 
 
@@ -73,7 +73,7 @@ The system automatically detects and ranks available Open\+CL devices\+:
 \item {\bfseries{GPU devices}} (NVIDIA, AMD, Intel integrated)
 \item {\bfseries{CPU devices}} (multi-\/core processors)
 \item {\bfseries{Accelerator devices}} (specialized hardware)
-\end{DoxyEnumerate}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md48}{}\doxysubsection{\texorpdfstring{Benchmark Results}{Benchmark Results}}\label{md_OPENCL__INTEGRATION_autotoc_md48}
+\end{DoxyEnumerate}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md44}{}\doxysubsection{\texorpdfstring{Benchmark Results}{Benchmark Results}}\label{md_OPENCL__INTEGRATION_autotoc_md44}
 Typical performance improvements\+:
 
 \tabulinesep=1mm
@@ -91,14 +91,14 @@ AMD GPU (RX 6800)   &6-\/12x   &1-\/3 GB    \\\cline{1-3}
 Intel CPU (8-\/core)   &3-\/6x   &500 MB    \\\cline{1-3}
 Intel Integrated GPU   &2-\/4x   &1-\/2 GB   \\\cline{1-3}
 \end{longtabu}
-\hypertarget{md_OPENCL__INTEGRATION_autotoc_md49}{}\doxysubsection{\texorpdfstring{Memory Optimization}{Memory Optimization}}\label{md_OPENCL__INTEGRATION_autotoc_md49}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md45}{}\doxysubsection{\texorpdfstring{Memory Optimization}{Memory Optimization}}\label{md_OPENCL__INTEGRATION_autotoc_md45}
 
 \begin{DoxyItemize}
 \item {\bfseries{Batch processing}}\+: Processes 10 bands simultaneously
 \item {\bfseries{Memory pooling}}\+: Reuses GPU memory across operations
 \item {\bfseries{Adaptive sizing}}\+: Automatically adjusts batch size based on available memory
-\end{DoxyItemize}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md50}{}\doxysection{\texorpdfstring{Implementation Details}{Implementation Details}}\label{md_OPENCL__INTEGRATION_autotoc_md50}
-\hypertarget{md_OPENCL__INTEGRATION_autotoc_md51}{}\doxysubsection{\texorpdfstring{GPU Kernels}{GPU Kernels}}\label{md_OPENCL__INTEGRATION_autotoc_md51}
+\end{DoxyItemize}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md46}{}\doxysection{\texorpdfstring{Implementation Details}{Implementation Details}}\label{md_OPENCL__INTEGRATION_autotoc_md46}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md47}{}\doxysubsection{\texorpdfstring{GPU Kernels}{GPU Kernels}}\label{md_OPENCL__INTEGRATION_autotoc_md47}
 The Open\+CL implementation includes optimized kernels for\+:
 
 
@@ -107,7 +107,7 @@ The Open\+CL implementation includes optimized kernels for\+:
 \item {\bfseries{Gas Absorption}}\+: H2O and O3 transmittance calculations
 \item {\bfseries{Spectral Polishing}}\+: Multi-\/band outlier detection
 \item {\bfseries{Uncertainty Calculation}}\+: Per-\/pixel error propagation
-\end{DoxyEnumerate}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md52}{}\doxysubsection{\texorpdfstring{Fallback Strategy}{Fallback Strategy}}\label{md_OPENCL__INTEGRATION_autotoc_md52}
+\end{DoxyEnumerate}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md48}{}\doxysubsection{\texorpdfstring{Fallback Strategy}{Fallback Strategy}}\label{md_OPENCL__INTEGRATION_autotoc_md48}
 When Open\+CL is unavailable or fails\+:
 
 
@@ -115,15 +115,15 @@ When Open\+CL is unavailable or fails\+:
 \item {\bfseries{Graceful degradation}}\+: Falls back to CPU processing
 \item {\bfseries{Partial acceleration}}\+: Processes available bands with GPU, rest with CPU
 \item {\bfseries{Error recovery}}\+: Continues processing with warnings
-\end{DoxyEnumerate}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md53}{}\doxysubsection{\texorpdfstring{Memory Management}{Memory Management}}\label{md_OPENCL__INTEGRATION_autotoc_md53}
+\end{DoxyEnumerate}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md49}{}\doxysubsection{\texorpdfstring{Memory Management}{Memory Management}}\label{md_OPENCL__INTEGRATION_autotoc_md49}
 
 \begin{DoxyItemize}
 \item {\bfseries{Configurable limits}}\+: {\ttfamily opencl\+\_\+memory} parameter controls usage
 \item {\bfseries{Automatic cleanup}}\+: Proper resource deallocation
 \item {\bfseries{Memory monitoring}}\+: Tracks usage during processing
-\end{DoxyItemize}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md54}{}\doxysection{\texorpdfstring{Troubleshooting}{Troubleshooting}}\label{md_OPENCL__INTEGRATION_autotoc_md54}
-\hypertarget{md_OPENCL__INTEGRATION_autotoc_md55}{}\doxysubsection{\texorpdfstring{Common Issues}{Common Issues}}\label{md_OPENCL__INTEGRATION_autotoc_md55}
-\hypertarget{md_OPENCL__INTEGRATION_autotoc_md56}{}\doxysubsubsection{\texorpdfstring{py\+Open\+CL not found}{pyOpenCL not found}}\label{md_OPENCL__INTEGRATION_autotoc_md56}
+\end{DoxyItemize}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md50}{}\doxysection{\texorpdfstring{Troubleshooting}{Troubleshooting}}\label{md_OPENCL__INTEGRATION_autotoc_md50}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md51}{}\doxysubsection{\texorpdfstring{Common Issues}{Common Issues}}\label{md_OPENCL__INTEGRATION_autotoc_md51}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md52}{}\doxysubsubsection{\texorpdfstring{py\+Open\+CL not found}{pyOpenCL not found}}\label{md_OPENCL__INTEGRATION_autotoc_md52}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{\#\ Install\ system\ package}
@@ -133,7 +133,7 @@ When Open\+CL is unavailable or fails\+:
 \DoxyCodeLine{python3\ -\/c\ "{}import\ pyopencl;\ print('OpenCL\ available')"{}}
 
 \end{DoxyCode}
-\hypertarget{md_OPENCL__INTEGRATION_autotoc_md57}{}\doxysubsubsection{\texorpdfstring{No GPU devices detected}{No GPU devices detected}}\label{md_OPENCL__INTEGRATION_autotoc_md57}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md53}{}\doxysubsubsection{\texorpdfstring{No GPU devices detected}{No GPU devices detected}}\label{md_OPENCL__INTEGRATION_autotoc_md53}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{\#\ Check\ available\ devices}
@@ -147,7 +147,7 @@ When Open\+CL is unavailable or fails\+:
 \DoxyCodeLine{"{}}
 
 \end{DoxyCode}
-\hypertarget{md_OPENCL__INTEGRATION_autotoc_md58}{}\doxysubsubsection{\texorpdfstring{Memory errors}{Memory errors}}\label{md_OPENCL__INTEGRATION_autotoc_md58}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md54}{}\doxysubsubsection{\texorpdfstring{Memory errors}{Memory errors}}\label{md_OPENCL__INTEGRATION_autotoc_md54}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{\#\ Reduce\ memory\ usage}
@@ -157,14 +157,14 @@ When Open\+CL is unavailable or fails\+:
 \DoxyCodeLine{i.hyper.smac\ ...\ opencl\_device=cpu}
 
 \end{DoxyCode}
-\hypertarget{md_OPENCL__INTEGRATION_autotoc_md59}{}\doxysubsection{\texorpdfstring{Performance Tips}{Performance Tips}}\label{md_OPENCL__INTEGRATION_autotoc_md59}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md55}{}\doxysubsection{\texorpdfstring{Performance Tips}{Performance Tips}}\label{md_OPENCL__INTEGRATION_autotoc_md55}
 
 \begin{DoxyEnumerate}
 \item {\bfseries{Use GPU for large datasets}}\+: \texorpdfstring{$>$}{>}100 bands benefit most
 \item {\bfseries{Adjust memory limit}}\+: Balance between batch size and available memory
 \item {\bfseries{Monitor device usage}}\+: Use verbose mode for performance info
 \item {\bfseries{Batch similar scenes}}\+: Process multiple scenes together
-\end{DoxyEnumerate}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md60}{}\doxysection{\texorpdfstring{Integration Status}{Integration Status}}\label{md_OPENCL__INTEGRATION_autotoc_md60}
+\end{DoxyEnumerate}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md56}{}\doxysection{\texorpdfstring{Integration Status}{Integration Status}}\label{md_OPENCL__INTEGRATION_autotoc_md56}
 ✅ {\bfseries{Completed Features}}\+:
 \begin{DoxyItemize}
 \item \mbox{[}x\mbox{]} Open\+CL module creation
@@ -185,7 +185,7 @@ When Open\+CL is unavailable or fails\+:
 \item \mbox{[}x\mbox{]} Integrates with atmospheric correction workflow
 \item \mbox{[}x\mbox{]} Provides performance improvements
 \item \mbox{[}x\mbox{]} Graceful fallback to CPU processing
-\end{DoxyItemize}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md61}{}\doxysection{\texorpdfstring{Example Output}{Example Output}}\label{md_OPENCL__INTEGRATION_autotoc_md61}
+\end{DoxyItemize}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md57}{}\doxysection{\texorpdfstring{Example Output}{Example Output}}\label{md_OPENCL__INTEGRATION_autotoc_md57}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{Using\ OpenCL\ acceleration:\ cpu-\/skylake-\/avx512-\/11th\ Gen\ Intel(R)\ Core(TM)\ i7-\/1165G7\ @\ 2.80GHz\ (CPU)}
@@ -194,14 +194,14 @@ When Open\+CL is unavailable or fails\+:
 \DoxyCodeLine{OpenCL\ resources\ cleaned\ up}
 
 \end{DoxyCode}
-\hypertarget{md_OPENCL__INTEGRATION_autotoc_md62}{}\doxysection{\texorpdfstring{Future Enhancements}{Future Enhancements}}\label{md_OPENCL__INTEGRATION_autotoc_md62}
+\hypertarget{md_OPENCL__INTEGRATION_autotoc_md58}{}\doxysection{\texorpdfstring{Future Enhancements}{Future Enhancements}}\label{md_OPENCL__INTEGRATION_autotoc_md58}
 
 \begin{DoxyItemize}
 \item {\bfseries{Multi-\/\+GPU support}}\+: Distribute across multiple GPUs
 \item {\bfseries{Advanced kernels}}\+: Ray-\/tracing and Monte Carlo methods
 \item {\bfseries{Cloud processing}}\+: Distributed GPU clusters
 \item {\bfseries{Real-\/time optimization}}\+: Dynamic kernel selection
-\end{DoxyItemize}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md63}{}\doxysection{\texorpdfstring{References}{References}}\label{md_OPENCL__INTEGRATION_autotoc_md63}
+\end{DoxyItemize}\hypertarget{md_OPENCL__INTEGRATION_autotoc_md59}{}\doxysection{\texorpdfstring{References}{References}}\label{md_OPENCL__INTEGRATION_autotoc_md59}
 
 \begin{DoxyItemize}
 \item \href{https://www.khronos.org/opencl/}{\texttt{ Open\+CL Specification}}

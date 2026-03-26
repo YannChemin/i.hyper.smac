@@ -72,9 +72,9 @@ $(function() {
   <div class="headertitle"><div class="title">i.hyper.smac - SMAC Atmospheric Correction for Hyperspectral Data</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md245"></a> A GRASS GIS addon module implementing atmospheric correction for hyperspectral imagery, combining the Simplified Method for Atmospheric Correction (SMAC) with a libRadtran look-up table (LUT) approach and ISOFIT-inspired enhancements.</p>
+<div class="textblock"><p><a class="anchor" id="autotoc_md241"></a> A GRASS GIS addon module implementing atmospheric correction for hyperspectral imagery, combining the Simplified Method for Atmospheric Correction (SMAC) with a libRadtran look-up table (LUT) approach and ISOFIT-inspired enhancements.</p>
 <p><b>Current Implementation</b>: The module currently uses the LUT method (libRadtran DISORT) as the default and only implemented method. The simple and libradtran methods are documented for reference but are not yet implemented in this version.</p>
-<h1><a class="anchor" id="autotoc_md246"></a>
+<h1><a class="anchor" id="autotoc_md242"></a>
 Overview</h1>
 <p>This module converts top-of-atmosphere (TOA) radiance to surface reflectance by correcting for atmospheric effects including:</p><ul>
 <li>Rayleigh (molecular) scattering</li>
@@ -83,7 +83,7 @@ Overview</h1>
 <li>Adjacency effects (photon scattering from neighbouring pixels)</li>
 </ul>
 <p>Based on the SMAC algorithm by Rahman &amp; Dedieu (1994) and the implementation by Olivier Hagolle, extended with a libRadtran LUT inversion and techniques from the ISOFIT optimal estimation framework (Thompson et al., 2018).</p>
-<h1><a class="anchor" id="autotoc_md247"></a>
+<h1><a class="anchor" id="autotoc_md243"></a>
 Features</h1>
 <ul>
 <li><b>LUT Method</b> (current implementation): Full multiple-scattering LUT from libRadtran DISORT with per-pixel H2O retrieval and ISOFIT-inspired enhancements</li>
@@ -118,7 +118,7 @@ Features</h1>
 <li><b>Coefficient Generation</b>: Generate SMAC coefficients using libRadtran or analytical formulas</li>
 <li><b>Four Aerosol Models</b>: Continental, Maritime, Urban, Desert</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md248"></a>
+<h1><a class="anchor" id="autotoc_md244"></a>
 Project Structure</h1>
 <div class="fragment"><div class="line">i.hyper.smac/</div>
 <div class="line">├── i.hyper.smac.py          # Main GRASS GIS module</div>
@@ -153,9 +153,9 @@ Project Structure</h1>
 <div class="line">│   └── test_utils.py        # Utility function tests</div>
 <div class="line">└── docs/</div>
 <div class="line">    └── SMAC_COEFFICIENT_SPECIFICATION.md</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md249"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md245"></a>
 Requirements</h1>
-<h2><a class="anchor" id="autotoc_md250"></a>
+<h2><a class="anchor" id="autotoc_md246"></a>
 Required</h2>
 <ul>
 <li>GRASS GIS 8.0+</li>
@@ -163,30 +163,30 @@ Required</h2>
 <li>NumPy</li>
 <li>SciPy</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md251"></a>
+<h2><a class="anchor" id="autotoc_md247"></a>
 Optional</h2>
 <ul>
 <li>libRadtran (for LUT generation and coefficient fitting)</li>
 <li>scikit-image (for superpixel segmentation — SLIC)</li>
 <li>ephem (for solar position calculations)</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md252"></a>
+<h1><a class="anchor" id="autotoc_md248"></a>
 Installation</h1>
-<h2><a class="anchor" id="autotoc_md253"></a>
+<h2><a class="anchor" id="autotoc_md249"></a>
 As GRASS GIS Addon</h2>
 <div class="fragment"><div class="line"># From GRASS GIS</div>
 <div class="line">g.extension extension=i.hyper.smac url=/path/to/i.hyper.smac</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md254"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md250"></a>
 Manual Installation</h2>
 <div class="fragment"><div class="line"># Clone/copy to GRASS addons directory</div>
 <div class="line">cp -r i.hyper.smac $GISBASE/scripts/</div>
 <div class="line"> </div>
 <div class="line"># Or add to GRASS_ADDON_PATH</div>
 <div class="line">export GRASS_ADDON_PATH=/path/to/i.hyper.smac:$GRASS_ADDON_PATH</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md255"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md251"></a>
 Usage</h1>
 <p>Atmospheric parameters (AOD, water vapour, ozone) are auto-estimated from the scene when not specified. The aerosol model selects the Shettle/Fenn spectral shape used for LUT generation; the atmosphere profile affects the gas transmittance columns.</p>
-<h2><a class="anchor" id="autotoc_md256"></a>
+<h2><a class="anchor" id="autotoc_md252"></a>
 Desert / arid land (Sahara, Arabian Peninsula)</h2>
 <p>Mineral dust has a coarse size distribution (low Ångström exponent) and very low precipitable water. A wide AOD range is needed to cover heavy dust events.</p>
 <div class="fragment"><div class="line">i.hyper.smac input=algeria_radiance output=algeria_refl \</div>
@@ -194,7 +194,7 @@ Desert / arid land (Sahara, Arabian Peninsula)</h2>
 <div class="line">    view_zenith=5 view_azimuth=310 \</div>
 <div class="line">    aerosol_model=desert \</div>
 <div class="line">    aod=0.5 water_vapor=0.4 ozone=0.28</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md257"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md253"></a>
 Tropical rainforest (Amazon, Congo)</h2>
 <p>Very high water vapour (&gt; 5 g/cm²) and low AOD. Auto water vapour retrieval from the 940 nm band works well in clean-sky tropical conditions. Adjacency correction is important at forest-river boundaries.</p>
 <div class="fragment"><div class="line">i.hyper.smac input=amazon_radiance output=amazon_refl \</div>
@@ -202,7 +202,7 @@ Tropical rainforest (Amazon, Congo)</h2>
 <div class="line">    view_zenith=0 view_azimuth=0 \</div>
 <div class="line">    aerosol_model=continental \</div>
 <div class="line">    adjacency_psf=1.5 -p</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md258"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md254"></a>
 Continental urban temperate mid-winter (e.g. Paris, January)</h2>
 <p>High SZA (&gt; 70°), low H₂O, and elevated urban AOD. The <code>-u</code> flag is particularly valuable here because the long atmospheric path inflates AOD sensitivity. Auto-estimated AOD from the Dark Target algorithm detects pollution over urban surfaces.</p>
 <div class="fragment"><div class="line">i.hyper.smac input=paris_radiance output=paris_refl \</div>
@@ -211,7 +211,7 @@ Continental urban temperate mid-winter (e.g. Paris, January)</h2>
 <div class="line">    aerosol_model=urban \</div>
 <div class="line">    water_vapor=0.5 ozone=0.34 \</div>
 <div class="line">    output_uncertainty=paris_refl_unc -u</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md259"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md255"></a>
 Coastal temperate mid-summer (e.g. Mediterranean, July)</h2>
 <p>Low AOD, maritime sea-salt aerosol, moderate H₂O. Adjacency correction is critical at land-sea boundaries: bright land reflectance leaks into adjacent water pixels through the diffuse transmittance component of maritime aerosol.</p>
 <div class="fragment"><div class="line">i.hyper.smac input=med_radiance output=med_refl \</div>
@@ -220,7 +220,7 @@ Coastal temperate mid-summer (e.g. Mediterranean, July)</h2>
 <div class="line">    aerosol_model=maritime \</div>
 <div class="line">    adjacency_psf=0.5 \</div>
 <div class="line">    output_uncertainty=med_refl_unc -u</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md260"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md256"></a>
 Sub-arctic mid-winter — boreal forest under snow</h2>
 <p>Very low H₂O, low AOD, extremely high SZA. The MAP surface prior (<code>-u</code> + surface regularisation in the LUT pipeline) constrains bright-snow spectral spikes from residual gas-correction errors.</p>
 <div class="fragment"><div class="line">i.hyper.smac input=sweden_radiance output=sweden_refl \</div>
@@ -229,21 +229,21 @@ Sub-arctic mid-winter — boreal forest under snow</h2>
 <div class="line">    aerosol_model=continental \</div>
 <div class="line">    water_vapor=0.3 ozone=0.34 \</div>
 <div class="line">    output_uncertainty=sweden_refl_unc -u -p</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md261"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md257"></a>
 Sub-arctic mid-summer — tundra / boreal</h2>
 <p>Moderate sun, clean sub-arctic air with biogenic terpene aerosol. Auto-estimated parameters work well in this low-AOD regime.</p>
 <div class="fragment"><div class="line">i.hyper.smac input=yukon_radiance output=yukon_refl \</div>
 <div class="line">    dem=elevation solar_zenith=45 solar_azimuth=180 \</div>
 <div class="line">    view_zenith=2 view_azimuth=0 \</div>
 <div class="line">    aerosol_model=continental -p</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md262"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md258"></a>
 Full ISOFIT-Inspired Processing</h2>
 <p>Combines all six enhancements: per-pixel AOD/H₂O maps, Gaussian spatial smoothing, adjacency correction, surface prior MAP, uncertainty output, and model discrepancy floor.</p>
 <div class="fragment"><div class="line">i.hyper.smac input=toa_radiance output=surface_reflectance \</div>
 <div class="line">    dem=elevation solar_zenith=30 solar_azimuth=180 \</div>
 <div class="line">    view_zenith=0 view_azimuth=0 adjacency_psf=1.0 \</div>
 <div class="line">    output_uncertainty=reflectance_unc -p -u</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md263"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md259"></a>
 Legacy Methods</h2>
 <div class="fragment"><div class="line"># libradtran method with runtime coefficient generation</div>
 <div class="line">i.hyper.smac input=toa_radiance output=surface_reflectance \</div>
@@ -252,7 +252,7 @@ Legacy Methods</h2>
 <div class="line"># Simple analytical method</div>
 <div class="line">i.hyper.smac input=toa_radiance output=surface_reflectance \</div>
 <div class="line">    dem=elevation solar_zenith=30 method=simple</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md264"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md260"></a>
 Parameters</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -294,7 +294,7 @@ Parameters</h2>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone">opencl_memory   </td><td class="markdownTableBodyNone">OpenCL memory limit in MB (0=unlimited)   </td><td class="markdownTableBodyNone">1024   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md265"></a>
+<h2><a class="anchor" id="autotoc_md261"></a>
 Flags</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -310,7 +310,7 @@ Flags</h2>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone">-u   </td><td class="markdownTableBodyNone">Compute per-band reflectance uncertainty   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md266"></a>
+<h2><a class="anchor" id="autotoc_md262"></a>
 Supported Sensors</h2>
 <ul>
 <li>PRISMA (ASI)</li>
@@ -321,10 +321,10 @@ Supported Sensors</h2>
 <li>OSK GHOST, PIXXEL, ESPER, IPERLITE</li>
 <li>KUVASPACE (23/32 bands), WYVERN (23/32 bands), HYP4U</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md267"></a>
+<h1><a class="anchor" id="autotoc_md263"></a>
 OpenCL GPU Acceleration</h1>
 <p>The module supports OpenCL GPU and multi-core acceleration for significantly faster processing:</p>
-<h2><a class="anchor" id="autotoc_md268"></a>
+<h2><a class="anchor" id="autotoc_md264"></a>
 Performance Benefits</h2>
 <ul>
 <li><b>3-15x speedup</b> depending on hardware and dataset size</li>
@@ -332,7 +332,7 @@ Performance Benefits</h2>
 <li><b>Memory optimization</b>: Configurable memory limits for different hardware</li>
 <li><b>Automatic fallback</b>: Graceful degradation to CPU processing</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md269"></a>
+<h2><a class="anchor" id="autotoc_md265"></a>
 Usage Examples</h2>
 <div class="fragment"><div class="line"># Auto-detect best device (GPU preferred)</div>
 <div class="line">i.hyper.smac input=rad output=corr opencl_device=auto ...</div>
@@ -345,14 +345,14 @@ Usage Examples</h2>
 <div class="line"> </div>
 <div class="line"># Limit memory usage</div>
 <div class="line">i.hyper.smac input=rad output=corr opencl_memory=2048 ...</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md270"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md266"></a>
 Installation</h2>
 <div class="fragment"><div class="line"># Install pyOpenCL</div>
 <div class="line">sudo apt install python3-pyopencl</div>
 <div class="line"> </div>
 <div class="line"># Verify installation</div>
 <div class="line">python3 -c &quot;import pyopencl; print(&#39;OpenCL available&#39;)&quot;</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md271"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md267"></a>
 Supported Devices</h2>
 <ul>
 <li><b>NVIDIA GPUs</b>: RTX series, GTX series, Tesla series</li>
@@ -361,18 +361,18 @@ Supported Devices</h2>
 <li><b>Multi-core CPUs</b>: Intel, AMD processors</li>
 </ul>
 <p>See <a class="el" href="md_OPENCL__INTEGRATION.html">OPENCL_INTEGRATION.md</a> for detailed documentation.</p>
-<h1><a class="anchor" id="autotoc_md272"></a>
+<h1><a class="anchor" id="autotoc_md268"></a>
 LUT Atmospheric Correction</h1>
 <p>The LUT method (default) uses a precomputed 3D look-up table from libRadtran DISORT 16-stream simulations. The LUT is indexed by (wavelength, AOD, H2O) and stores four atmospheric parameters: path reflectance (R_atm), downward transmittance (T_down), upward transmittance (T_up), and spherical albedo (s).</p>
 <p><b>Alternative backend</b>: The companion module <a href="../i.hyper.atcorr/">i.hyper.atcorr</a> implements the same LUT approach using a native C port of 6SV2.1 (no libRadtran required). It supports all six standard atmosphere profiles, four aerosol models, custom Mie aerosols, and nine BRDF surface models. The Python bindings (<code>lib/atcorr.py</code> + <code>lib/libatcorr.so</code>) allow i.hyper.smac to use the 6SV2.1 engine without a separate GRASS invocation.</p>
-<h2><a class="anchor" id="autotoc_md273"></a>
+<h2><a class="anchor" id="autotoc_md269"></a>
 LUT Generation</h2>
 <p>Each LUT is built from two-albedo runs (albedo=0 and albedo=0.5) across 9 AOD values and 7 H2O values = 126 libRadtran simulations. The dense 7-point H2O grid (0.3x-2.5x scene mean) accurately captures the nonlinear H2O continuum absorption in SWIR bands (1500-2500nm). Transmittance parameters (T_down, T_up) are interpolated in log-space, since ln(T) is nearly linear in H2O column, eliminating the systematic bias from linear interpolation on the convex exp(-tau) function. The 6S-style decomposition separates direct and diffuse transmittance components.</p>
 <p>Generated LUTs are cached as <code>.npz</code> files in <code>COEFS/LUT/</code> and reused when scene geometry matches. Use <code>-c</code> to force regeneration.</p>
-<h2><a class="anchor" id="autotoc_md274"></a>
+<h2><a class="anchor" id="autotoc_md270"></a>
 Per-Pixel H2O Retrieval</h2>
 <p>Water vapor is retrieved per-pixel from the 940nm absorption band (ISOFIT-style). For each H2O value in the LUT grid, the observed radiance at 865nm (shoulder), 945nm (absorption), and 1040nm (shoulder) is inverted. The correct H2O produces a smooth continuum across the absorption feature.</p>
-<h2><a class="anchor" id="autotoc_md275"></a>
+<h2><a class="anchor" id="autotoc_md271"></a>
 ISOFIT-Inspired Processing Pipeline</h2>
 <p>When enabled, the LUT method applies the following processing chain:</p>
 <div class="fragment"><div class="line">1. Load per-pixel maps (AOD, WVC, ozone, DEM)</div>
@@ -394,10 +394,10 @@ ISOFIT-Inspired Processing Pipeline</h2>
 <div class="line">   b. Model discrepancy added to uncertainty          [#6 discrepancy]</div>
 <div class="line">   c. Spectral polishing (on regularized data)</div>
 <div class="line">   d. Write reflectance + uncertainty rasters</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md276"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md272"></a>
 SMAC Coefficient Generation</h1>
 <p>SMAC uses 49 coefficients per spectral band to parameterize atmospheric transmission, scattering, and absorption. These coefficients are generated by fitting the SMAC analytical formulas to libRadtran radiative transfer simulations across a range of atmospheric conditions.</p>
-<h2><a class="anchor" id="autotoc_md277"></a>
+<h2><a class="anchor" id="autotoc_md273"></a>
 Pre-generated Coefficients</h2>
 <p>The <code>COEFS/</code> directory ships with coefficients at 10nm intervals from 350-2500nm for all four aerosol models (864 files total):</p>
 <div class="fragment"><div class="line">COEFS/</div>
@@ -406,17 +406,17 @@ Pre-generated Coefficients</h2>
 <div class="line">├── URBAN/         coef_350nm_URBAN.dat       ... coef_2500nm_URBAN.dat</div>
 <div class="line">└── DESERT/        coef_350nm_DESERT.dat      ... coef_2500nm_DESERT.dat</div>
 </div><!-- fragment --><p>At runtime, <code>find_coef_file()</code> selects the nearest available wavelength file (max 5nm mismatch with the 10nm grid).</p>
-<h2><a class="anchor" id="autotoc_md278"></a>
+<h2><a class="anchor" id="autotoc_md274"></a>
 Generating Coefficients with &lt;tt&gt;smac_coef_generator.py&lt;/tt&gt;</h2>
 <p>The generator runs libRadtran simulations and uses <code>scipy.optimize.curve_fit</code> to fit the SMAC formulas. It requires <b>libRadtran</b> and <b>scipy</b>.</p>
-<h3><a class="anchor" id="autotoc_md279"></a>
+<h3><a class="anchor" id="autotoc_md275"></a>
 Single wavelength</h3>
 <div class="fragment"><div class="line"># Generate coefficients for 550nm, continental aerosol</div>
 <div class="line">python3 lib/smac_coef_generator.py single 550 --aerosol continental --verbose</div>
 <div class="line"> </div>
 <div class="line"># Specify output file and FWHM</div>
 <div class="line">python3 lib/smac_coef_generator.py single 940 --fwhm 5 --output coef_940nm.dat --verbose</div>
-</div><!-- fragment --><h3><a class="anchor" id="autotoc_md280"></a>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md276"></a>
 Batch generation (10nm resolution)</h3>
 <div class="fragment"><div class="line"># Default: 350-2500nm at 10nm steps, all four aerosol types</div>
 <div class="line">python3 lib/smac_coef_generator.py batch</div>
@@ -426,7 +426,7 @@ Batch generation (10nm resolution)</h3>
 <div class="line"> </div>
 <div class="line"># Single aerosol type</div>
 <div class="line">python3 lib/smac_coef_generator.py batch --aerosol continental --verbose</div>
-</div><!-- fragment --><h3><a class="anchor" id="autotoc_md281"></a>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md277"></a>
 Batch generation at 1nm resolution</h3>
 <p>For maximum spectral accuracy (e.g., narrow-band sensors or resolving sharp gas absorption features), generate at 1nm intervals:</p>
 <div class="fragment"><div class="line"># All aerosol types, 1nm steps (350-2500nm)</div>
@@ -435,13 +435,13 @@ Batch generation at 1nm resolution</h3>
 <div class="line"># Single aerosol type for faster generation (~2h instead of ~8h)</div>
 <div class="line">python3 lib/smac_coef_generator.py batch --min 350 --max 2500 --step 1 \</div>
 <div class="line">    --aerosol continental --verbose</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md282"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md278"></a>
 Runtime Generation with the &lt;tt&gt;-g&lt;/tt&gt; Flag</h2>
 <p>Instead of using pre-generated files, coefficients can be generated on the fly from libRadtran during atmospheric correction. Generated coefficients are cached to the <code>COEFS/</code> directory for reuse:</p>
 <div class="fragment"><div class="line">i.hyper.smac input=toa_radiance output=surface_reflectance \</div>
 <div class="line">    dem=elevation method=libradtran solar_zenith=30 \</div>
 <div class="line">    aerosol_model=continental -g</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md283"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md279"></a>
 Library API</h1>
 <p>The <code>lib/</code> package can be used independently:</p>
 <div class="fragment"><div class="line"><span class="keyword">from</span> lib <span class="keyword">import</span> smac, estimate_aod, estimate_wvc</div>
@@ -481,7 +481,7 @@ Library API</h1>
 <div class="line">    input_raster, dem, method=<span class="stringliteral">&#39;average&#39;</span>,</div>
 <div class="line">    solar_zenith=30.0, view_zenith=0.0</div>
 <div class="line">)</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md284"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md280"></a>
 Testing</h1>
 <div class="fragment"><div class="line"># Run all tests</div>
 <div class="line">python -m pytest tests/ -v</div>
@@ -495,9 +495,9 @@ Testing</h1>
 <li>Utility functions</li>
 <li>Atmospheric parameter estimation bounds</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md285"></a>
+<h1><a class="anchor" id="autotoc_md281"></a>
 Algorithm Details</h1>
-<h2><a class="anchor" id="autotoc_md286"></a>
+<h2><a class="anchor" id="autotoc_md282"></a>
 SMAC Equation</h2>
 <p>Surface reflectance rho is computed from TOA reflectance rho* using:</p>
 <div class="fragment"><div class="line">rho = (rho* - rho_atm) / (T_gas * T_scat * (1 + s*rho))</div>
@@ -507,7 +507,7 @@ SMAC Equation</h2>
 <li>T_scat = scattering transmission (Rayleigh + aerosol)</li>
 <li>s = spherical albedo of atmosphere</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md287"></a>
+<h2><a class="anchor" id="autotoc_md283"></a>
 LUT Inversion (6S-style)</h2>
 <p>The LUT method decomposes the atmosphere using two-albedo simulations:</p>
 <div class="fragment"><div class="line">R_atm = pi * L_toa(albedo=0) / E0     # path reflectance</div>
@@ -516,14 +516,14 @@ LUT Inversion (6S-style)</h2>
 <div class="line">T_up = pi * (L(rho1) - L(0)) * (1 - s*rho1) / (E0 * rho1 * T_down)</div>
 </div><!-- fragment --><p>The inversion solves: </p><div class="fragment"><div class="line">y = (rho_toa - R_atm) / (T_down * T_up)</div>
 <div class="line">rho_boa = y / (1 + s * y)</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md288"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md284"></a>
 Adjacency Effect Correction</h2>
 <p>Following Vermote et al. (1997), the total transmittance is decomposed into direct (Beer-Lambert) and diffuse components. The diffuse component picks up signal from the environmental reflectance (spatial average) rather than the pixel reflectance:</p>
 <div class="fragment"><div class="line">T_diff = clip(T_down*T_up - T_dir, 0)</div>
 <div class="line">r_env = spatial_average(r_boa, PSF_radius)</div>
 <div class="line">correction = T_diff * s * (r_boa - r_env) / (1 - s*r_env)</div>
 <div class="line">r_adj = r_boa + correction</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md289"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md285"></a>
 Aerosol Spectral Calibration</h2>
 <p>Three techniques reduce systematic NIR/SWIR reflectance bias:</p>
 <ol type="1">
@@ -533,15 +533,15 @@ Aerosol Spectral Calibration</h2>
 <div class="line">T_eff = T_down * T_up * t_corr</div>
 </div><!-- fragment --></li>
 </ol>
-<h2><a class="anchor" id="autotoc_md290"></a>
+<h2><a class="anchor" id="autotoc_md286"></a>
 SWIR H2O Continuum Accuracy</h2>
 <p>The 7-point H2O grid with log-space transmittance interpolation addresses the nonlinear absorption in SWIR bands. Since T = exp(-tau) and tau is roughly proportional to H2O column, interpolating ln(T) rather than T eliminates the convexity bias that linear interpolation introduces. Testing shows this reduces transmittance interpolation error from up to 54% (old 3-point linear) to &lt;0.01% at strong SWIR absorption bands.</p>
-<h2><a class="anchor" id="autotoc_md291"></a>
+<h2><a class="anchor" id="autotoc_md287"></a>
 Surface Prior and MAP Estimate</h2>
 <p>The surface prior is a 3-component Gaussian mixture (vegetation, soil, water) with per-band diagonal covariance. The MAP estimate blends the observation with the prior:</p>
 <div class="fragment"><div class="line">r_map = (r_obs/sigma_obs^2 + r_prior/sigma_prior^2) / (1/sigma_obs^2 + 1/sigma_prior^2)</div>
 </div><!-- fragment --><p>The measurement variance sigma_obs^2 includes instrument noise, AOD uncertainty, and model discrepancy. In bands with high uncertainty (e.g., gas absorption edges), the prior dominates; in clean bands, the observation dominates.</p>
-<h2><a class="anchor" id="autotoc_md292"></a>
+<h2><a class="anchor" id="autotoc_md288"></a>
 Uncertainty Propagation</h2>
 <p>Per-band reflectance uncertainty combines three sources in quadrature:</p>
 <ol type="1">
@@ -549,7 +549,7 @@ Uncertainty Propagation</h2>
 <li><b>AOD uncertainty</b>: +/-0.04 AOD perturbation through the LUT inversion</li>
 <li><b>Model discrepancy</b>: Per-band systematic RT error floor, empirically characterized (0.5% baseline, up to 2.5% at gas band edges)</li>
 </ol>
-<h2><a class="anchor" id="autotoc_md293"></a>
+<h2><a class="anchor" id="autotoc_md289"></a>
 AOD Estimation (Dark Target Algorithm)</h2>
 <p>Implements the MODIS Dark Target algorithm (Kaufman 1997, Levy 2007):</p>
 <ol type="1">
@@ -560,7 +560,7 @@ AOD Estimation (Dark Target Algorithm)</h2>
 <li><b>Angstrom exponent</b> from blue/red AOD ratio, scaled to 550nm. The retrieved exponent is used by the LUT method when no explicit override is provided.</li>
 </ol>
 <p>Fallback chain: Dark Target -&gt; Dark Pixel -&gt; Constant (0.15)</p>
-<h2><a class="anchor" id="autotoc_md294"></a>
+<h2><a class="anchor" id="autotoc_md290"></a>
 WVC Estimation (Continuum-Removal Band Depth)</h2>
 <p>Uses continuum-removal band depth at the 940nm and 1130nm absorption features:</p>
 <ol type="1">
@@ -570,7 +570,7 @@ WVC Estimation (Continuum-Removal Band Depth)</h2>
 <li><b>Physically-calibrated</b>: scale ~28 g/cm² (940nm), ~42 g/cm² (1130nm)</li>
 <li><b>Weighted combination</b>: 940nm x0.7 normally; 1130nm x0.7 at high WVC</li>
 </ol>
-<h1><a class="anchor" id="autotoc_md295"></a>
+<h1><a class="anchor" id="autotoc_md291"></a>
 References</h1>
 <ol type="1">
 <li>Rahman, H., &amp; Dedieu, G. (1994). SMAC: a simplified method for the atmospheric correction of satellite measurements in the solar spectrum. <em>International Journal of Remote Sensing</em>, 15(1), 123-143.</li>
@@ -582,13 +582,13 @@ References</h1>
 <li>Thompson, D.R., et al. (2018). Optimal estimation for imaging spectrometer atmospheric correction. <em>Remote Sensing of Environment</em>, 216, 355-373. <a href="https://doi.org/10.1016/j.rse.2018.07.003">https://doi.org/10.1016/j.rse.2018.07.003</a></li>
 <li>Vermote, E.F., et al. (1997). Second simulation of the satellite signal in the solar spectrum, 6S: An overview. <em>IEEE Transactions on Geoscience and Remote Sensing</em>, 35(3), 675-686.</li>
 </ol>
-<h1><a class="anchor" id="autotoc_md296"></a>
+<h1><a class="anchor" id="autotoc_md292"></a>
 Authors</h1>
 <ul>
 <li><b>Original SMAC Algorithm</b>: H. Rahman and G. Dedieu (CESBIO)</li>
 <li><b>GRASS GIS Implementation</b>: Yann Chemin <a href="#" onclick="location.href='mai'+'lto:'+'dr.'+'ya'+'nn.'+'ch'+'emi'+'n@'+'gma'+'il'+'.co'+'m'; return false;">dr.ya<span class="obfuscator">.nosp@m.</span>nn.c<span class="obfuscator">.nosp@m.</span>hemin<span class="obfuscator">.nosp@m.</span>@gma<span class="obfuscator">.nosp@m.</span>il.co<span class="obfuscator">.nosp@m.</span>m</a></li>
 </ul>
-<h1><a class="anchor" id="autotoc_md297"></a>
+<h1><a class="anchor" id="autotoc_md293"></a>
 License</h1>
 <p>This is free and unencumbered software released into the public domain.</p>
 <p>Copyright (C) 2025 GRASS Development Team</p>
@@ -596,7 +596,7 @@ License</h1>
 <p>In jurisdictions that recognize copyright laws, the author or authors of this software dedicate any and all copyright interest in the software to the public domain. We make this dedication for the benefit of the public at large and to the detriment of our heirs and successors. We intend this dedication to be an overt act of relinquishment in perpetuity of all present and future rights to this software under copyright law.</p>
 <p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
 <p>For more information, please refer to <a href="https://unlicense.org/">https://unlicense.org/</a></p>
-<h1><a class="anchor" id="autotoc_md298"></a>
+<h1><a class="anchor" id="autotoc_md294"></a>
 See Also</h1>
 <ul>
 <li><a href="https://github.com/yannforget/i.hyper.atcorr">i.hyper.atcorr</a> - Companion GRASS add-on: full 6SV2.1 C port with BRDF surface models, custom Mie aerosol, and ISOFIT improvements. Use as a self-contained alternative to the libRadtran LUT backend.</li>

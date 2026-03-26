@@ -72,8 +72,8 @@ $(function() {
   <div class="headertitle"><div class="title">OpenCL GPU Acceleration for i.hyper.smac</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md38"></a> This document describes the OpenCL integration that provides GPU and multi-core acceleration for atmospheric correction processing in i.hyper.smac.</p>
-<h1><a class="anchor" id="autotoc_md39"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md34"></a> This document describes the OpenCL integration that provides GPU and multi-core acceleration for atmospheric correction processing in i.hyper.smac.</p>
+<h1><a class="anchor" id="autotoc_md35"></a>
 Overview</h1>
 <p>The OpenCL accelerator enables significant performance improvements for hyperspectral atmospheric correction by distributing processing across available GPU devices and multi-core CPUs. It includes:</p>
 <ul>
@@ -83,16 +83,16 @@ Overview</h1>
 <li><b>Memory management</b>: Configurable memory limits for different hardware configurations</li>
 <li><b>Performance monitoring</b>: Built-in benchmarking and device information</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md40"></a>
+<h1><a class="anchor" id="autotoc_md36"></a>
 Installation</h1>
-<h2><a class="anchor" id="autotoc_md41"></a>
+<h2><a class="anchor" id="autotoc_md37"></a>
 System Requirements</h2>
 <div class="fragment"><div class="line"># Install pyOpenCL (Debian/Ubuntu)</div>
 <div class="line">sudo apt install python3-pyopencl</div>
 <div class="line"> </div>
 <div class="line"># Or install via pip (if not system-managed)</div>
 <div class="line">pip install pyopencl</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md42"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md38"></a>
 Dependencies</h2>
 <ul>
 <li>Python 3.8+</li>
@@ -100,9 +100,9 @@ Dependencies</h2>
 <li>NumPy</li>
 <li>OpenCL-compatible GPU (NVIDIA, AMD, Intel) or multi-core CPU</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md43"></a>
+<h1><a class="anchor" id="autotoc_md39"></a>
 Usage</h1>
-<h2><a class="anchor" id="autotoc_md44"></a>
+<h2><a class="anchor" id="autotoc_md40"></a>
 Basic Usage</h2>
 <div class="fragment"><div class="line"># Auto-detect best OpenCL device (GPU preferred)</div>
 <div class="line">i.hyper.smac input=rad output=corr opencl_device=auto \</div>
@@ -118,7 +118,7 @@ Basic Usage</h2>
 <div class="line"> </div>
 <div class="line"># Limit GPU memory usage (MB)</div>
 <div class="line">i.hyper.smac input=rad output=corr opencl_memory=2048 ...</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md45"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md41"></a>
 Configuration Options</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -128,9 +128,9 @@ Configuration Options</h2>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code>opencl_memory</code>   </td><td class="markdownTableBodyNone">integer   </td><td class="markdownTableBodyNone">0-8192   </td><td class="markdownTableBodyNone">1024   </td><td class="markdownTableBodyNone">Memory limit in MB (0=unlimited)   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md46"></a>
+<h1><a class="anchor" id="autotoc_md42"></a>
 Performance</h1>
-<h2><a class="anchor" id="autotoc_md47"></a>
+<h2><a class="anchor" id="autotoc_md43"></a>
 Device Detection</h2>
 <p>The system automatically detects and ranks available OpenCL devices:</p>
 <ol type="1">
@@ -138,7 +138,7 @@ Device Detection</h2>
 <li><b>CPU devices</b> (multi-core processors)</li>
 <li><b>Accelerator devices</b> (specialized hardware)</li>
 </ol>
-<h2><a class="anchor" id="autotoc_md48"></a>
+<h2><a class="anchor" id="autotoc_md44"></a>
 Benchmark Results</h2>
 <p>Typical performance improvements:</p>
 <table class="markdownTable">
@@ -153,16 +153,16 @@ Benchmark Results</h2>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone">Intel Integrated GPU   </td><td class="markdownTableBodyNone">2-4x   </td><td class="markdownTableBodyNone">1-2 GB   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md49"></a>
+<h2><a class="anchor" id="autotoc_md45"></a>
 Memory Optimization</h2>
 <ul>
 <li><b>Batch processing</b>: Processes 10 bands simultaneously</li>
 <li><b>Memory pooling</b>: Reuses GPU memory across operations</li>
 <li><b>Adaptive sizing</b>: Automatically adjusts batch size based on available memory</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md50"></a>
+<h1><a class="anchor" id="autotoc_md46"></a>
 Implementation Details</h1>
-<h2><a class="anchor" id="autotoc_md51"></a>
+<h2><a class="anchor" id="autotoc_md47"></a>
 GPU Kernels</h2>
 <p>The OpenCL implementation includes optimized kernels for:</p>
 <ol type="1">
@@ -171,7 +171,7 @@ GPU Kernels</h2>
 <li><b>Spectral Polishing</b>: Multi-band outlier detection</li>
 <li><b>Uncertainty Calculation</b>: Per-pixel error propagation</li>
 </ol>
-<h2><a class="anchor" id="autotoc_md52"></a>
+<h2><a class="anchor" id="autotoc_md48"></a>
 Fallback Strategy</h2>
 <p>When OpenCL is unavailable or fails:</p>
 <ol type="1">
@@ -179,25 +179,25 @@ Fallback Strategy</h2>
 <li><b>Partial acceleration</b>: Processes available bands with GPU, rest with CPU</li>
 <li><b>Error recovery</b>: Continues processing with warnings</li>
 </ol>
-<h2><a class="anchor" id="autotoc_md53"></a>
+<h2><a class="anchor" id="autotoc_md49"></a>
 Memory Management</h2>
 <ul>
 <li><b>Configurable limits</b>: <code>opencl_memory</code> parameter controls usage</li>
 <li><b>Automatic cleanup</b>: Proper resource deallocation</li>
 <li><b>Memory monitoring</b>: Tracks usage during processing</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md54"></a>
+<h1><a class="anchor" id="autotoc_md50"></a>
 Troubleshooting</h1>
-<h2><a class="anchor" id="autotoc_md55"></a>
+<h2><a class="anchor" id="autotoc_md51"></a>
 Common Issues</h2>
-<h3><a class="anchor" id="autotoc_md56"></a>
+<h3><a class="anchor" id="autotoc_md52"></a>
 pyOpenCL not found</h3>
 <div class="fragment"><div class="line"># Install system package</div>
 <div class="line">sudo apt install python3-pyopencl</div>
 <div class="line"> </div>
 <div class="line"># Check installation</div>
 <div class="line">python3 -c &quot;import pyopencl; print(&#39;OpenCL available&#39;)&quot;</div>
-</div><!-- fragment --><h3><a class="anchor" id="autotoc_md57"></a>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md53"></a>
 No GPU devices detected</h3>
 <div class="fragment"><div class="line"># Check available devices</div>
 <div class="line">python3 -c &quot;</div>
@@ -208,14 +208,14 @@ No GPU devices detected</h3>
 <div class="line">    for device in devices:</div>
 <div class="line">        print(f&#39;{device.name.strip()} ({device.type})&#39;)</div>
 <div class="line">&quot;</div>
-</div><!-- fragment --><h3><a class="anchor" id="autotoc_md58"></a>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md54"></a>
 Memory errors</h3>
 <div class="fragment"><div class="line"># Reduce memory usage</div>
 <div class="line">i.hyper.smac ... opencl_memory=512</div>
 <div class="line"> </div>
 <div class="line"># Or use CPU processing</div>
 <div class="line">i.hyper.smac ... opencl_device=cpu</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md59"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md55"></a>
 Performance Tips</h2>
 <ol type="1">
 <li><b>Use GPU for large datasets</b>: &gt;100 bands benefit most</li>
@@ -223,7 +223,7 @@ Performance Tips</h2>
 <li><b>Monitor device usage</b>: Use verbose mode for performance info</li>
 <li><b>Batch similar scenes</b>: Process multiple scenes together</li>
 </ol>
-<h1><a class="anchor" id="autotoc_md60"></a>
+<h1><a class="anchor" id="autotoc_md56"></a>
 Integration Status</h1>
 <p>✅ <b>Completed Features</b>:</p><ul>
 <li>[x] OpenCL module creation</li>
@@ -243,13 +243,13 @@ Integration Status</h1>
 <li>[x] Provides performance improvements</li>
 <li>[x] Graceful fallback to CPU processing</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md61"></a>
+<h1><a class="anchor" id="autotoc_md57"></a>
 Example Output</h1>
 <div class="fragment"><div class="line">Using OpenCL acceleration: cpu-skylake-avx512-11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz (CPU)</div>
 <div class="line">Device: 8 compute units, 13749 MB memory</div>
 <div class="line">GPU processed 10 bands</div>
 <div class="line">OpenCL resources cleaned up</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md62"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md58"></a>
 Future Enhancements</h1>
 <ul>
 <li><b>Multi-GPU support</b>: Distribute across multiple GPUs</li>
@@ -257,7 +257,7 @@ Future Enhancements</h1>
 <li><b>Cloud processing</b>: Distributed GPU clusters</li>
 <li><b>Real-time optimization</b>: Dynamic kernel selection</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md63"></a>
+<h1><a class="anchor" id="autotoc_md59"></a>
 References</h1>
 <ul>
 <li><a href="https://www.khronos.org/opencl/">OpenCL Specification</a></li>

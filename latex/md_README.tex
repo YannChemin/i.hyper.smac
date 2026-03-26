@@ -1,10 +1,10 @@
 \chapter{i.\+hyper.\+smac -\/ SMAC Atmospheric Correction for Hyperspectral Data}
 \hypertarget{md_README}{}\label{md_README}\index{i.hyper.smac -\/ SMAC Atmospheric Correction for Hyperspectral Data@{i.hyper.smac -\/ SMAC Atmospheric Correction for Hyperspectral Data}}
-\label{md_README_autotoc_md245}%
-\Hypertarget{md_README_autotoc_md245}%
+\label{md_README_autotoc_md241}%
+\Hypertarget{md_README_autotoc_md241}%
  A GRASS GIS addon module implementing atmospheric correction for hyperspectral imagery, combining the Simplified Method for Atmospheric Correction (SMAC) with a lib\+Radtran look-\/up table (LUT) approach and ISOFIT-\/inspired enhancements.
 
-{\bfseries{Current Implementation}}\+: The module currently uses the LUT method (lib\+Radtran DISORT) as the default and only implemented method. The simple and libradtran methods are documented for reference but are not yet implemented in this version.\hypertarget{md_README_autotoc_md246}{}\doxysection{\texorpdfstring{Overview}{Overview}}\label{md_README_autotoc_md246}
+{\bfseries{Current Implementation}}\+: The module currently uses the LUT method (lib\+Radtran DISORT) as the default and only implemented method. The simple and libradtran methods are documented for reference but are not yet implemented in this version.\hypertarget{md_README_autotoc_md242}{}\doxysection{\texorpdfstring{Overview}{Overview}}\label{md_README_autotoc_md242}
 This module converts top-\/of-\/atmosphere (TOA) radiance to surface reflectance by correcting for atmospheric effects including\+:
 \begin{DoxyItemize}
 \item Rayleigh (molecular) scattering
@@ -13,7 +13,7 @@ This module converts top-\/of-\/atmosphere (TOA) radiance to surface reflectance
 \item Adjacency effects (photon scattering from neighbouring pixels)
 \end{DoxyItemize}
 
-Based on the SMAC algorithm by Rahman \& Dedieu (1994) and the implementation by Olivier Hagolle, extended with a lib\+Radtran LUT inversion and techniques from the ISOFIT optimal estimation framework (Thompson et al., 2018).\hypertarget{md_README_autotoc_md247}{}\doxysection{\texorpdfstring{Features}{Features}}\label{md_README_autotoc_md247}
+Based on the SMAC algorithm by Rahman \& Dedieu (1994) and the implementation by Olivier Hagolle, extended with a lib\+Radtran LUT inversion and techniques from the ISOFIT optimal estimation framework (Thompson et al., 2018).\hypertarget{md_README_autotoc_md243}{}\doxysection{\texorpdfstring{Features}{Features}}\label{md_README_autotoc_md243}
 
 \begin{DoxyItemize}
 \item {\bfseries{LUT Method}} (current implementation)\+: Full multiple-\/scattering LUT from lib\+Radtran DISORT with per-\/pixel H2O retrieval and ISOFIT-\/inspired enhancements
@@ -47,7 +47,7 @@ Based on the SMAC algorithm by Rahman \& Dedieu (1994) and the implementation by
 \item {\bfseries{SWIR H2O Accuracy}}\+: Dense 7-\/point H2O LUT grid with log-\/space transmittance interpolation for accurate continuum absorption
 \item {\bfseries{Coefficient Generation}}\+: Generate SMAC coefficients using lib\+Radtran or analytical formulas
 \item {\bfseries{Four Aerosol Models}}\+: Continental, Maritime, Urban, Desert
-\end{DoxyItemize}\hypertarget{md_README_autotoc_md248}{}\doxysection{\texorpdfstring{Project Structure}{Project Structure}}\label{md_README_autotoc_md248}
+\end{DoxyItemize}\hypertarget{md_README_autotoc_md244}{}\doxysection{\texorpdfstring{Project Structure}{Project Structure}}\label{md_README_autotoc_md244}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{i.hyper.smac/}
@@ -85,29 +85,29 @@ Based on the SMAC algorithm by Rahman \& Dedieu (1994) and the implementation by
 \DoxyCodeLine{\ \ \ \ └──\ SMAC\_COEFFICIENT\_SPECIFICATION.md}
 
 \end{DoxyCode}
-\hypertarget{md_README_autotoc_md249}{}\doxysection{\texorpdfstring{Requirements}{Requirements}}\label{md_README_autotoc_md249}
-\hypertarget{md_README_autotoc_md250}{}\doxysubsection{\texorpdfstring{Required}{Required}}\label{md_README_autotoc_md250}
+\hypertarget{md_README_autotoc_md245}{}\doxysection{\texorpdfstring{Requirements}{Requirements}}\label{md_README_autotoc_md245}
+\hypertarget{md_README_autotoc_md246}{}\doxysubsection{\texorpdfstring{Required}{Required}}\label{md_README_autotoc_md246}
 
 \begin{DoxyItemize}
 \item GRASS GIS 8.\+0+
 \item Python 3.\+8+
 \item Num\+Py
 \item Sci\+Py
-\end{DoxyItemize}\hypertarget{md_README_autotoc_md251}{}\doxysubsection{\texorpdfstring{Optional}{Optional}}\label{md_README_autotoc_md251}
+\end{DoxyItemize}\hypertarget{md_README_autotoc_md247}{}\doxysubsection{\texorpdfstring{Optional}{Optional}}\label{md_README_autotoc_md247}
 
 \begin{DoxyItemize}
 \item lib\+Radtran (for LUT generation and coefficient fitting)
 \item scikit-\/image (for superpixel segmentation — SLIC)
 \item ephem (for solar position calculations)
-\end{DoxyItemize}\hypertarget{md_README_autotoc_md252}{}\doxysection{\texorpdfstring{Installation}{Installation}}\label{md_README_autotoc_md252}
-\hypertarget{md_README_autotoc_md253}{}\doxysubsection{\texorpdfstring{As GRASS GIS Addon}{As GRASS GIS Addon}}\label{md_README_autotoc_md253}
+\end{DoxyItemize}\hypertarget{md_README_autotoc_md248}{}\doxysection{\texorpdfstring{Installation}{Installation}}\label{md_README_autotoc_md248}
+\hypertarget{md_README_autotoc_md249}{}\doxysubsection{\texorpdfstring{As GRASS GIS Addon}{As GRASS GIS Addon}}\label{md_README_autotoc_md249}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{\#\ From\ GRASS\ GIS}
 \DoxyCodeLine{g.extension\ extension=i.hyper.smac\ url=/path/to/i.hyper.smac}
 
 \end{DoxyCode}
-\hypertarget{md_README_autotoc_md254}{}\doxysubsection{\texorpdfstring{Manual Installation}{Manual Installation}}\label{md_README_autotoc_md254}
+\hypertarget{md_README_autotoc_md250}{}\doxysubsection{\texorpdfstring{Manual Installation}{Manual Installation}}\label{md_README_autotoc_md250}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{\#\ Clone/copy\ to\ GRASS\ addons\ directory}
@@ -117,8 +117,8 @@ Based on the SMAC algorithm by Rahman \& Dedieu (1994) and the implementation by
 \DoxyCodeLine{export\ GRASS\_ADDON\_PATH=/path/to/i.hyper.smac:\$GRASS\_ADDON\_PATH}
 
 \end{DoxyCode}
-\hypertarget{md_README_autotoc_md255}{}\doxysection{\texorpdfstring{Usage}{Usage}}\label{md_README_autotoc_md255}
-Atmospheric parameters (AOD, water vapour, ozone) are auto-\/estimated from the scene when not specified. The aerosol model selects the Shettle/\+Fenn spectral shape used for LUT generation; the atmosphere profile affects the gas transmittance columns.\hypertarget{md_README_autotoc_md256}{}\doxysubsection{\texorpdfstring{Desert / arid land (\+Sahara, Arabian Peninsula)}{Desert / arid land (Sahara, Arabian Peninsula)}}\label{md_README_autotoc_md256}
+\hypertarget{md_README_autotoc_md251}{}\doxysection{\texorpdfstring{Usage}{Usage}}\label{md_README_autotoc_md251}
+Atmospheric parameters (AOD, water vapour, ozone) are auto-\/estimated from the scene when not specified. The aerosol model selects the Shettle/\+Fenn spectral shape used for LUT generation; the atmosphere profile affects the gas transmittance columns.\hypertarget{md_README_autotoc_md252}{}\doxysubsection{\texorpdfstring{Desert / arid land (\+Sahara, Arabian Peninsula)}{Desert / arid land (Sahara, Arabian Peninsula)}}\label{md_README_autotoc_md252}
 Mineral dust has a coarse size distribution (low Ångström exponent) and very low precipitable water. A wide AOD range is needed to cover heavy dust events.
 
 
@@ -130,7 +130,7 @@ Mineral dust has a coarse size distribution (low Ångström exponent) and very l
 \DoxyCodeLine{\ \ \ \ aod=0.5\ water\_vapor=0.4\ ozone=0.28}
 
 \end{DoxyCode}
-\hypertarget{md_README_autotoc_md257}{}\doxysubsection{\texorpdfstring{Tropical rainforest (\+Amazon, Congo)}{Tropical rainforest (Amazon, Congo)}}\label{md_README_autotoc_md257}
+\hypertarget{md_README_autotoc_md253}{}\doxysubsection{\texorpdfstring{Tropical rainforest (\+Amazon, Congo)}{Tropical rainforest (Amazon, Congo)}}\label{md_README_autotoc_md253}
 Very high water vapour (\texorpdfstring{$>$}{>} 5 g/cm²) and low AOD. Auto water vapour retrieval from the 940 nm band works well in clean-\/sky tropical conditions. Adjacency correction is important at forest-\/river boundaries.
 
 
@@ -142,7 +142,7 @@ Very high water vapour (\texorpdfstring{$>$}{>} 5 g/cm²) and low AOD. Auto wate
 \DoxyCodeLine{\ \ \ \ adjacency\_psf=1.5\ -\/p}
 
 \end{DoxyCode}
-\hypertarget{md_README_autotoc_md258}{}\doxysubsection{\texorpdfstring{Continental urban temperate mid-\/winter (e.\+g. Paris, January)}{Continental urban temperate mid-winter (e.g. Paris, January)}}\label{md_README_autotoc_md258}
+\hypertarget{md_README_autotoc_md254}{}\doxysubsection{\texorpdfstring{Continental urban temperate mid-\/winter (e.\+g. Paris, January)}{Continental urban temperate mid-winter (e.g. Paris, January)}}\label{md_README_autotoc_md254}
 High SZA (\texorpdfstring{$>$}{>} 70°), low H₂O, and elevated urban AOD. The {\ttfamily -\/u} flag is particularly valuable here because the long atmospheric path inflates AOD sensitivity. Auto-\/estimated AOD from the Dark Target algorithm detects pollution over urban surfaces.
 
 
@@ -155,7 +155,7 @@ High SZA (\texorpdfstring{$>$}{>} 70°), low H₂O, and elevated urban AOD. The 
 \DoxyCodeLine{\ \ \ \ output\_uncertainty=paris\_refl\_unc\ -\/u}
 
 \end{DoxyCode}
-\hypertarget{md_README_autotoc_md259}{}\doxysubsection{\texorpdfstring{Coastal temperate mid-\/summer (e.\+g. Mediterranean, July)}{Coastal temperate mid-summer (e.g. Mediterranean, July)}}\label{md_README_autotoc_md259}
+\hypertarget{md_README_autotoc_md255}{}\doxysubsection{\texorpdfstring{Coastal temperate mid-\/summer (e.\+g. Mediterranean, July)}{Coastal temperate mid-summer (e.g. Mediterranean, July)}}\label{md_README_autotoc_md255}
 Low AOD, maritime sea-\/salt aerosol, moderate H₂O. Adjacency correction is critical at land-\/sea boundaries\+: bright land reflectance leaks into adjacent water pixels through the diffuse transmittance component of maritime aerosol.
 
 
@@ -168,7 +168,7 @@ Low AOD, maritime sea-\/salt aerosol, moderate H₂O. Adjacency correction is cr
 \DoxyCodeLine{\ \ \ \ output\_uncertainty=med\_refl\_unc\ -\/u}
 
 \end{DoxyCode}
-\hypertarget{md_README_autotoc_md260}{}\doxysubsection{\texorpdfstring{Sub-\/arctic mid-\/winter — boreal forest under snow}{Sub-arctic mid-winter — boreal forest under snow}}\label{md_README_autotoc_md260}
+\hypertarget{md_README_autotoc_md256}{}\doxysubsection{\texorpdfstring{Sub-\/arctic mid-\/winter — boreal forest under snow}{Sub-arctic mid-winter — boreal forest under snow}}\label{md_README_autotoc_md256}
 Very low H₂O, low AOD, extremely high SZA. The MAP surface prior ({\ttfamily -\/u} + surface regularisation in the LUT pipeline) constrains bright-\/snow spectral spikes from residual gas-\/correction errors.
 
 
@@ -181,7 +181,7 @@ Very low H₂O, low AOD, extremely high SZA. The MAP surface prior ({\ttfamily -
 \DoxyCodeLine{\ \ \ \ output\_uncertainty=sweden\_refl\_unc\ -\/u\ -\/p}
 
 \end{DoxyCode}
-\hypertarget{md_README_autotoc_md261}{}\doxysubsection{\texorpdfstring{Sub-\/arctic mid-\/summer — tundra / boreal}{Sub-arctic mid-summer — tundra / boreal}}\label{md_README_autotoc_md261}
+\hypertarget{md_README_autotoc_md257}{}\doxysubsection{\texorpdfstring{Sub-\/arctic mid-\/summer — tundra / boreal}{Sub-arctic mid-summer — tundra / boreal}}\label{md_README_autotoc_md257}
 Moderate sun, clean sub-\/arctic air with biogenic terpene aerosol. Auto-\/estimated parameters work well in this low-\/\+AOD regime.
 
 
@@ -192,7 +192,7 @@ Moderate sun, clean sub-\/arctic air with biogenic terpene aerosol. Auto-\/estim
 \DoxyCodeLine{\ \ \ \ aerosol\_model=continental\ -\/p}
 
 \end{DoxyCode}
-\hypertarget{md_README_autotoc_md262}{}\doxysubsection{\texorpdfstring{Full ISOFIT-\/\+Inspired Processing}{Full ISOFIT-Inspired Processing}}\label{md_README_autotoc_md262}
+\hypertarget{md_README_autotoc_md258}{}\doxysubsection{\texorpdfstring{Full ISOFIT-\/\+Inspired Processing}{Full ISOFIT-Inspired Processing}}\label{md_README_autotoc_md258}
 Combines all six enhancements\+: per-\/pixel AOD/\+H₂O maps, Gaussian spatial smoothing, adjacency correction, surface prior MAP, uncertainty output, and model discrepancy floor.
 
 
@@ -203,7 +203,7 @@ Combines all six enhancements\+: per-\/pixel AOD/\+H₂O maps, Gaussian spatial 
 \DoxyCodeLine{\ \ \ \ output\_uncertainty=reflectance\_unc\ -\/p\ -\/u}
 
 \end{DoxyCode}
-\hypertarget{md_README_autotoc_md263}{}\doxysubsection{\texorpdfstring{Legacy Methods}{Legacy Methods}}\label{md_README_autotoc_md263}
+\hypertarget{md_README_autotoc_md259}{}\doxysubsection{\texorpdfstring{Legacy Methods}{Legacy Methods}}\label{md_README_autotoc_md259}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{\#\ libradtran\ method\ with\ runtime\ coefficient\ generation}
@@ -215,7 +215,7 @@ Combines all six enhancements\+: per-\/pixel AOD/\+H₂O maps, Gaussian spatial 
 \DoxyCodeLine{\ \ \ \ dem=elevation\ solar\_zenith=30\ method=simple}
 
 \end{DoxyCode}
-\hypertarget{md_README_autotoc_md264}{}\doxysubsection{\texorpdfstring{Parameters}{Parameters}}\label{md_README_autotoc_md264}
+\hypertarget{md_README_autotoc_md260}{}\doxysubsection{\texorpdfstring{Parameters}{Parameters}}\label{md_README_autotoc_md260}
 \tabulinesep=1mm
 \begin{longtabu}spread 0pt [c]{*{3}{|X[-1]}|}
 \hline
@@ -245,7 +245,7 @@ output\+\_\+uncertainty   &Output uncertainty 3D raster (requires -\/u)   &-\/  
 opencl\+\_\+device   &Open\+CL device type (auto,gpu,cpu)   &auto    \\\cline{1-3}
 opencl\+\_\+memory   &Open\+CL memory limit in MB (0=unlimited)   &1024   \\\cline{1-3}
 \end{longtabu}
-\hypertarget{md_README_autotoc_md265}{}\doxysubsection{\texorpdfstring{Flags}{Flags}}\label{md_README_autotoc_md265}
+\hypertarget{md_README_autotoc_md261}{}\doxysubsection{\texorpdfstring{Flags}{Flags}}\label{md_README_autotoc_md261}
 \tabulinesep=1mm
 \begin{longtabu}spread 0pt [c]{*{2}{|X[-1]}|}
 \hline
@@ -262,7 +262,7 @@ opencl\+\_\+memory   &Open\+CL memory limit in MB (0=unlimited)   &1024   \\\cli
 -\/c   &Clear cached LUT and regenerate    \\\cline{1-2}
 -\/u   &Compute per-\/band reflectance uncertainty   \\\cline{1-2}
 \end{longtabu}
-\hypertarget{md_README_autotoc_md266}{}\doxysubsection{\texorpdfstring{Supported Sensors}{Supported Sensors}}\label{md_README_autotoc_md266}
+\hypertarget{md_README_autotoc_md262}{}\doxysubsection{\texorpdfstring{Supported Sensors}{Supported Sensors}}\label{md_README_autotoc_md262}
 
 \begin{DoxyItemize}
 \item PRISMA (ASI)
@@ -272,15 +272,15 @@ opencl\+\_\+memory   &Open\+CL memory limit in MB (0=unlimited)   &1024   \\\cli
 \item Tanager (Planet)
 \item OSK GHOST, PIXXEL, ESPER, IPERLITE
 \item KUVASPACE (23/32 bands), WYVERN (23/32 bands), HYP4U
-\end{DoxyItemize}\hypertarget{md_README_autotoc_md267}{}\doxysection{\texorpdfstring{Open\+CL GPU Acceleration}{OpenCL GPU Acceleration}}\label{md_README_autotoc_md267}
-The module supports Open\+CL GPU and multi-\/core acceleration for significantly faster processing\+:\hypertarget{md_README_autotoc_md268}{}\doxysubsection{\texorpdfstring{Performance Benefits}{Performance Benefits}}\label{md_README_autotoc_md268}
+\end{DoxyItemize}\hypertarget{md_README_autotoc_md263}{}\doxysection{\texorpdfstring{Open\+CL GPU Acceleration}{OpenCL GPU Acceleration}}\label{md_README_autotoc_md263}
+The module supports Open\+CL GPU and multi-\/core acceleration for significantly faster processing\+:\hypertarget{md_README_autotoc_md264}{}\doxysubsection{\texorpdfstring{Performance Benefits}{Performance Benefits}}\label{md_README_autotoc_md264}
 
 \begin{DoxyItemize}
 \item {\bfseries{3-\/15x speedup}} depending on hardware and dataset size
 \item {\bfseries{Parallel processing}}\+: Multiple bands processed simultaneously
 \item {\bfseries{Memory optimization}}\+: Configurable memory limits for different hardware
 \item {\bfseries{Automatic fallback}}\+: Graceful degradation to CPU processing
-\end{DoxyItemize}\hypertarget{md_README_autotoc_md269}{}\doxysubsection{\texorpdfstring{Usage Examples}{Usage Examples}}\label{md_README_autotoc_md269}
+\end{DoxyItemize}\hypertarget{md_README_autotoc_md265}{}\doxysubsection{\texorpdfstring{Usage Examples}{Usage Examples}}\label{md_README_autotoc_md265}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{\#\ Auto-\/detect\ best\ device\ (GPU\ preferred)}
@@ -296,7 +296,7 @@ The module supports Open\+CL GPU and multi-\/core acceleration for significantly
 \DoxyCodeLine{i.hyper.smac\ input=rad\ output=corr\ opencl\_memory=2048\ ...}
 
 \end{DoxyCode}
-\hypertarget{md_README_autotoc_md270}{}\doxysubsection{\texorpdfstring{Installation}{Installation}}\label{md_README_autotoc_md270}
+\hypertarget{md_README_autotoc_md266}{}\doxysubsection{\texorpdfstring{Installation}{Installation}}\label{md_README_autotoc_md266}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{\#\ Install\ pyOpenCL}
@@ -306,7 +306,7 @@ The module supports Open\+CL GPU and multi-\/core acceleration for significantly
 \DoxyCodeLine{python3\ -\/c\ "{}import\ pyopencl;\ print('OpenCL\ available')"{}}
 
 \end{DoxyCode}
-\hypertarget{md_README_autotoc_md271}{}\doxysubsection{\texorpdfstring{Supported Devices}{Supported Devices}}\label{md_README_autotoc_md271}
+\hypertarget{md_README_autotoc_md267}{}\doxysubsection{\texorpdfstring{Supported Devices}{Supported Devices}}\label{md_README_autotoc_md267}
 
 \begin{DoxyItemize}
 \item {\bfseries{NVIDIA GPUs}}\+: RTX series, GTX series, Tesla series
@@ -315,14 +315,14 @@ The module supports Open\+CL GPU and multi-\/core acceleration for significantly
 \item {\bfseries{Multi-\/core CPUs}}\+: Intel, AMD processors
 \end{DoxyItemize}
 
-See \doxysectlink{md_OPENCL__INTEGRATION}{OPENCL\+\_\+\+INTEGRATION.md}{0} for detailed documentation.\hypertarget{md_README_autotoc_md272}{}\doxysection{\texorpdfstring{LUT Atmospheric Correction}{LUT Atmospheric Correction}}\label{md_README_autotoc_md272}
+See \doxysectlink{md_OPENCL__INTEGRATION}{OPENCL\+\_\+\+INTEGRATION.md}{0} for detailed documentation.\hypertarget{md_README_autotoc_md268}{}\doxysection{\texorpdfstring{LUT Atmospheric Correction}{LUT Atmospheric Correction}}\label{md_README_autotoc_md268}
 The LUT method (default) uses a precomputed 3D look-\/up table from lib\+Radtran DISORT 16-\/stream simulations. The LUT is indexed by (wavelength, AOD, H2O) and stores four atmospheric parameters\+: path reflectance (R\+\_\+atm), downward transmittance (T\+\_\+down), upward transmittance (T\+\_\+up), and spherical albedo (s).
 
-{\bfseries{Alternative backend}}\+: The companion module \href{../i.hyper.atcorr/}{\texttt{ i.\+hyper.\+atcorr}} implements the same LUT approach using a native C port of 6\+SV2.\+1 (no lib\+Radtran required). It supports all six standard atmosphere profiles, four aerosol models, custom Mie aerosols, and nine BRDF surface models. The Python bindings ({\ttfamily lib/atcorr.\+py} + {\ttfamily lib/libatcorr.\+so}) allow i.\+hyper.\+smac to use the 6\+SV2.\+1 engine without a separate GRASS invocation.\hypertarget{md_README_autotoc_md273}{}\doxysubsection{\texorpdfstring{LUT Generation}{LUT Generation}}\label{md_README_autotoc_md273}
+{\bfseries{Alternative backend}}\+: The companion module \href{../i.hyper.atcorr/}{\texttt{ i.\+hyper.\+atcorr}} implements the same LUT approach using a native C port of 6\+SV2.\+1 (no lib\+Radtran required). It supports all six standard atmosphere profiles, four aerosol models, custom Mie aerosols, and nine BRDF surface models. The Python bindings ({\ttfamily lib/atcorr.\+py} + {\ttfamily lib/libatcorr.\+so}) allow i.\+hyper.\+smac to use the 6\+SV2.\+1 engine without a separate GRASS invocation.\hypertarget{md_README_autotoc_md269}{}\doxysubsection{\texorpdfstring{LUT Generation}{LUT Generation}}\label{md_README_autotoc_md269}
 Each LUT is built from two-\/albedo runs (albedo=0 and albedo=0.\+5) across 9 AOD values and 7 H2O values = 126 lib\+Radtran simulations. The dense 7-\/point H2O grid (0.\+3x-\/2.\+5x scene mean) accurately captures the nonlinear H2O continuum absorption in SWIR bands (1500-\/2500nm). Transmittance parameters (T\+\_\+down, T\+\_\+up) are interpolated in log-\/space, since ln(\+T) is nearly linear in H2O column, eliminating the systematic bias from linear interpolation on the convex exp(-\/tau) function. The 6S-\/style decomposition separates direct and diffuse transmittance components.
 
-Generated LUTs are cached as {\ttfamily .npz} files in {\ttfamily COEFS/\+LUT/} and reused when scene geometry matches. Use {\ttfamily -\/c} to force regeneration.\hypertarget{md_README_autotoc_md274}{}\doxysubsection{\texorpdfstring{Per-\/\+Pixel H2\+O Retrieval}{Per-Pixel H2O Retrieval}}\label{md_README_autotoc_md274}
-Water vapor is retrieved per-\/pixel from the 940nm absorption band (ISOFIT-\/style). For each H2O value in the LUT grid, the observed radiance at 865nm (shoulder), 945nm (absorption), and 1040nm (shoulder) is inverted. The correct H2O produces a smooth continuum across the absorption feature.\hypertarget{md_README_autotoc_md275}{}\doxysubsection{\texorpdfstring{ISOFIT-\/\+Inspired Processing Pipeline}{ISOFIT-Inspired Processing Pipeline}}\label{md_README_autotoc_md275}
+Generated LUTs are cached as {\ttfamily .npz} files in {\ttfamily COEFS/\+LUT/} and reused when scene geometry matches. Use {\ttfamily -\/c} to force regeneration.\hypertarget{md_README_autotoc_md270}{}\doxysubsection{\texorpdfstring{Per-\/\+Pixel H2\+O Retrieval}{Per-Pixel H2O Retrieval}}\label{md_README_autotoc_md270}
+Water vapor is retrieved per-\/pixel from the 940nm absorption band (ISOFIT-\/style). For each H2O value in the LUT grid, the observed radiance at 865nm (shoulder), 945nm (absorption), and 1040nm (shoulder) is inverted. The correct H2O produces a smooth continuum across the absorption feature.\hypertarget{md_README_autotoc_md271}{}\doxysubsection{\texorpdfstring{ISOFIT-\/\+Inspired Processing Pipeline}{ISOFIT-Inspired Processing Pipeline}}\label{md_README_autotoc_md271}
 When enabled, the LUT method applies the following processing chain\+:
 
 
@@ -348,8 +348,8 @@ When enabled, the LUT method applies the following processing chain\+:
 \DoxyCodeLine{\ \ \ d.\ Write\ reflectance\ +\ uncertainty\ rasters}
 
 \end{DoxyCode}
-\hypertarget{md_README_autotoc_md276}{}\doxysection{\texorpdfstring{SMAC Coefficient Generation}{SMAC Coefficient Generation}}\label{md_README_autotoc_md276}
-SMAC uses 49 coefficients per spectral band to parameterize atmospheric transmission, scattering, and absorption. These coefficients are generated by fitting the SMAC analytical formulas to lib\+Radtran radiative transfer simulations across a range of atmospheric conditions.\hypertarget{md_README_autotoc_md277}{}\doxysubsection{\texorpdfstring{Pre-\/generated Coefficients}{Pre-generated Coefficients}}\label{md_README_autotoc_md277}
+\hypertarget{md_README_autotoc_md272}{}\doxysection{\texorpdfstring{SMAC Coefficient Generation}{SMAC Coefficient Generation}}\label{md_README_autotoc_md272}
+SMAC uses 49 coefficients per spectral band to parameterize atmospheric transmission, scattering, and absorption. These coefficients are generated by fitting the SMAC analytical formulas to lib\+Radtran radiative transfer simulations across a range of atmospheric conditions.\hypertarget{md_README_autotoc_md273}{}\doxysubsection{\texorpdfstring{Pre-\/generated Coefficients}{Pre-generated Coefficients}}\label{md_README_autotoc_md273}
 The {\ttfamily COEFS/} directory ships with coefficients at 10nm intervals from 350-\/2500nm for all four aerosol models (864 files total)\+:
 
 
@@ -363,8 +363,8 @@ The {\ttfamily COEFS/} directory ships with coefficients at 10nm intervals from 
 \end{DoxyCode}
 
 
-At runtime, {\ttfamily find\+\_\+coef\+\_\+file()} selects the nearest available wavelength file (max 5nm mismatch with the 10nm grid).\hypertarget{md_README_autotoc_md278}{}\doxysubsection{\texorpdfstring{Generating Coefficients with $<$tt$>$smac\+\_\+coef\+\_\+generator.\+py$<$/tt$>$}{Generating Coefficients with <tt>smac\_coef\_generator.py</tt>}}\label{md_README_autotoc_md278}
-The generator runs lib\+Radtran simulations and uses {\ttfamily scipy.\+optimize.\+curve\+\_\+fit} to fit the SMAC formulas. It requires {\bfseries{lib\+Radtran}} and {\bfseries{scipy}}.\hypertarget{md_README_autotoc_md279}{}\doxysubsubsection{\texorpdfstring{Single wavelength}{Single wavelength}}\label{md_README_autotoc_md279}
+At runtime, {\ttfamily find\+\_\+coef\+\_\+file()} selects the nearest available wavelength file (max 5nm mismatch with the 10nm grid).\hypertarget{md_README_autotoc_md274}{}\doxysubsection{\texorpdfstring{Generating Coefficients with $<$tt$>$smac\+\_\+coef\+\_\+generator.\+py$<$/tt$>$}{Generating Coefficients with <tt>smac\_coef\_generator.py</tt>}}\label{md_README_autotoc_md274}
+The generator runs lib\+Radtran simulations and uses {\ttfamily scipy.\+optimize.\+curve\+\_\+fit} to fit the SMAC formulas. It requires {\bfseries{lib\+Radtran}} and {\bfseries{scipy}}.\hypertarget{md_README_autotoc_md275}{}\doxysubsubsection{\texorpdfstring{Single wavelength}{Single wavelength}}\label{md_README_autotoc_md275}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{\#\ Generate\ coefficients\ for\ 550nm,\ continental\ aerosol}
@@ -374,7 +374,7 @@ The generator runs lib\+Radtran simulations and uses {\ttfamily scipy.\+optimize
 \DoxyCodeLine{python3\ lib/smac\_coef\_generator.py\ single\ 940\ -\/-\/fwhm\ 5\ -\/-\/output\ coef\_940nm.dat\ -\/-\/verbose}
 
 \end{DoxyCode}
-\hypertarget{md_README_autotoc_md280}{}\doxysubsubsection{\texorpdfstring{Batch generation (10nm resolution)}{Batch generation (10nm resolution)}}\label{md_README_autotoc_md280}
+\hypertarget{md_README_autotoc_md276}{}\doxysubsubsection{\texorpdfstring{Batch generation (10nm resolution)}{Batch generation (10nm resolution)}}\label{md_README_autotoc_md276}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{\#\ Default:\ 350-\/2500nm\ at\ 10nm\ steps,\ all\ four\ aerosol\ types}
@@ -387,7 +387,7 @@ The generator runs lib\+Radtran simulations and uses {\ttfamily scipy.\+optimize
 \DoxyCodeLine{python3\ lib/smac\_coef\_generator.py\ batch\ -\/-\/aerosol\ continental\ -\/-\/verbose}
 
 \end{DoxyCode}
-\hypertarget{md_README_autotoc_md281}{}\doxysubsubsection{\texorpdfstring{Batch generation at 1nm resolution}{Batch generation at 1nm resolution}}\label{md_README_autotoc_md281}
+\hypertarget{md_README_autotoc_md277}{}\doxysubsubsection{\texorpdfstring{Batch generation at 1nm resolution}{Batch generation at 1nm resolution}}\label{md_README_autotoc_md277}
 For maximum spectral accuracy (e.\+g., narrow-\/band sensors or resolving sharp gas absorption features), generate at 1nm intervals\+:
 
 
@@ -400,7 +400,7 @@ For maximum spectral accuracy (e.\+g., narrow-\/band sensors or resolving sharp 
 \DoxyCodeLine{\ \ \ \ -\/-\/aerosol\ continental\ -\/-\/verbose}
 
 \end{DoxyCode}
-\hypertarget{md_README_autotoc_md282}{}\doxysubsection{\texorpdfstring{Runtime Generation with the $<$tt$>$-\/g$<$/tt$>$ Flag}{Runtime Generation with the <tt>-g</tt> Flag}}\label{md_README_autotoc_md282}
+\hypertarget{md_README_autotoc_md278}{}\doxysubsection{\texorpdfstring{Runtime Generation with the $<$tt$>$-\/g$<$/tt$>$ Flag}{Runtime Generation with the <tt>-g</tt> Flag}}\label{md_README_autotoc_md278}
 Instead of using pre-\/generated files, coefficients can be generated on the fly from lib\+Radtran during atmospheric correction. Generated coefficients are cached to the {\ttfamily COEFS/} directory for reuse\+:
 
 
@@ -410,7 +410,7 @@ Instead of using pre-\/generated files, coefficients can be generated on the fly
 \DoxyCodeLine{\ \ \ \ aerosol\_model=continental\ -\/g}
 
 \end{DoxyCode}
-\hypertarget{md_README_autotoc_md283}{}\doxysection{\texorpdfstring{Library API}{Library API}}\label{md_README_autotoc_md283}
+\hypertarget{md_README_autotoc_md279}{}\doxysection{\texorpdfstring{Library API}{Library API}}\label{md_README_autotoc_md279}
 The {\ttfamily lib/} package can be used independently\+:
 
 
@@ -454,7 +454,7 @@ The {\ttfamily lib/} package can be used independently\+:
 \DoxyCodeLine{)}
 
 \end{DoxyCode}
-\hypertarget{md_README_autotoc_md284}{}\doxysection{\texorpdfstring{Testing}{Testing}}\label{md_README_autotoc_md284}
+\hypertarget{md_README_autotoc_md280}{}\doxysection{\texorpdfstring{Testing}{Testing}}\label{md_README_autotoc_md280}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{\#\ Run\ all\ tests}
@@ -473,8 +473,8 @@ Current test coverage\+: 23 tests covering\+:
 \item Round-\/trip accuracy
 \item Utility functions
 \item Atmospheric parameter estimation bounds
-\end{DoxyItemize}\hypertarget{md_README_autotoc_md285}{}\doxysection{\texorpdfstring{Algorithm Details}{Algorithm Details}}\label{md_README_autotoc_md285}
-\hypertarget{md_README_autotoc_md286}{}\doxysubsection{\texorpdfstring{SMAC Equation}{SMAC Equation}}\label{md_README_autotoc_md286}
+\end{DoxyItemize}\hypertarget{md_README_autotoc_md281}{}\doxysection{\texorpdfstring{Algorithm Details}{Algorithm Details}}\label{md_README_autotoc_md281}
+\hypertarget{md_README_autotoc_md282}{}\doxysubsection{\texorpdfstring{SMAC Equation}{SMAC Equation}}\label{md_README_autotoc_md282}
 Surface reflectance rho is computed from TOA reflectance rho\texorpdfstring{$\ast$}{*} using\+:
 
 
@@ -490,7 +490,7 @@ Where\+:
 \item T\+\_\+gas = gaseous transmission (H2O, O3, etc.)
 \item T\+\_\+scat = scattering transmission (Rayleigh + aerosol)
 \item s = spherical albedo of atmosphere
-\end{DoxyItemize}\hypertarget{md_README_autotoc_md287}{}\doxysubsection{\texorpdfstring{LUT Inversion (6\+S-\/style)}{LUT Inversion (6S-style)}}\label{md_README_autotoc_md287}
+\end{DoxyItemize}\hypertarget{md_README_autotoc_md283}{}\doxysubsection{\texorpdfstring{LUT Inversion (6\+S-\/style)}{LUT Inversion (6S-style)}}\label{md_README_autotoc_md283}
 The LUT method decomposes the atmosphere using two-\/albedo simulations\+:
 
 
@@ -509,7 +509,7 @@ The inversion solves\+:
 \DoxyCodeLine{rho\_boa\ =\ y\ /\ (1\ +\ s\ *\ y)}
 
 \end{DoxyCode}
-\hypertarget{md_README_autotoc_md288}{}\doxysubsection{\texorpdfstring{Adjacency Effect Correction}{Adjacency Effect Correction}}\label{md_README_autotoc_md288}
+\hypertarget{md_README_autotoc_md284}{}\doxysubsection{\texorpdfstring{Adjacency Effect Correction}{Adjacency Effect Correction}}\label{md_README_autotoc_md284}
 Following Vermote et al. (1997), the total transmittance is decomposed into direct (Beer-\/\+Lambert) and diffuse components. The diffuse component picks up signal from the environmental reflectance (spatial average) rather than the pixel reflectance\+:
 
 
@@ -520,7 +520,7 @@ Following Vermote et al. (1997), the total transmittance is decomposed into dire
 \DoxyCodeLine{r\_adj\ =\ r\_boa\ +\ correction}
 
 \end{DoxyCode}
-\hypertarget{md_README_autotoc_md289}{}\doxysubsection{\texorpdfstring{Aerosol Spectral Calibration}{Aerosol Spectral Calibration}}\label{md_README_autotoc_md289}
+\hypertarget{md_README_autotoc_md285}{}\doxysubsection{\texorpdfstring{Aerosol Spectral Calibration}{Aerosol Spectral Calibration}}\label{md_README_autotoc_md285}
 Three techniques reduce systematic NIR/\+SWIR reflectance bias\+:
 
 
@@ -534,8 +534,8 @@ Three techniques reduce systematic NIR/\+SWIR reflectance bias\+:
 
 \end{DoxyCode}
 
-\end{DoxyEnumerate}\hypertarget{md_README_autotoc_md290}{}\doxysubsection{\texorpdfstring{SWIR H2\+O Continuum Accuracy}{SWIR H2O Continuum Accuracy}}\label{md_README_autotoc_md290}
-The 7-\/point H2O grid with log-\/space transmittance interpolation addresses the nonlinear absorption in SWIR bands. Since T = exp(-\/tau) and tau is roughly proportional to H2O column, interpolating ln(\+T) rather than T eliminates the convexity bias that linear interpolation introduces. Testing shows this reduces transmittance interpolation error from up to 54\% (old 3-\/point linear) to \texorpdfstring{$<$}{<}0.\+01\% at strong SWIR absorption bands.\hypertarget{md_README_autotoc_md291}{}\doxysubsection{\texorpdfstring{Surface Prior and MAP Estimate}{Surface Prior and MAP Estimate}}\label{md_README_autotoc_md291}
+\end{DoxyEnumerate}\hypertarget{md_README_autotoc_md286}{}\doxysubsection{\texorpdfstring{SWIR H2\+O Continuum Accuracy}{SWIR H2O Continuum Accuracy}}\label{md_README_autotoc_md286}
+The 7-\/point H2O grid with log-\/space transmittance interpolation addresses the nonlinear absorption in SWIR bands. Since T = exp(-\/tau) and tau is roughly proportional to H2O column, interpolating ln(\+T) rather than T eliminates the convexity bias that linear interpolation introduces. Testing shows this reduces transmittance interpolation error from up to 54\% (old 3-\/point linear) to \texorpdfstring{$<$}{<}0.\+01\% at strong SWIR absorption bands.\hypertarget{md_README_autotoc_md287}{}\doxysubsection{\texorpdfstring{Surface Prior and MAP Estimate}{Surface Prior and MAP Estimate}}\label{md_README_autotoc_md287}
 The surface prior is a 3-\/component Gaussian mixture (vegetation, soil, water) with per-\/band diagonal covariance. The MAP estimate blends the observation with the prior\+:
 
 
@@ -545,7 +545,7 @@ The surface prior is a 3-\/component Gaussian mixture (vegetation, soil, water) 
 \end{DoxyCode}
 
 
-The measurement variance sigma\+\_\+obs\texorpdfstring{$^\wedge$}{\string^}2 includes instrument noise, AOD uncertainty, and model discrepancy. In bands with high uncertainty (e.\+g., gas absorption edges), the prior dominates; in clean bands, the observation dominates.\hypertarget{md_README_autotoc_md292}{}\doxysubsection{\texorpdfstring{Uncertainty Propagation}{Uncertainty Propagation}}\label{md_README_autotoc_md292}
+The measurement variance sigma\+\_\+obs\texorpdfstring{$^\wedge$}{\string^}2 includes instrument noise, AOD uncertainty, and model discrepancy. In bands with high uncertainty (e.\+g., gas absorption edges), the prior dominates; in clean bands, the observation dominates.\hypertarget{md_README_autotoc_md288}{}\doxysubsection{\texorpdfstring{Uncertainty Propagation}{Uncertainty Propagation}}\label{md_README_autotoc_md288}
 Per-\/band reflectance uncertainty combines three sources in quadrature\+:
 
 
@@ -553,7 +553,7 @@ Per-\/band reflectance uncertainty combines three sources in quadrature\+:
 \item {\bfseries{Instrument noise}}\+: NEDL estimated from dark pixels, propagated as sigma\+\_\+rfl = pi \texorpdfstring{$\ast$}{*} NEDL \texorpdfstring{$\ast$}{*} d\texorpdfstring{$^\wedge$}{\string^}2 / (E0 \texorpdfstring{$\ast$}{*} cos(\+SZA) \texorpdfstring{$\ast$}{*} T\+\_\+down \texorpdfstring{$\ast$}{*} T\+\_\+up)
 \item {\bfseries{AOD uncertainty}}\+: +/-\/0.04 AOD perturbation through the LUT inversion
 \item {\bfseries{Model discrepancy}}\+: Per-\/band systematic RT error floor, empirically characterized (0.\+5\% baseline, up to 2.\+5\% at gas band edges)
-\end{DoxyEnumerate}\hypertarget{md_README_autotoc_md293}{}\doxysubsection{\texorpdfstring{AOD Estimation (\+Dark Target Algorithm)}{AOD Estimation (Dark Target Algorithm)}}\label{md_README_autotoc_md293}
+\end{DoxyEnumerate}\hypertarget{md_README_autotoc_md289}{}\doxysubsection{\texorpdfstring{AOD Estimation (\+Dark Target Algorithm)}{AOD Estimation (Dark Target Algorithm)}}\label{md_README_autotoc_md289}
 Implements the MODIS Dark Target algorithm (Kaufman 1997, Levy 2007)\+:
 
 
@@ -565,7 +565,7 @@ Implements the MODIS Dark Target algorithm (Kaufman 1997, Levy 2007)\+:
 \item {\bfseries{Angstrom exponent}} from blue/red AOD ratio, scaled to 550nm. The retrieved exponent is used by the LUT method when no explicit override is provided.
 \end{DoxyEnumerate}
 
-Fallback chain\+: Dark Target -\/\texorpdfstring{$>$}{>} Dark Pixel -\/\texorpdfstring{$>$}{>} Constant (0.\+15)\hypertarget{md_README_autotoc_md294}{}\doxysubsection{\texorpdfstring{WVC Estimation (\+Continuum-\/\+Removal Band Depth)}{WVC Estimation (Continuum-Removal Band Depth)}}\label{md_README_autotoc_md294}
+Fallback chain\+: Dark Target -\/\texorpdfstring{$>$}{>} Dark Pixel -\/\texorpdfstring{$>$}{>} Constant (0.\+15)\hypertarget{md_README_autotoc_md290}{}\doxysubsection{\texorpdfstring{WVC Estimation (\+Continuum-\/\+Removal Band Depth)}{WVC Estimation (Continuum-Removal Band Depth)}}\label{md_README_autotoc_md290}
 Uses continuum-\/removal band depth at the 940nm and 1130nm absorption features\+:
 
 
@@ -575,7 +575,7 @@ Uses continuum-\/removal band depth at the 940nm and 1130nm absorption features\
 \item {\bfseries{Air mass normalization}}\+: Band depth / (1/cos(SZA) + 1/cos(VZA))
 \item {\bfseries{Physically-\/calibrated}}\+: scale \texorpdfstring{$\sim$}{\string~}28 g/cm² (940nm), \texorpdfstring{$\sim$}{\string~}42 g/cm² (1130nm)
 \item {\bfseries{Weighted combination}}\+: 940nm x0.\+7 normally; 1130nm x0.\+7 at high WVC
-\end{DoxyEnumerate}\hypertarget{md_README_autotoc_md295}{}\doxysection{\texorpdfstring{References}{References}}\label{md_README_autotoc_md295}
+\end{DoxyEnumerate}\hypertarget{md_README_autotoc_md291}{}\doxysection{\texorpdfstring{References}{References}}\label{md_README_autotoc_md291}
 
 \begin{DoxyEnumerate}
 \item Rahman, H., \& Dedieu, G. (1994). SMAC\+: a simplified method for the atmospheric correction of satellite measurements in the solar spectrum. {\itshape International Journal of Remote Sensing}, 15(1), 123-\/143.
@@ -586,12 +586,12 @@ Uses continuum-\/removal band depth at the 940nm and 1130nm absorption features\
 \item Gao, B.-\/C. \& Goetz, A.\+F.\+H. (1990). Column atmospheric water vapor and vegetation liquid water retrievals from airborne imaging spectrometer data. {\itshape Journal of Geophysical Research}, 95(D4), 3549-\/3564.
 \item Thompson, D.\+R., et al. (2018). Optimal estimation for imaging spectrometer atmospheric correction. {\itshape Remote Sensing of Environment}, 216, 355-\/373. \href{https://doi.org/10.1016/j.rse.2018.07.003}{\texttt{ https\+://doi.\+org/10.\+1016/j.\+rse.\+2018.\+07.\+003}}
 \item Vermote, E.\+F., et al. (1997). Second simulation of the satellite signal in the solar spectrum, 6S\+: An overview. {\itshape IEEE Transactions on Geoscience and Remote Sensing}, 35(3), 675-\/686.
-\end{DoxyEnumerate}\hypertarget{md_README_autotoc_md296}{}\doxysection{\texorpdfstring{Authors}{Authors}}\label{md_README_autotoc_md296}
+\end{DoxyEnumerate}\hypertarget{md_README_autotoc_md292}{}\doxysection{\texorpdfstring{Authors}{Authors}}\label{md_README_autotoc_md292}
 
 \begin{DoxyItemize}
 \item {\bfseries{Original SMAC Algorithm}}\+: H. Rahman and G. Dedieu (CESBIO)
 \item {\bfseries{GRASS GIS Implementation}}\+: Yann Chemin \href{mailto:dr.yann.chemin@gmail.com}{\texttt{ dr.\+yann.\+chemin@gmail.\+com}}
-\end{DoxyItemize}\hypertarget{md_README_autotoc_md297}{}\doxysection{\texorpdfstring{License}{License}}\label{md_README_autotoc_md297}
+\end{DoxyItemize}\hypertarget{md_README_autotoc_md293}{}\doxysection{\texorpdfstring{License}{License}}\label{md_README_autotoc_md293}
 This is free and unencumbered software released into the public domain.
 
 Copyright (C) 2025 GRASS Development Team
@@ -602,7 +602,7 @@ In jurisdictions that recognize copyright laws, the author or authors of this so
 
 THE SOFTWARE IS PROVIDED "{}\+AS IS"{}, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-For more information, please refer to \href{https://unlicense.org/}{\texttt{ https\+://unlicense.\+org/}}\hypertarget{md_README_autotoc_md298}{}\doxysection{\texorpdfstring{See Also}{See Also}}\label{md_README_autotoc_md298}
+For more information, please refer to \href{https://unlicense.org/}{\texttt{ https\+://unlicense.\+org/}}\hypertarget{md_README_autotoc_md294}{}\doxysection{\texorpdfstring{See Also}{See Also}}\label{md_README_autotoc_md294}
 
 \begin{DoxyItemize}
 \item \href{https://github.com/yannforget/i.hyper.atcorr}{\texttt{ i.\+hyper.\+atcorr}} -\/ Companion GRASS add-\/on\+: full 6\+SV2.\+1 C port with BRDF surface models, custom Mie aerosol, and ISOFIT improvements. Use as a self-\/contained alternative to the lib\+Radtran LUT backend.

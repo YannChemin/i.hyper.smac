@@ -72,13 +72,13 @@ $(function() {
   <div class="headertitle"><div class="title">OpenCL Integration Summary</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md64"></a> </p>
-<h1><a class="anchor" id="autotoc_md65"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md60"></a> </p>
+<h1><a class="anchor" id="autotoc_md61"></a>
 ✅ Implementation Complete</h1>
 <p>OpenCL GPU and multi-core acceleration has been successfully integrated into i.hyper.smac atmospheric correction module.</p>
-<h1><a class="anchor" id="autotoc_md66"></a>
+<h1><a class="anchor" id="autotoc_md62"></a>
 🚀 What Was Implemented</h1>
-<h2><a class="anchor" id="autotoc_md67"></a>
+<h2><a class="anchor" id="autotoc_md63"></a>
 1. OpenCL Accelerator Module (&lt;tt&gt;lib/opencl_accelerator.py&lt;/tt&gt;)</h2>
 <ul>
 <li><b>Device Detection</b>: Automatic detection of GPU/CPU OpenCL devices</li>
@@ -87,7 +87,7 @@ $(function() {
 <li><b>Performance Monitoring</b>: Built-in benchmarking and device information</li>
 <li><b>Fallback Handling</b>: Graceful degradation to CPU processing</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md68"></a>
+<h2><a class="anchor" id="autotoc_md64"></a>
 2. GPU-Accelerated Kernels</h2>
 <ul>
 <li><b>Atmospheric Correction</b>: Parallel SMAC equation processing</li>
@@ -96,7 +96,7 @@ $(function() {
 <li><b>Spectral Polishing</b>: Multi-band outlier detection</li>
 <li><b>Uncertainty Calculation</b>: Per-pixel error propagation</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md69"></a>
+<h2><a class="anchor" id="autotoc_md65"></a>
 3. Integration with Main Workflow</h2>
 <ul>
 <li><b>Parameter Integration</b>: <code>opencl_device</code> and <code>opencl_memory</code> options</li>
@@ -104,7 +104,7 @@ $(function() {
 <li><b>Hybrid Processing</b>: GPU for available bands, CPU fallback for others</li>
 <li><b>Resource Management</b>: Proper cleanup and error handling</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md70"></a>
+<h2><a class="anchor" id="autotoc_md66"></a>
 4. Configuration Options</h2>
 <div class="fragment"><div class="line"># Device selection</div>
 <div class="line">opencl_device=auto    # Auto-detect best device (default)</div>
@@ -114,9 +114,9 @@ $(function() {
 <div class="line"># Memory management</div>
 <div class="line">opencl_memory=1024     # Memory limit in MB (default)</div>
 <div class="line">opencl_memory=0        # Unlimited memory</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md71"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md67"></a>
 📊 Performance Results</h1>
-<h2><a class="anchor" id="autotoc_md72"></a>
+<h2><a class="anchor" id="autotoc_md68"></a>
 Successfully Tested</h2>
 <ul>
 <li><b>Device Detection</b>: ✅ Intel i7-1165G7 CPU (8 compute units, 13.7GB memory)</li>
@@ -124,7 +124,7 @@ Successfully Tested</h2>
 <li><b>Integration</b>: ✅ Works with main atmospheric correction workflow</li>
 <li><b>Fallback</b>: ✅ Graceful CPU processing when GPU unavailable</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md73"></a>
+<h2><a class="anchor" id="autotoc_md69"></a>
 Expected Performance Improvements</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -138,9 +138,9 @@ Expected Performance Improvements</h2>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone">Intel Integrated GPU   </td><td class="markdownTableBodyNone">2-4x   </td><td class="markdownTableBodyNone">1-2 GB   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md74"></a>
+<h1><a class="anchor" id="autotoc_md70"></a>
 🛠️ Technical Implementation</h1>
-<h2><a class="anchor" id="autotoc_md75"></a>
+<h2><a class="anchor" id="autotoc_md71"></a>
 OpenCL Kernels</h2>
 <ol type="1">
 <li><b>Atmospheric Correction Kernel</b><ul>
@@ -168,7 +168,7 @@ OpenCL Kernels</h2>
 </ul>
 </li>
 </ol>
-<h2><a class="anchor" id="autotoc_md76"></a>
+<h2><a class="anchor" id="autotoc_md72"></a>
 Memory Optimization</h2>
 <ul>
 <li><b>Batch Processing</b>: 10 bands per GPU batch</li>
@@ -176,7 +176,7 @@ Memory Optimization</h2>
 <li><b>Adaptive Sizing</b>: Adjust batch size based on available memory</li>
 <li><b>Cleanup</b>: Proper resource deallocation</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md77"></a>
+<h2><a class="anchor" id="autotoc_md73"></a>
 Error Handling</h2>
 <ul>
 <li><b>Graceful Fallback</b>: CPU processing when GPU fails</li>
@@ -184,9 +184,9 @@ Error Handling</h2>
 <li><b>Resource Recovery</b>: Cleanup on errors and completion</li>
 <li><b>Verbose Logging</b>: Detailed error reporting</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md78"></a>
+<h1><a class="anchor" id="autotoc_md74"></a>
 📋 Usage Examples</h1>
-<h2><a class="anchor" id="autotoc_md79"></a>
+<h2><a class="anchor" id="autotoc_md75"></a>
 Basic GPU Acceleration</h2>
 <div class="fragment"><div class="line">i.hyper.smac --overwrite input=rad output=smac_ref dem=DEM \</div>
 <div class="line">    solar_zenith=40.0 solar_azimuth=130.0 \</div>
@@ -194,7 +194,7 @@ Basic GPU Acceleration</h2>
 <div class="line">    sensor=TANAGER aerosol_model=urban \</div>
 <div class="line">    water_vapor=joint adjacency_psf=1.0 \</div>
 <div class="line">    opencl_device=gpu -p -c</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md80"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md76"></a>
 Memory-Constrained Processing</h2>
 <div class="fragment"><div class="line">i.hyper.smac --overwrite input=rad output=smac_ref dem=DEM \</div>
 <div class="line">    solar_zenith=40.0 solar_azimuth=130.0 \</div>
@@ -202,7 +202,7 @@ Memory-Constrained Processing</h2>
 <div class="line">    sensor=TANAGER aerosol_model=urban \</div>
 <div class="line">    water_vapor=joint adjacency_psf=1.0 \</div>
 <div class="line">    opencl_device=auto opencl_memory=512 -p -c</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md81"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md77"></a>
 CPU-Only Processing</h2>
 <div class="fragment"><div class="line">i.hyper.smac --overwrite input=rad output=smac_ref dem=DEM \</div>
 <div class="line">    solar_zenith=40.0 solar_azimuth=130.0 \</div>
@@ -210,9 +210,9 @@ CPU-Only Processing</h2>
 <div class="line">    sensor=TANAGER aerosol_model=urban \</div>
 <div class="line">    water_vapor=joint adjacency_psf=1.0 \</div>
 <div class="line">    opencl_device=cpu -p -c</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md82"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md78"></a>
 🔧 Installation and Setup</h1>
-<h2><a class="anchor" id="autotoc_md83"></a>
+<h2><a class="anchor" id="autotoc_md79"></a>
 System Requirements</h2>
 <ul>
 <li>Python 3.8+</li>
@@ -220,7 +220,7 @@ System Requirements</h2>
 <li>OpenCL-compatible GPU or multi-core CPU</li>
 <li>NumPy, GRASS GIS</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md84"></a>
+<h2><a class="anchor" id="autotoc_md80"></a>
 Installation Steps</h2>
 <div class="fragment"><div class="line"># 1. Install pyOpenCL</div>
 <div class="line">sudo apt install python3-pyopencl</div>
@@ -231,14 +231,14 @@ Installation Steps</h2>
 <div class="line"># 3. Update i.hyper.smac (already done)</div>
 <div class="line"># 4. Test with your data</div>
 <div class="line">i.hyper.smac input=your_data output=result opencl_device=auto</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md85"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md81"></a>
 📚 Documentation</h1>
 <ul>
 <li><b><a class="el" href="md_OPENCL__INTEGRATION.html">OPENCL_INTEGRATION.md</a></b>: Comprehensive technical documentation</li>
 <li><b><a class="el" href="md_README.html">README.md</a></b>: Updated with OpenCL parameters and examples</li>
 <li><b>Code Comments</b>: Detailed inline documentation in <code>lib/opencl_accelerator.py</code></li>
 </ul>
-<h1><a class="anchor" id="autotoc_md86"></a>
+<h1><a class="anchor" id="autotoc_md82"></a>
 ✅ Verification Status</h1>
 <p>All implementation goals have been achieved:</p>
 <ul>
@@ -251,7 +251,7 @@ Installation Steps</h2>
 <li>[x] <b>Documentation</b>: Comprehensive user and technical documentation</li>
 <li>[x] <b>Testing</b>: Successfully tested with Intel CPU OpenCL</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md87"></a>
+<h1><a class="anchor" id="autotoc_md83"></a>
 🎯 Impact</h1>
 <p>The OpenCL integration provides:</p>
 <ol type="1">

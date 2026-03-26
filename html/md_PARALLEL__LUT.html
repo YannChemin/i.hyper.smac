@@ -72,13 +72,13 @@ $(function() {
   <div class="headertitle"><div class="title">Parallel LUT Generation for i.hyper.smac</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md88"></a> This document describes the parallel LUT generation feature that dramatically speeds up atmospheric correction by running multiple libRadtran uvspec processes simultaneously.</p>
-<h1><a class="anchor" id="autotoc_md89"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md84"></a> This document describes the parallel LUT generation feature that dramatically speeds up atmospheric correction by running multiple libRadtran uvspec processes simultaneously.</p>
+<h1><a class="anchor" id="autotoc_md85"></a>
 Overview</h1>
 <p>The LUT generation in i.hyper.smac requires running libRadtran's <code>uvspec</code> multiple times (typically 156 runs for a full LUT). With parallel processing, these runs are distributed across multiple CPU cores, reducing generation time from hours to minutes.</p>
-<h1><a class="anchor" id="autotoc_md90"></a>
+<h1><a class="anchor" id="autotoc_md86"></a>
 Performance Benefits</h1>
-<h2><a class="anchor" id="autotoc_md91"></a>
+<h2><a class="anchor" id="autotoc_md87"></a>
 Speedup Estimates</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -97,9 +97,9 @@ Speedup Estimates</h2>
 <li><b>Parallel (8 cores)</b>: ~5 minutes</li>
 <li><b>Memory Usage</b>: ~200MB per uvspec process</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md92"></a>
+<h1><a class="anchor" id="autotoc_md88"></a>
 Implementation</h1>
-<h2><a class="anchor" id="autotoc_md93"></a>
+<h2><a class="anchor" id="autotoc_md89"></a>
 Core Components</h2>
 <ol type="1">
 <li><b>Parallel LUT Generator</b> (<code>lib/parallel_lut.py</code>)<ul>
@@ -122,9 +122,9 @@ Core Components</h2>
 </ul>
 </li>
 </ol>
-<h1><a class="anchor" id="autotoc_md94"></a>
+<h1><a class="anchor" id="autotoc_md90"></a>
 Usage</h1>
-<h2><a class="anchor" id="autotoc_md95"></a>
+<h2><a class="anchor" id="autotoc_md91"></a>
 Command Line Options</h2>
 <div class="fragment"><div class="line"># Auto-detect parallel processing (default)</div>
 <div class="line">i.hyper.smac input=rad output=corr parallel_lut=auto ...</div>
@@ -137,7 +137,7 @@ Command Line Options</h2>
 <div class="line"> </div>
 <div class="line"># Combined with OpenCL acceleration</div>
 <div class="line">i.hyper.smac input=rad output=corr parallel_lut=enabled opencl_device=gpu ...</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md96"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md92"></a>
 Parameter Options</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -149,16 +149,16 @@ Parameter Options</h2>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code>opencl_memory</code>   </td><td class="markdownTableBodyNone">0-8192   </td><td class="markdownTableBodyNone">1024   </td><td class="markdownTableBodyNone">OpenCL memory limit in MB   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md97"></a>
+<h2><a class="anchor" id="autotoc_md93"></a>
 Auto-Detection Logic</h2>
 <ul>
 <li>**<code>auto</code>**: Enable parallel if CPU has ≥4 cores and ≥2GB available memory</li>
 <li>**<code>enabled</code>**: Force parallel processing</li>
 <li>**<code>disabled</code>**: Force sequential processing</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md98"></a>
+<h1><a class="anchor" id="autotoc_md94"></a>
 Technical Details</h1>
-<h2><a class="anchor" id="autotoc_md99"></a>
+<h2><a class="anchor" id="autotoc_md95"></a>
 Memory Optimization</h2>
 <p>The system automatically estimates optimal worker count based on:</p>
 <ol type="1">
@@ -167,7 +167,7 @@ Memory Optimization</h2>
 <li><b>CPU Cores</b>: <code>multiprocessing.cpu_count()</code> → maximum workers</li>
 <li><b>Safety Margin</b>: Leaves 1 core free for system operations</li>
 </ol>
-<h2><a class="anchor" id="autotoc_md100"></a>
+<h2><a class="anchor" id="autotoc_md96"></a>
 Process Management</h2>
 <ul>
 <li><b>Worker Pool</b>: <code>ProcessPoolExecutor</code> for robust process handling</li>
@@ -176,14 +176,14 @@ Process Management</h2>
 <li><b>Progress Tracking</b>: Real-time progress updates</li>
 <li><b>Resource Cleanup</b>: Automatic temp file cleanup</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md101"></a>
+<h2><a class="anchor" id="autotoc_md97"></a>
 File Structure</h2>
 <div class="fragment"><div class="line">/tmp/parallel_lut_aod0.00_h2o0.30_alb0.0.out</div>
 <div class="line">/tmp/parallel_lut_aod0.00_h2o0.30_alb0.5.out</div>
 <div class="line">/tmp/parallel_lut_aod0.00_h2o0.70_alb0.0.out</div>
 <div class="line">...</div>
 </div><!-- fragment --><p>Each file contains uvspec output for one (AOD, H2O, albedo) combination.</p>
-<h1><a class="anchor" id="autotoc_md102"></a>
+<h1><a class="anchor" id="autotoc_md98"></a>
 Integration Status</h1>
 <p>✅ <b>Completed Features</b>:</p><ul>
 <li>[x] Parallel LUT generator module</li>
@@ -195,9 +195,9 @@ Integration Status</h1>
 <li>[x] Resource cleanup</li>
 <li>[x] Configuration validation</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md103"></a>
+<h1><a class="anchor" id="autotoc_md99"></a>
 Testing</h1>
-<h2><a class="anchor" id="autotoc_md104"></a>
+<h2><a class="anchor" id="autotoc_md100"></a>
 Test Script</h2>
 <p>Run the comprehensive test suite:</p>
 <div class="fragment"><div class="line">./test_parallel_lut.sh</div>
@@ -208,16 +208,16 @@ Test Script</h2>
 <li>Main script integration</li>
 <li>Performance estimation</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md105"></a>
+<h2><a class="anchor" id="autotoc_md101"></a>
 Manual Testing</h2>
 <div class="fragment"><div class="line"># Test with small LUT for quick verification</div>
 <div class="line">i.hyper.smac input=small_test_rad output=test_corr \</div>
 <div class="line">    parallel_lut=enabled solar_zenith=45 \</div>
 <div class="line">    view_zenith=0 aerosol_model=continental \</div>
 <div class="line">    -c  # Force LUT regeneration</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md106"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md102"></a>
 Troubleshooting</h1>
-<h2><a class="anchor" id="autotoc_md107"></a>
+<h2><a class="anchor" id="autotoc_md103"></a>
 Common Issues</h2>
 <ol type="1">
 <li><b>Memory Errors</b> <div class="fragment"><div class="line">MemoryError: Unable to allocate array</div>
@@ -233,7 +233,7 @@ Common Issues</h2>
 <div class="line">i.hyper.smac ...</div>
 </div><!-- fragment --></li>
 </ol>
-<h2><a class="anchor" id="autotoc_md108"></a>
+<h2><a class="anchor" id="autotoc_md104"></a>
 Performance Tuning</h2>
 <ol type="1">
 <li><b>SSD Storage</b>: Use fast storage for temporary files</li>
@@ -241,7 +241,7 @@ Performance Tuning</h2>
 <li><b>Memory Bandwidth</b>: DDR4/DDR5 improves process spawning speed</li>
 <li><b>System Load</b>: Run during low system load for best performance</li>
 </ol>
-<h1><a class="anchor" id="autotoc_md109"></a>
+<h1><a class="anchor" id="autotoc_md105"></a>
 Future Enhancements</h1>
 <ul>
 <li><b>MPI Support</b>: Distributed LUT generation across multiple machines</li>
@@ -250,7 +250,7 @@ Future Enhancements</h1>
 <li><b>Adaptive Batching</b>: Dynamic batch size based on available memory</li>
 <li><b>Progressive Loading</b>: Load LUT chunks as they complete (streaming)</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md110"></a>
+<h1><a class="anchor" id="autotoc_md106"></a>
 Summary</h1>
 <p>Parallel LUT generation provides <b>3-13x speedup</b> for atmospheric correction preprocessing, making i.hyper.smac significantly more efficient for large datasets. The feature is fully integrated with existing functionality and provides robust fallback mechanisms for compatibility across different system configurations. </p>
 </div></div><!-- contents -->

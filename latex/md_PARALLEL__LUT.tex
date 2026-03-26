@@ -1,10 +1,10 @@
 \chapter{Parallel LUT Generation for i.\+hyper.\+smac}
 \hypertarget{md_PARALLEL__LUT}{}\label{md_PARALLEL__LUT}\index{Parallel LUT Generation for i.hyper.smac@{Parallel LUT Generation for i.hyper.smac}}
-\label{md_PARALLEL__LUT_autotoc_md88}%
-\Hypertarget{md_PARALLEL__LUT_autotoc_md88}%
- This document describes the parallel LUT generation feature that dramatically speeds up atmospheric correction by running multiple lib\+Radtran uvspec processes simultaneously.\hypertarget{md_PARALLEL__LUT_autotoc_md89}{}\doxysection{\texorpdfstring{Overview}{Overview}}\label{md_PARALLEL__LUT_autotoc_md89}
-The LUT generation in i.\+hyper.\+smac requires running lib\+Radtran\textquotesingle{}s {\ttfamily uvspec} multiple times (typically 156 runs for a full LUT). With parallel processing, these runs are distributed across multiple CPU cores, reducing generation time from hours to minutes.\hypertarget{md_PARALLEL__LUT_autotoc_md90}{}\doxysection{\texorpdfstring{Performance Benefits}{Performance Benefits}}\label{md_PARALLEL__LUT_autotoc_md90}
-\hypertarget{md_PARALLEL__LUT_autotoc_md91}{}\doxysubsection{\texorpdfstring{Speedup Estimates}{Speedup Estimates}}\label{md_PARALLEL__LUT_autotoc_md91}
+\label{md_PARALLEL__LUT_autotoc_md84}%
+\Hypertarget{md_PARALLEL__LUT_autotoc_md84}%
+ This document describes the parallel LUT generation feature that dramatically speeds up atmospheric correction by running multiple lib\+Radtran uvspec processes simultaneously.\hypertarget{md_PARALLEL__LUT_autotoc_md85}{}\doxysection{\texorpdfstring{Overview}{Overview}}\label{md_PARALLEL__LUT_autotoc_md85}
+The LUT generation in i.\+hyper.\+smac requires running lib\+Radtran\textquotesingle{}s {\ttfamily uvspec} multiple times (typically 156 runs for a full LUT). With parallel processing, these runs are distributed across multiple CPU cores, reducing generation time from hours to minutes.\hypertarget{md_PARALLEL__LUT_autotoc_md86}{}\doxysection{\texorpdfstring{Performance Benefits}{Performance Benefits}}\label{md_PARALLEL__LUT_autotoc_md86}
+\hypertarget{md_PARALLEL__LUT_autotoc_md87}{}\doxysubsection{\texorpdfstring{Speedup Estimates}{Speedup Estimates}}\label{md_PARALLEL__LUT_autotoc_md87}
 \tabulinesep=1mm
 \begin{longtabu}spread 0pt [c]{*{5}{|X[-1]}|}
 \hline
@@ -27,8 +27,8 @@ The LUT generation in i.\+hyper.\+smac requires running lib\+Radtran\textquotesi
 \item {\bfseries{Sequential}}\+: \texorpdfstring{$\sim$}{\string~}39 minutes (15 seconds per run)
 \item {\bfseries{Parallel (8 cores)}}\+: \texorpdfstring{$\sim$}{\string~}5 minutes
 \item {\bfseries{Memory Usage}}\+: \texorpdfstring{$\sim$}{\string~}200\+MB per uvspec process
-\end{DoxyItemize}\hypertarget{md_PARALLEL__LUT_autotoc_md92}{}\doxysection{\texorpdfstring{Implementation}{Implementation}}\label{md_PARALLEL__LUT_autotoc_md92}
-\hypertarget{md_PARALLEL__LUT_autotoc_md93}{}\doxysubsection{\texorpdfstring{Core Components}{Core Components}}\label{md_PARALLEL__LUT_autotoc_md93}
+\end{DoxyItemize}\hypertarget{md_PARALLEL__LUT_autotoc_md88}{}\doxysection{\texorpdfstring{Implementation}{Implementation}}\label{md_PARALLEL__LUT_autotoc_md88}
+\hypertarget{md_PARALLEL__LUT_autotoc_md89}{}\doxysubsection{\texorpdfstring{Core Components}{Core Components}}\label{md_PARALLEL__LUT_autotoc_md89}
 
 \begin{DoxyEnumerate}
 \item {\bfseries{Parallel LUT Generator}} ({\ttfamily lib/parallel\+\_\+lut.\+py})
@@ -50,8 +50,8 @@ The LUT generation in i.\+hyper.\+smac requires running lib\+Radtran\textquotesi
 \item Automatic worker detection based on system resources
 \item Integration with existing Open\+CL acceleration
 \end{DoxyItemize}
-\end{DoxyEnumerate}\hypertarget{md_PARALLEL__LUT_autotoc_md94}{}\doxysection{\texorpdfstring{Usage}{Usage}}\label{md_PARALLEL__LUT_autotoc_md94}
-\hypertarget{md_PARALLEL__LUT_autotoc_md95}{}\doxysubsection{\texorpdfstring{Command Line Options}{Command Line Options}}\label{md_PARALLEL__LUT_autotoc_md95}
+\end{DoxyEnumerate}\hypertarget{md_PARALLEL__LUT_autotoc_md90}{}\doxysection{\texorpdfstring{Usage}{Usage}}\label{md_PARALLEL__LUT_autotoc_md90}
+\hypertarget{md_PARALLEL__LUT_autotoc_md91}{}\doxysubsection{\texorpdfstring{Command Line Options}{Command Line Options}}\label{md_PARALLEL__LUT_autotoc_md91}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{\#\ Auto-\/detect\ parallel\ processing\ (default)}
@@ -67,7 +67,7 @@ The LUT generation in i.\+hyper.\+smac requires running lib\+Radtran\textquotesi
 \DoxyCodeLine{i.hyper.smac\ input=rad\ output=corr\ parallel\_lut=enabled\ opencl\_device=gpu\ ...}
 
 \end{DoxyCode}
-\hypertarget{md_PARALLEL__LUT_autotoc_md96}{}\doxysubsection{\texorpdfstring{Parameter Options}{Parameter Options}}\label{md_PARALLEL__LUT_autotoc_md96}
+\hypertarget{md_PARALLEL__LUT_autotoc_md92}{}\doxysubsection{\texorpdfstring{Parameter Options}{Parameter Options}}\label{md_PARALLEL__LUT_autotoc_md92}
 \tabulinesep=1mm
 \begin{longtabu}spread 0pt [c]{*{4}{|X[-1]}|}
 \hline
@@ -82,14 +82,14 @@ The LUT generation in i.\+hyper.\+smac requires running lib\+Radtran\textquotesi
 {\ttfamily opencl\+\_\+device}   &auto,gpu,cpu   &auto   &Open\+CL device for band processing    \\\cline{1-4}
 {\ttfamily opencl\+\_\+memory}   &0-\/8192   &1024   &Open\+CL memory limit in MB   \\\cline{1-4}
 \end{longtabu}
-\hypertarget{md_PARALLEL__LUT_autotoc_md97}{}\doxysubsection{\texorpdfstring{Auto-\/\+Detection Logic}{Auto-Detection Logic}}\label{md_PARALLEL__LUT_autotoc_md97}
+\hypertarget{md_PARALLEL__LUT_autotoc_md93}{}\doxysubsection{\texorpdfstring{Auto-\/\+Detection Logic}{Auto-Detection Logic}}\label{md_PARALLEL__LUT_autotoc_md93}
 
 \begin{DoxyItemize}
 \item \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}{\ttfamily auto}\texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}\+: Enable parallel if CPU has ≥4 cores and ≥2\+GB available memory
 \item \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}{\ttfamily enabled}\texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}\+: Force parallel processing
 \item \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}{\ttfamily disabled}\texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}\+: Force sequential processing
-\end{DoxyItemize}\hypertarget{md_PARALLEL__LUT_autotoc_md98}{}\doxysection{\texorpdfstring{Technical Details}{Technical Details}}\label{md_PARALLEL__LUT_autotoc_md98}
-\hypertarget{md_PARALLEL__LUT_autotoc_md99}{}\doxysubsection{\texorpdfstring{Memory Optimization}{Memory Optimization}}\label{md_PARALLEL__LUT_autotoc_md99}
+\end{DoxyItemize}\hypertarget{md_PARALLEL__LUT_autotoc_md94}{}\doxysection{\texorpdfstring{Technical Details}{Technical Details}}\label{md_PARALLEL__LUT_autotoc_md94}
+\hypertarget{md_PARALLEL__LUT_autotoc_md95}{}\doxysubsection{\texorpdfstring{Memory Optimization}{Memory Optimization}}\label{md_PARALLEL__LUT_autotoc_md95}
 The system automatically estimates optimal worker count based on\+:
 
 
@@ -98,7 +98,7 @@ The system automatically estimates optimal worker count based on\+:
 \item {\bfseries{Memory per Run}}\+: \texorpdfstring{$\sim$}{\string~}200\+MB per uvspec process
 \item {\bfseries{CPU Cores}}\+: {\ttfamily multiprocessing.\+cpu\+\_\+count()} → maximum workers
 \item {\bfseries{Safety Margin}}\+: Leaves 1 core free for system operations
-\end{DoxyEnumerate}\hypertarget{md_PARALLEL__LUT_autotoc_md100}{}\doxysubsection{\texorpdfstring{Process Management}{Process Management}}\label{md_PARALLEL__LUT_autotoc_md100}
+\end{DoxyEnumerate}\hypertarget{md_PARALLEL__LUT_autotoc_md96}{}\doxysubsection{\texorpdfstring{Process Management}{Process Management}}\label{md_PARALLEL__LUT_autotoc_md96}
 
 \begin{DoxyItemize}
 \item {\bfseries{Worker Pool}}\+: {\ttfamily Process\+Pool\+Executor} for robust process handling
@@ -106,7 +106,7 @@ The system automatically estimates optimal worker count based on\+:
 \item {\bfseries{Error Recovery}}\+: Failed runs are retried or marked for fallback
 \item {\bfseries{Progress Tracking}}\+: Real-\/time progress updates
 \item {\bfseries{Resource Cleanup}}\+: Automatic temp file cleanup
-\end{DoxyItemize}\hypertarget{md_PARALLEL__LUT_autotoc_md101}{}\doxysubsection{\texorpdfstring{File Structure}{File Structure}}\label{md_PARALLEL__LUT_autotoc_md101}
+\end{DoxyItemize}\hypertarget{md_PARALLEL__LUT_autotoc_md97}{}\doxysubsection{\texorpdfstring{File Structure}{File Structure}}\label{md_PARALLEL__LUT_autotoc_md97}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{/tmp/parallel\_lut\_aod0.00\_h2o0.30\_alb0.0.out}
@@ -117,7 +117,7 @@ The system automatically estimates optimal worker count based on\+:
 \end{DoxyCode}
 
 
-Each file contains uvspec output for one (AOD, H2O, albedo) combination.\hypertarget{md_PARALLEL__LUT_autotoc_md102}{}\doxysection{\texorpdfstring{Integration Status}{Integration Status}}\label{md_PARALLEL__LUT_autotoc_md102}
+Each file contains uvspec output for one (AOD, H2O, albedo) combination.\hypertarget{md_PARALLEL__LUT_autotoc_md98}{}\doxysection{\texorpdfstring{Integration Status}{Integration Status}}\label{md_PARALLEL__LUT_autotoc_md98}
 ✅ {\bfseries{Completed Features}}\+:
 \begin{DoxyItemize}
 \item \mbox{[}x\mbox{]} Parallel LUT generator module
@@ -128,8 +128,8 @@ Each file contains uvspec output for one (AOD, H2O, albedo) combination.\hyperta
 \item \mbox{[}x\mbox{]} Progress tracking and logging
 \item \mbox{[}x\mbox{]} Resource cleanup
 \item \mbox{[}x\mbox{]} Configuration validation
-\end{DoxyItemize}\hypertarget{md_PARALLEL__LUT_autotoc_md103}{}\doxysection{\texorpdfstring{Testing}{Testing}}\label{md_PARALLEL__LUT_autotoc_md103}
-\hypertarget{md_PARALLEL__LUT_autotoc_md104}{}\doxysubsection{\texorpdfstring{Test Script}{Test Script}}\label{md_PARALLEL__LUT_autotoc_md104}
+\end{DoxyItemize}\hypertarget{md_PARALLEL__LUT_autotoc_md99}{}\doxysection{\texorpdfstring{Testing}{Testing}}\label{md_PARALLEL__LUT_autotoc_md99}
+\hypertarget{md_PARALLEL__LUT_autotoc_md100}{}\doxysubsection{\texorpdfstring{Test Script}{Test Script}}\label{md_PARALLEL__LUT_autotoc_md100}
 Run the comprehensive test suite\+:
 
 
@@ -146,7 +146,7 @@ This tests\+:
 \item LUT configuration creation
 \item Main script integration
 \item Performance estimation
-\end{DoxyItemize}\hypertarget{md_PARALLEL__LUT_autotoc_md105}{}\doxysubsection{\texorpdfstring{Manual Testing}{Manual Testing}}\label{md_PARALLEL__LUT_autotoc_md105}
+\end{DoxyItemize}\hypertarget{md_PARALLEL__LUT_autotoc_md101}{}\doxysubsection{\texorpdfstring{Manual Testing}{Manual Testing}}\label{md_PARALLEL__LUT_autotoc_md101}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{\#\ Test\ with\ small\ LUT\ for\ quick\ verification}
@@ -156,8 +156,8 @@ This tests\+:
 \DoxyCodeLine{\ \ \ \ -\/c\ \ \#\ Force\ LUT\ regeneration}
 
 \end{DoxyCode}
-\hypertarget{md_PARALLEL__LUT_autotoc_md106}{}\doxysection{\texorpdfstring{Troubleshooting}{Troubleshooting}}\label{md_PARALLEL__LUT_autotoc_md106}
-\hypertarget{md_PARALLEL__LUT_autotoc_md107}{}\doxysubsection{\texorpdfstring{Common Issues}{Common Issues}}\label{md_PARALLEL__LUT_autotoc_md107}
+\hypertarget{md_PARALLEL__LUT_autotoc_md102}{}\doxysection{\texorpdfstring{Troubleshooting}{Troubleshooting}}\label{md_PARALLEL__LUT_autotoc_md102}
+\hypertarget{md_PARALLEL__LUT_autotoc_md103}{}\doxysubsection{\texorpdfstring{Common Issues}{Common Issues}}\label{md_PARALLEL__LUT_autotoc_md103}
 
 \begin{DoxyEnumerate}
 \item {\bfseries{Memory Errors}} 
@@ -196,14 +196,14 @@ This tests\+:
 
 \end{DoxyCode}
 
-\end{DoxyEnumerate}\hypertarget{md_PARALLEL__LUT_autotoc_md108}{}\doxysubsection{\texorpdfstring{Performance Tuning}{Performance Tuning}}\label{md_PARALLEL__LUT_autotoc_md108}
+\end{DoxyEnumerate}\hypertarget{md_PARALLEL__LUT_autotoc_md104}{}\doxysubsection{\texorpdfstring{Performance Tuning}{Performance Tuning}}\label{md_PARALLEL__LUT_autotoc_md104}
 
 \begin{DoxyEnumerate}
 \item {\bfseries{SSD Storage}}\+: Use fast storage for temporary files
 \item {\bfseries{CPU Frequency}}\+: Higher CPU frequency = faster uvspec execution
 \item {\bfseries{Memory Bandwidth}}\+: DDR4/\+DDR5 improves process spawning speed
 \item {\bfseries{System Load}}\+: Run during low system load for best performance
-\end{DoxyEnumerate}\hypertarget{md_PARALLEL__LUT_autotoc_md109}{}\doxysection{\texorpdfstring{Future Enhancements}{Future Enhancements}}\label{md_PARALLEL__LUT_autotoc_md109}
+\end{DoxyEnumerate}\hypertarget{md_PARALLEL__LUT_autotoc_md105}{}\doxysection{\texorpdfstring{Future Enhancements}{Future Enhancements}}\label{md_PARALLEL__LUT_autotoc_md105}
 
 \begin{DoxyItemize}
 \item {\bfseries{MPI Support}}\+: Distributed LUT generation across multiple machines
@@ -211,5 +211,5 @@ This tests\+:
 \item {\bfseries{Smart Caching}}\+: Reuse partial LUT results when parameters change
 \item {\bfseries{Adaptive Batching}}\+: Dynamic batch size based on available memory
 \item {\bfseries{Progressive Loading}}\+: Load LUT chunks as they complete (streaming)
-\end{DoxyItemize}\hypertarget{md_PARALLEL__LUT_autotoc_md110}{}\doxysection{\texorpdfstring{Summary}{Summary}}\label{md_PARALLEL__LUT_autotoc_md110}
+\end{DoxyItemize}\hypertarget{md_PARALLEL__LUT_autotoc_md106}{}\doxysection{\texorpdfstring{Summary}{Summary}}\label{md_PARALLEL__LUT_autotoc_md106}
 Parallel LUT generation provides {\bfseries{3-\/13x speedup}} for atmospheric correction preprocessing, making i.\+hyper.\+smac significantly more efficient for large datasets. The feature is fully integrated with existing functionality and provides robust fallback mechanisms for compatibility across different system configurations. 

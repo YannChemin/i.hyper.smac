@@ -1,9 +1,9 @@
 \chapter{Smart LUT Integration for i.\+hyper.\+smac}
 \hypertarget{md_SMART__LUT__INTEGRATION}{}\label{md_SMART__LUT__INTEGRATION}\index{Smart LUT Integration for i.hyper.smac@{Smart LUT Integration for i.hyper.smac}}
-\label{md_SMART__LUT__INTEGRATION_autotoc_md299}%
-\Hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md299}%
- \hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md300}{}\doxysection{\texorpdfstring{Dynamic LUT Coverage Checking and Regeneration}{Dynamic LUT Coverage Checking and Regeneration}}\label{md_SMART__LUT__INTEGRATION_autotoc_md300}
-\hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md301}{}\doxysubsection{\texorpdfstring{Problem Solved}{Problem Solved}}\label{md_SMART__LUT__INTEGRATION_autotoc_md301}
+\label{md_SMART__LUT__INTEGRATION_autotoc_md295}%
+\Hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md295}%
+ \hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md296}{}\doxysection{\texorpdfstring{Dynamic LUT Coverage Checking and Regeneration}{Dynamic LUT Coverage Checking and Regeneration}}\label{md_SMART__LUT__INTEGRATION_autotoc_md296}
+\hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md297}{}\doxysubsection{\texorpdfstring{Problem Solved}{Problem Solved}}\label{md_SMART__LUT__INTEGRATION_autotoc_md297}
 Instead of generating a generic LUT with 13 AOD points (156 uvspec runs), the system now\+:
 \begin{DoxyEnumerate}
 \item Estimates scene AOD from the image
@@ -11,7 +11,7 @@ Instead of generating a generic LUT with 13 AOD points (156 uvspec runs), the sy
 
 \item Generates scene-\/specific LUT only when needed
 \item Uses optimal AOD grid (3-\/5 points instead of 13)
-\end{DoxyEnumerate}\hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md302}{}\doxysubsection{\texorpdfstring{Performance Improvement}{Performance Improvement}}\label{md_SMART__LUT__INTEGRATION_autotoc_md302}
+\end{DoxyEnumerate}\hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md298}{}\doxysubsection{\texorpdfstring{Performance Improvement}{Performance Improvement}}\label{md_SMART__LUT__INTEGRATION_autotoc_md298}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{Current:\ 13\ AOD\ ×\ 6\ H2O\ ×\ 2\ albedo\ =\ 156\ uvspec\ runs\ (\string~65\ minutes)}
@@ -19,7 +19,7 @@ Instead of generating a generic LUT with 13 AOD points (156 uvspec runs), the sy
 \DoxyCodeLine{Speedup:\ 77\%\ reduction\ in\ LUT\ generation\ time}
 
 \end{DoxyCode}
-\hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md303}{}\doxysubsection{\texorpdfstring{Integration Code}{Integration Code}}\label{md_SMART__LUT__INTEGRATION_autotoc_md303}
+\hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md299}{}\doxysubsection{\texorpdfstring{Integration Code}{Integration Code}}\label{md_SMART__LUT__INTEGRATION_autotoc_md299}
 Add to i.\+hyper.\+smac.\+py in the LUT generation section\+:
 
 
@@ -60,8 +60,8 @@ Add to i.\+hyper.\+smac.\+py in the LUT generation section\+:
 \DoxyCodeLine{\ \ \ \ )}
 
 \end{DoxyCode}
-\hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md304}{}\doxysubsection{\texorpdfstring{Smart LUT Behavior Examples}{Smart LUT Behavior Examples}}\label{md_SMART__LUT__INTEGRATION_autotoc_md304}
-\hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md305}{}\doxysubsubsection{\texorpdfstring{Example 1\+: Perfect Coverage}{Example 1: Perfect Coverage}}\label{md_SMART__LUT__INTEGRATION_autotoc_md305}
+\hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md300}{}\doxysubsection{\texorpdfstring{Smart LUT Behavior Examples}{Smart LUT Behavior Examples}}\label{md_SMART__LUT__INTEGRATION_autotoc_md300}
+\hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md301}{}\doxysubsubsection{\texorpdfstring{Example 1\+: Perfect Coverage}{Example 1: Perfect Coverage}}\label{md_SMART__LUT__INTEGRATION_autotoc_md301}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{Scene\ AOD:\ 0.664}
@@ -69,7 +69,7 @@ Add to i.\+hyper.\+smac.\+py in the LUT generation section\+:
 \DoxyCodeLine{Result:\ Use\ existing\ LUT\ (no\ regeneration\ needed)}
 
 \end{DoxyCode}
-\hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md306}{}\doxysubsubsection{\texorpdfstring{Example 2\+: Insufficient Precision}{Example 2: Insufficient Precision}}\label{md_SMART__LUT__INTEGRATION_autotoc_md306}
+\hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md302}{}\doxysubsubsection{\texorpdfstring{Example 2\+: Insufficient Precision}{Example 2: Insufficient Precision}}\label{md_SMART__LUT__INTEGRATION_autotoc_md302}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{Scene\ AOD:\ 0.664}
@@ -78,7 +78,7 @@ Add to i.\+hyper.\+smac.\+py in the LUT generation section\+:
 \DoxyCodeLine{Result:\ Regenerate\ with\ [0.5,\ 0.664,\ 0.8]}
 
 \end{DoxyCode}
-\hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md307}{}\doxysubsubsection{\texorpdfstring{Example 3\+: Outside Bounds}{Example 3: Outside Bounds}}\label{md_SMART__LUT__INTEGRATION_autotoc_md307}
+\hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md303}{}\doxysubsubsection{\texorpdfstring{Example 3\+: Outside Bounds}{Example 3: Outside Bounds}}\label{md_SMART__LUT__INTEGRATION_autotoc_md303}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{Scene\ AOD:\ 1.8}
@@ -86,7 +86,7 @@ Add to i.\+hyper.\+smac.\+py in the LUT generation section\+:
 \DoxyCodeLine{Result:\ Regenerate\ with\ [1.26,\ 1.8,\ 2.34]}
 
 \end{DoxyCode}
-\hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md308}{}\doxysubsection{\texorpdfstring{Cache Management}{Cache Management}}\label{md_SMART__LUT__INTEGRATION_autotoc_md308}
+\hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md304}{}\doxysubsection{\texorpdfstring{Cache Management}{Cache Management}}\label{md_SMART__LUT__INTEGRATION_autotoc_md304}
 The smart LUT system uses intelligent caching\+:
 
 
@@ -103,7 +103,7 @@ The smart LUT system uses intelligent caching\+:
 
 \item {\bfseries{Geometry-\/specific}}\+: Different angles = different cache file
 \item {\bfseries{Reusable}}\+: Same scene parameters = cached LUT reused
-\end{DoxyItemize}\hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md309}{}\doxysubsection{\texorpdfstring{Configuration Options}{Configuration Options}}\label{md_SMART__LUT__INTEGRATION_autotoc_md309}
+\end{DoxyItemize}\hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md305}{}\doxysubsection{\texorpdfstring{Configuration Options}{Configuration Options}}\label{md_SMART__LUT__INTEGRATION_autotoc_md305}
 
 \begin{DoxyCode}{0}
 \DoxyCodeLine{\textcolor{comment}{\#\ Precision\ requirements}}
@@ -117,7 +117,7 @@ The smart LUT system uses intelligent caching\+:
 \DoxyCodeLine{base\_cache\_dir\ =\ \textcolor{stringliteral}{"{}/tmp/grass\_lut\_cache"{}}\ \ \textcolor{comment}{\#\ Custom\ cache\ location}}
 
 \end{DoxyCode}
-\hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md310}{}\doxysubsection{\texorpdfstring{Benefits}{Benefits}}\label{md_SMART__LUT__INTEGRATION_autotoc_md310}
+\hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md306}{}\doxysubsection{\texorpdfstring{Benefits}{Benefits}}\label{md_SMART__LUT__INTEGRATION_autotoc_md306}
 
 \begin{DoxyEnumerate}
 \item {\bfseries{77\% faster LUT generation}} for typical scenes
@@ -125,7 +125,7 @@ The smart LUT system uses intelligent caching\+:
 \item {\bfseries{Intelligent caching}} reduces redundant computations
 \item {\bfseries{Automatic fallback}} to standard LUT if needed
 \item {\bfseries{Dynamic adaptation}} to scene characteristics
-\end{DoxyEnumerate}\hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md311}{}\doxysubsection{\texorpdfstring{Implementation Steps}{Implementation Steps}}\label{md_SMART__LUT__INTEGRATION_autotoc_md311}
+\end{DoxyEnumerate}\hypertarget{md_SMART__LUT__INTEGRATION_autotoc_md307}{}\doxysubsection{\texorpdfstring{Implementation Steps}{Implementation Steps}}\label{md_SMART__LUT__INTEGRATION_autotoc_md307}
 
 \begin{DoxyEnumerate}
 \item Add {\ttfamily smart\+\_\+lut.\+py} to the module list in Makefile

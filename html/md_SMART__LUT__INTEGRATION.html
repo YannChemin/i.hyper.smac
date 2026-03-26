@@ -72,10 +72,10 @@ $(function() {
   <div class="headertitle"><div class="title">Smart LUT Integration for i.hyper.smac</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md299"></a> </p>
-<h1><a class="anchor" id="autotoc_md300"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md295"></a> </p>
+<h1><a class="anchor" id="autotoc_md296"></a>
 Dynamic LUT Coverage Checking and Regeneration</h1>
-<h2><a class="anchor" id="autotoc_md301"></a>
+<h2><a class="anchor" id="autotoc_md297"></a>
 Problem Solved</h2>
 <p>Instead of generating a generic LUT with 13 AOD points (156 uvspec runs), the system now:</p><ol type="1">
 <li>Estimates scene AOD from the image</li>
@@ -84,12 +84,12 @@ Problem Solved</h2>
 <li>Generates scene-specific LUT only when needed</li>
 <li>Uses optimal AOD grid (3-5 points instead of 13)</li>
 </ol>
-<h2><a class="anchor" id="autotoc_md302"></a>
+<h2><a class="anchor" id="autotoc_md298"></a>
 Performance Improvement</h2>
 <div class="fragment"><div class="line">Current: 13 AOD × 6 H2O × 2 albedo = 156 uvspec runs (~65 minutes)</div>
 <div class="line">Smart:   3 AOD × 6 H2O × 2 albedo = 36 uvspec runs (~15 minutes)</div>
 <div class="line">Speedup: 77% reduction in LUT generation time</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md303"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md299"></a>
 Integration Code</h2>
 <p>Add to i.hyper.smac.py in the LUT generation section:</p>
 <div class="fragment"><div class="line"><span class="comment"># After AOD estimation (around line 1690)</span></div>
@@ -126,25 +126,25 @@ Integration Code</h2>
 <div class="line">        parallel=parallel,</div>
 <div class="line">        max_workers=max_workers</div>
 <div class="line">    )</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md304"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md300"></a>
 Smart LUT Behavior Examples</h2>
-<h3><a class="anchor" id="autotoc_md305"></a>
+<h3><a class="anchor" id="autotoc_md301"></a>
 Example 1: Perfect Coverage</h3>
 <div class="fragment"><div class="line">Scene AOD: 0.664</div>
 <div class="line">Existing LUT: [0.5, 0.65, 0.8]</div>
 <div class="line">Result: Use existing LUT (no regeneration needed)</div>
-</div><!-- fragment --><h3><a class="anchor" id="autotoc_md306"></a>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md302"></a>
 Example 2: Insufficient Precision</h3>
 <div class="fragment"><div class="line">Scene AOD: 0.664</div>
 <div class="line">Existing LUT: [0.5, 0.8]  # 0.164 away from scene AOD</div>
 <div class="line">Precision threshold: 0.05</div>
 <div class="line">Result: Regenerate with [0.5, 0.664, 0.8]</div>
-</div><!-- fragment --><h3><a class="anchor" id="autotoc_md307"></a>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md303"></a>
 Example 3: Outside Bounds</h3>
 <div class="fragment"><div class="line">Scene AOD: 1.8</div>
 <div class="line">Existing LUT: [0.5, 0.65, 0.8]</div>
 <div class="line">Result: Regenerate with [1.26, 1.8, 2.34]</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md308"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md304"></a>
 Cache Management</h2>
 <p>The smart LUT system uses intelligent caching:</p>
 <div class="fragment"><div class="line">Cache key: sza40.0_vza50.0_phi30.0_p998.4_urban_0.664_2.00_356-2500_0.05.lut</div>
@@ -155,7 +155,7 @@ Cache Management</h2>
 <li><b>Geometry-specific</b>: Different angles = different cache file</li>
 <li><b>Reusable</b>: Same scene parameters = cached LUT reused</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md309"></a>
+<h2><a class="anchor" id="autotoc_md305"></a>
 Configuration Options</h2>
 <div class="fragment"><div class="line"><span class="comment"># Precision requirements</span></div>
 <div class="line">precision_threshold = 0.05  <span class="comment"># 5% AOD precision (default: 0.1 = 10%)</span></div>
@@ -166,7 +166,7 @@ Configuration Options</h2>
 <div class="line"> </div>
 <div class="line"><span class="comment"># Caching</span></div>
 <div class="line">base_cache_dir = <span class="stringliteral">&quot;/tmp/grass_lut_cache&quot;</span>  <span class="comment"># Custom cache location</span></div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md310"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md306"></a>
 Benefits</h2>
 <ol type="1">
 <li><b>77% faster LUT generation</b> for typical scenes</li>
@@ -175,7 +175,7 @@ Benefits</h2>
 <li><b>Automatic fallback</b> to standard LUT if needed</li>
 <li><b>Dynamic adaptation</b> to scene characteristics</li>
 </ol>
-<h2><a class="anchor" id="autotoc_md311"></a>
+<h2><a class="anchor" id="autotoc_md307"></a>
 Implementation Steps</h2>
 <ol type="1">
 <li>Add <code>smart_lut.py</code> to the module list in Makefile</li>

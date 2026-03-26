@@ -230,6 +230,13 @@ from grass.pygrass.raster import RasterRow
 from grass.pygrass.raster.buffer import Buffer
 from pathlib import Path
 
+# Fast 3D-raster Z-slice reader (avoids per-band subprocess overhead)
+try:
+    from lib.r3d_slice import read_z_slice as _r3d_read_z_slice
+    _R3D_FAST = True
+except ImportError:
+    _R3D_FAST = False
+
 # Get GISBASE (GRASS installation prefix)
 gisbase = os.environ.get("GISBASE")
 if gisbase is None:
@@ -256,6 +263,27 @@ if lib_path.exists():
     except ImportError as e:
         gs.fatal(f"Cannot import required modules. Make sure wvc.py and aod.py are in {lib_path}\n"
              f"Error: {e}")
+
+
+def _extract_r3d_band(input_raster, band_num, temp_name):
+    """Extract one band from a 3D raster into a float64 ndarray.
+
+    Uses the fast libr3dslice path when available; falls back to the
+    r3.to.rast / g.rename / RasterRow subprocess chain otherwise.
+    band_num is 1-based (GRASS convention).
+    """
+    if _R3D_FAST:
+        # z = 0-based depth index; band_num is 1-based
+        return _r3d_read_z_slice(input_raster, "", band_num - 1)
+    # --- subprocess fallback ---
+    gs.run_command('g.region', t=band_num + 0.1, b=band_num, quiet=True)
+    gs.run_command('r3.to.rast', input=input_raster, output=temp_name,
+                   overwrite=True, quiet=True)
+    gs.run_command('g.rename', raster=f"{temp_name}_00001,{temp_name}",
+                   overwrite=True, quiet=True)
+    with RasterRow(temp_name) as r:
+        r.open('r')
+        return np.array(r, dtype=float)
 
 
 def get_raster3d_info(raster3d):
@@ -603,17 +631,7 @@ def calibrate_path_radiance(input_raster, bands, atm_lut, aod,
             temp_name = f"tmp_calib_{name}_{os.getpid()}"
             temp_maps.append(temp_name)
 
-            gs.run_command('g.region', t=band_num + 0.1, b=band_num,
-                           quiet=True)
-            gs.run_command('r3.to.rast', input=input_raster,
-                           output=temp_name, overwrite=True, quiet=True)
-            gs.run_command('g.rename',
-                           raster=f"{temp_name}_00001,{temp_name}",
-                           overwrite=True, quiet=True)
-
-            with RasterRow(temp_name) as r:
-                r.open('r')
-                rad_array = np.array(r, dtype=float)
+            rad_array = _extract_r3d_band(input_raster, band_num, temp_name)
 
             # Convert radiance to apparent reflectance
             try:
@@ -866,17 +884,7 @@ def estimate_h2o_from_940nm(input_raster, bands, atm_lut, aod,
             temp_name = f"tmp_h2o_{name}_{os.getpid()}"
             temp_maps.append(temp_name)
 
-            gs.run_command('g.region', t=band_num + 0.1, b=band_num,
-                           quiet=True)
-            gs.run_command('r3.to.rast', input=input_raster,
-                           output=temp_name, overwrite=True, quiet=True)
-            gs.run_command('g.rename',
-                           raster=f"{temp_name}_00001,{temp_name}",
-                           overwrite=True, quiet=True)
-
-            with RasterRow(temp_name) as r:
-                r.open('r')
-                rad_array = np.array(r, dtype=float)
+            rad_array = _extract_r3d_band(input_raster, band_num, temp_name)
 
             try:
                 e0 = radtran.E0(wl, fwhm)
@@ -1334,26 +1342,7 @@ def apply_smac_correction_libradtran(input_raster, output_raster, bands,
             input_band = f"tmp_input_{os.getpid()}_{band_num}"
             temp_bands.append(input_band)
 
-            # Set the 3D region to the specific band
-            gs.run_command('g.region', t=band_num + 0.1, b=band_num, quiet=True)
-
-            # Extract the band
-            gs.run_command('r3.to.rast',
-                          input=input_raster,
-                          output=input_band,
-                          overwrite=True,
-                          quiet=True)
-
-            # The output will be named input_band_00001, rename it
-            gs.run_command('g.rename',
-                          raster=f"{input_band}_00001,{input_band}",
-                          overwrite=True,
-                          quiet=True)
-
-            # Read raster data into numpy array
-            with RasterRow(input_band) as r:
-                r.open('r')
-                rad_toa_band = np.array(r)
+            rad_toa_band = _extract_r3d_band(input_raster, band_num, input_band)
 
             # Get exo-atmospheric irradiance for this band
             try:
@@ -1869,18 +1858,11 @@ def apply_lut_correction(input_raster, output_raster, bands,
 
         nir_name = f"tmp_nir_seg_{os.getpid()}"
         try:
-            gs.run_command('g.region', t=nir_band_info['band_num'] + 0.1,
-                          b=nir_band_info['band_num'], quiet=True)
-            gs.run_command('r3.to.rast', input=input_raster,
-                          output=nir_name, overwrite=True, quiet=True)
-            gs.run_command('g.rename',
-                          raster=f"{nir_name}_00001,{nir_name}",
-                          overwrite=True, quiet=True)
-            with RasterRow(nir_name) as r:
-                r.open('r')
-                nir_band = np.array(r)
-            gs.run_command('g.remove', flags='f', type='raster',
-                          name=nir_name, quiet=True)
+            nir_band = _extract_r3d_band(input_raster,
+                                         nir_band_info['band_num'], nir_name)
+            if not _R3D_FAST:
+                gs.run_command('g.remove', flags='f', type='raster',
+                               name=nir_name, quiet=True)
         except Exception as e:
             gs.warning(f"Could not extract NIR band for superpixel: {e}")
 
@@ -1942,17 +1924,7 @@ def apply_lut_correction(input_raster, output_raster, bands,
                 
                 # Extract band from 3D raster
                 input_band = f"tmp_input_{os.getpid()}_{band_num}"
-                gs.run_command('g.region', t=band_num + 0.1, b=band_num, quiet=True)
-                gs.run_command('r3.to.rast', input=input_raster,
-                              output=input_band, overwrite=True, quiet=True)
-                gs.run_command('g.rename',
-                              raster=f"{input_band}_00001,{input_band}",
-                              overwrite=True, quiet=True)
-                
-                # Read raster data
-                with RasterRow(input_band) as r:
-                    r.open('r')
-                    rad_toa_band = np.array(r)
+                rad_toa_band = _extract_r3d_band(input_raster, band_num, input_band)
                 
                 # Get exo-atmospheric irradiance
                 try:
@@ -2094,17 +2066,7 @@ def apply_lut_correction(input_raster, output_raster, bands,
             input_band = f"tmp_input_{os.getpid()}_{band_num}"
             temp_bands.append(input_band)
 
-            gs.run_command('g.region', t=band_num + 0.1, b=band_num, quiet=True)
-            gs.run_command('r3.to.rast', input=input_raster,
-                          output=input_band, overwrite=True, quiet=True)
-            gs.run_command('g.rename',
-                          raster=f"{input_band}_00001,{input_band}",
-                          overwrite=True, quiet=True)
-
-            # Read raster data
-            with RasterRow(input_band) as r:
-                r.open('r')
-                rad_toa_band = np.array(r)
+            rad_toa_band = _extract_r3d_band(input_raster, band_num, input_band)
 
             # Get exo-atmospheric irradiance
             try:

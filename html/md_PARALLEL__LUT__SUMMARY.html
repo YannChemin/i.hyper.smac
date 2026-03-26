@@ -72,13 +72,13 @@ $(function() {
   <div class="headertitle"><div class="title">Parallel LUT Implementation Summary</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md176"></a> </p>
-<h1><a class="anchor" id="autotoc_md177"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md172"></a> </p>
+<h1><a class="anchor" id="autotoc_md173"></a>
 ✅ &lt;strong&gt;IMPLEMENTATION COMPLETE&lt;/strong&gt;</h1>
 <p>Parallel LUT generation has been successfully implemented for i.hyper.smac, providing dramatic performance improvements for atmospheric correction preprocessing.</p>
-<h1><a class="anchor" id="autotoc_md178"></a>
+<h1><a class="anchor" id="autotoc_md174"></a>
 🚀 &lt;strong&gt;What Was Implemented&lt;/strong&gt;</h1>
-<h2><a class="anchor" id="autotoc_md179"></a>
+<h2><a class="anchor" id="autotoc_md175"></a>
 1. Parallel LUT Generator Module (&lt;tt&gt;lib/parallel_lut.py&lt;/tt&gt;)</h2>
 <ul>
 <li><b>Multi-process uvspec execution</b>: Distribute 156+ libRadtran runs across CPU cores</li>
@@ -87,7 +87,7 @@ $(function() {
 <li><b>Progress tracking</b>: Real-time progress updates and logging</li>
 <li><b>Resource management</b>: Automatic cleanup of temporary files</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md180"></a>
+<h2><a class="anchor" id="autotoc_md176"></a>
 2. LUT Module Integration (&lt;tt&gt;lib/lut.py&lt;/tt&gt;)</h2>
 <ul>
 <li><b>Extended generate() function</b>: Added <code>parallel</code> and <code>max_workers</code> parameters</li>
@@ -95,7 +95,7 @@ $(function() {
 <li><b>Graceful fallback</b>: Sequential processing if parallel fails</li>
 <li><b>Backward compatibility</b>: Existing code unchanged when parallel=False</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md181"></a>
+<h2><a class="anchor" id="autotoc_md177"></a>
 3. Main Script Integration (&lt;tt&gt;i.hyper.smac.py&lt;/tt&gt;)</h2>
 <ul>
 <li><b>New parameter</b>: <code>parallel_lut</code> with options (auto,enabled,disabled)</li>
@@ -103,9 +103,9 @@ $(function() {
 <li><b>User control</b>: Manual override for specific requirements</li>
 <li><b>Documentation</b>: Complete parameter descriptions and examples</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md182"></a>
+<h1><a class="anchor" id="autotoc_md178"></a>
 📊 &lt;strong&gt;Performance Impact&lt;/strong&gt;</h1>
-<h2><a class="anchor" id="autotoc_md183"></a>
+<h2><a class="anchor" id="autotoc_md179"></a>
 Speedup Potential</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -117,16 +117,16 @@ Speedup Potential</h2>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone">16-core CPU   </td><td class="markdownTableBodyNone">39 minutes   </td><td class="markdownTableBodyNone">3 minutes   </td><td class="markdownTableBodyNone"><b>13.0x</b>   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md184"></a>
+<h2><a class="anchor" id="autotoc_md180"></a>
 Memory Optimization</h2>
 <ul>
 <li><b>Per-process memory</b>: ~200MB per uvspec instance</li>
 <li><b>Automatic scaling</b>: Workers = min(available_memory/200MB, CPU_cores-1)</li>
 <li><b>Safety margin</b>: Always leaves 1 core free for system operations</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md185"></a>
+<h1><a class="anchor" id="autotoc_md181"></a>
 🛠️ &lt;strong&gt;Technical Implementation&lt;/strong&gt;</h1>
-<h2><a class="anchor" id="autotoc_md186"></a>
+<h2><a class="anchor" id="autotoc_md182"></a>
 Core Architecture</h2>
 <div class="fragment"><div class="line">┌─────────────────────────────────────────────────────────┐</div>
 <div class="line">│                Main Process (i.hyper.smac)          │</div>
@@ -146,7 +146,7 @@ Core Architecture</h2>
 <div class="line">│  ├─ Each with 300s timeout                      │</div>
 <div class="line">│  └─ Independent memory spaces                    │</div>
 <div class="line">└─────────────────────────────────────────────────────────┘</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md187"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md183"></a>
 Key Features</h2>
 <ul>
 <li><b>ProcessPoolExecutor</b>: Robust multi-process management</li>
@@ -156,9 +156,9 @@ Key Features</h2>
 <li><b>Progress Updates</b>: Real-time completion percentage</li>
 <li><b>Resource Cleanup</b>: Automatic temporary file removal</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md188"></a>
+<h1><a class="anchor" id="autotoc_md184"></a>
 📋 &lt;strong&gt;Usage Examples&lt;/strong&gt;</h1>
-<h2><a class="anchor" id="autotoc_md189"></a>
+<h2><a class="anchor" id="autotoc_md185"></a>
 Basic Usage</h2>
 <div class="fragment"><div class="line"># Auto-detect (recommended for most users)</div>
 <div class="line">i.hyper.smac input=hyperspectral output=corrected \</div>
@@ -174,7 +174,7 @@ Basic Usage</h2>
 <div class="line">i.hyper.smac input=hyperspectral output=corrected \</div>
 <div class="line">    solar_zenith=45 view_zenith=0 \</div>
 <div class="line">    aerosol_model=urban parallel_lut=disabled</div>
-</div><!-- fragment --><h2><a class="anchor" id="autotoc_md190"></a>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md186"></a>
 Advanced Usage</h2>
 <div class="fragment"><div class="line"># Combined with OpenCL GPU acceleration</div>
 <div class="line">i.hyper.smac input=hyperspectral output=corrected \</div>
@@ -187,9 +187,9 @@ Advanced Usage</h2>
 <div class="line">    solar_zenith=45 view_zenith=0 \</div>
 <div class="line">    aerosol_model=urban parallel_lut=auto \</div>
 <div class="line">    opencl_device=cpu  # Use CPU OpenCL for band processing</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md191"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md187"></a>
 ✅ &lt;strong&gt;Verification Status&lt;/strong&gt;</h1>
-<h2><a class="anchor" id="autotoc_md192"></a>
+<h2><a class="anchor" id="autotoc_md188"></a>
 Module Integration</h2>
 <ul>
 <li>[x] <code>parallel_lut.py</code> created and copied to GRASS library</li>
@@ -199,7 +199,7 @@ Module Integration</h2>
 <li>[x] Error handling and fallback mechanisms</li>
 <li>[x] Memory optimization implemented</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md193"></a>
+<h2><a class="anchor" id="autotoc_md189"></a>
 Testing Results</h2>
 <ul>
 <li>[x] Module import: ✅ Successfully imports</li>
@@ -208,7 +208,7 @@ Testing Results</h2>
 <li>[x] Integration: ✅ Main script accepts parameter</li>
 <li>[x] Backward compatibility: ✅ Sequential processing unchanged</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md194"></a>
+<h2><a class="anchor" id="autotoc_md190"></a>
 Performance Validation</h2>
 <ul>
 <li>[x] Memory usage: ✅ ~200MB per process</li>
@@ -216,9 +216,9 @@ Performance Validation</h2>
 <li>[x] Speedup: ✅ 4-13x improvement demonstrated</li>
 <li>[x] Scalability: ✅ Works from 2-16+ cores</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md195"></a>
+<h1><a class="anchor" id="autotoc_md191"></a>
 🎯 &lt;strong&gt;Impact on Users&lt;/strong&gt;</h1>
-<h2><a class="anchor" id="autotoc_md196"></a>
+<h2><a class="anchor" id="autotoc_md192"></a>
 Immediate Benefits</h2>
 <ol type="1">
 <li><b>Time Savings</b>: 30-35 minutes saved per LUT generation</li>
@@ -226,14 +226,14 @@ Immediate Benefits</h2>
 <li><b>Resource Efficiency</b>: Better utilization of multi-core hardware</li>
 <li><b>User Experience</b>: Less waiting time for atmospheric correction</li>
 </ol>
-<h2><a class="anchor" id="autotoc_md197"></a>
+<h2><a class="anchor" id="autotoc_md193"></a>
 System Requirements</h2>
 <ul>
 <li><b>Minimum</b>: 2 CPU cores, 2GB RAM for parallel processing</li>
 <li><b>Recommended</b>: 4+ CPU cores, 4GB+ RAM for optimal performance</li>
 <li><b>Fallback</b>: Graceful degradation to sequential on insufficient resources</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md198"></a>
+<h1><a class="anchor" id="autotoc_md194"></a>
 📚 &lt;strong&gt;Documentation&lt;/strong&gt;</h1>
 <ul>
 <li><b><a class="el" href="md_PARALLEL__LUT.html">PARALLEL_LUT.md</a></b>: Comprehensive technical documentation</li>
@@ -241,9 +241,9 @@ System Requirements</h2>
 <li><b>Updated README.md</b>: Integration with existing documentation</li>
 <li><b>Inline code comments</b>: Detailed implementation explanations</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md199"></a>
+<h1><a class="anchor" id="autotoc_md195"></a>
 🔮 &lt;strong&gt;Future Roadmap&lt;/strong&gt;</h1>
-<h2><a class="anchor" id="autotoc_md200"></a>
+<h2><a class="anchor" id="autotoc_md196"></a>
 Short Term (Next Version)</h2>
 <ul>
 <li>[ ] MPI support for cluster-scale processing</li>
@@ -251,14 +251,14 @@ Short Term (Next Version)</h2>
 <li>[ ] Adaptive batch sizing based on scene complexity</li>
 <li>[ ] LUT result caching for partial parameter changes</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md201"></a>
+<h2><a class="anchor" id="autotoc_md197"></a>
 Long Term (Research)</h2>
 <ul>
 <li>[ ] Machine learning for optimal parameter prediction</li>
 <li>[ ] Cloud-based LUT generation service</li>
 <li>[ ] Integration with atmospheric correction APIs</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md202"></a>
+<h1><a class="anchor" id="autotoc_md198"></a>
 🏆 &lt;strong&gt;Achievement Summary&lt;/strong&gt;</h1>
 <p><b>Parallel LUT generation is now fully integrated into i.hyper.smac</b>, providing:</p>
 <ul>
