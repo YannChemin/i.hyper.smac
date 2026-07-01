@@ -294,8 +294,54 @@ def get_raster3d_info(raster3d):
     except Exception as e:
         gs.fatal(f"Cannot get info for 3D raster {raster3d}: {e}")
 
+_HYPER_JSON_BAND_CACHE = {}
+
+
+def _load_hyper_json_bands(raster3d):
+    """Read wavelength/fwhm/validity from i.hyper.import's JSON sidecar.
+
+    i.hyper.import (HyperMetadata) stores band metadata at
+    $MAPSET/grid3/<mapname>/hyper.json rather than in r3.support/r3.info
+    history, so that must be checked before falling back to per-band
+    r3.to.rast + r.info extraction (slow and error-prone).
+    """
+    if raster3d in _HYPER_JSON_BAND_CACHE:
+        return _HYPER_JSON_BAND_CACHE[raster3d]
+
+    import json as _json
+
+    name, mapset = (raster3d.split('@', 1) if '@' in raster3d
+                     else (raster3d, None))
+    result = {}
+    try:
+        env = gs.gisenv()
+        mapset = mapset or env['MAPSET']
+        path = os.path.join(env['GISDBASE'], env['LOCATION_NAME'], mapset,
+                            'grid3', name, 'hyper.json')
+        if os.path.isfile(path):
+            with open(path) as _fj:
+                data = _json.load(_fj)
+            b = data.get('bands') or {}
+            wavelengths = b.get('wavelength')
+            if wavelengths:
+                fwhms = b.get('fwhm') or []
+                for i, wl in enumerate(wavelengths):
+                    result[i + 1] = (float(wl),
+                                     float(fwhms[i]) if i < len(fwhms) else None,
+                                     True, 'nm')
+    except Exception:
+        result = {}
+
+    _HYPER_JSON_BAND_CACHE[raster3d] = result
+    return result
+
+
 def parse_wavelength_from_metadata(raster3d, band_num):
     """Parse wavelength from band metadata by reading directly from 3D raster info."""
+    json_bands = _load_hyper_json_bands(raster3d)
+    if band_num in json_bands:
+        return json_bands[band_num]
+
     try:
         # First try to get metadata directly from the 3D raster
         info = gs.read_command('r3.info', flags='h', map=raster3d)
